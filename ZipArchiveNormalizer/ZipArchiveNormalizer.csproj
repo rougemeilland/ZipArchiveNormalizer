@@ -71,7 +71,7 @@
     <Compile Include="ZipArchiveFilePathEqualityComparer.cs" />
     <Compile Include="ZipEntryExtensions.cs" />
     <Compile Include="ZipExtraField\UnicodeCommentExtraField.cs" />
-    <Compile Include="ZipExtraField\UnicodePathExtraField .cs" />
+    <Compile Include="ZipExtraField\UnicodePathExtraField.cs" />
     <Compile Include="ZipExtraField\UnixExtraField.cs" />
     <Compile Include="ZipFileEntryEnumerable.cs" />
   </ItemGroup>
