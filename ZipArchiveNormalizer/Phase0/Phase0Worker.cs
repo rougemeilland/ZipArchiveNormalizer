@@ -1,0 +1,94 @@
+﻿using System;
+using System.IO;
+using System.Linq;
+using Utility;
+using Utility.FileWorker;
+using ZipUtility;
+using ZipUtility.ZipExtraField;
+
+namespace ZipArchiveNormalizer.Phase0
+{
+    class Phase0Worker
+        : FileWorkerFromMainArgument, IPhaseWorker
+    {
+        private Func<FileInfo, bool> _isBadFileSelecter;
+
+        public event EventHandler<BadFileFoundEventArgs> BadFileFound;
+
+        static Phase0Worker()
+        {
+        }
+
+        public Phase0Worker(IWorkerCancellable canceller, Func<FileInfo, bool> isBadFileSelecter)
+            : base(canceller, FileWorkerConcurrencyMode.ParallelProcessingForEachFile)
+        {
+            _isBadFileSelecter = isBadFileSelecter;
+        }
+
+        public override string Description => "ZIPファイルに未知の拡張フィールドがないか調べます。";
+
+        protected override IFileWorkerActionFileParameter IsMatchFile(FileInfo sourceFile)
+        {
+            return
+                _isBadFileSelecter(sourceFile) == false &&
+                sourceFile.Extension.IsAnyOf(".zip", ".epub", StringComparison.InvariantCultureIgnoreCase)
+                ? DefaultFileParameter
+                : null;
+        }
+
+        protected override void ActionForFile(FileInfo sourceFile, IFileWorkerActionParameter parameter)
+        {
+            try
+            {
+                using (var zipFileBaseStream = new FileStream(sourceFile.FullName, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    foreach (var entry in zipFileBaseStream.EnumerateZipArchiveEntry())
+                    {
+                        UpdateProgress();
+                        var extraFieldIds =
+                            entry.ExtraFields.EnumerateExtraFieldIds()
+                            .ToList();
+                        extraFieldIds.Remove(CodePageExtraField.ExtraFieldId);
+                        extraFieldIds.Remove(ExtendedTimestampExtraField.ExtraFieldId);
+                        extraFieldIds.Remove(NewUnixExtraField.ExtraFieldId);
+                        extraFieldIds.Remove(NtfsExtraField.ExtraFieldId);
+                        extraFieldIds.Remove(UnicodeCommentExtraField.ExtraFieldId);
+                        extraFieldIds.Remove(UnicodePathExtraField.ExtraFieldId);
+                        extraFieldIds.Remove(UnixExtraFieldType0.ExtraFieldId);
+                        extraFieldIds.Remove(UnixExtraFieldType1.ExtraFieldId);
+                        extraFieldIds.Remove(UnixExtraFieldType2.ExtraFieldId);
+                        extraFieldIds.Remove(WindowsSecurityDescriptorExtraField.ExtraFieldId);
+                        extraFieldIds.Remove(0x0001);
+                        if (extraFieldIds.Any())
+                        {
+                            RaiseWarningReportedEvent(
+                                sourceFile,
+                                string.Format(
+                                    "Unknown extra field used.: entry=\"{0}\", id={{{1}}}",
+                                    entry.FullName,
+                                    string.Join(
+                                        ", ",
+                                        extraFieldIds
+                                            .OrderBy(id => id)
+                                            .Select(id => string.Format("0x{0:x4}", id)))));
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                RaiseErrorReportedEvent(sourceFile, "zipファイルの解析に失敗しました。");
+            }
+            finally
+            {
+                AddToDestinationFiles(sourceFile);
+            }
+        }
+
+        private void RaiseBadFileFoundEvent(FileInfo targetFile)
+        {
+            if (BadFileFound != null)
+                BadFileFound(this, new BadFileFoundEventArgs(targetFile));
+        }
+    }
+}

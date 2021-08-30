@@ -1,0 +1,39 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="ZipArchiveNormalizer.Properties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="ImageCollectionArchiveFileNamePatternText" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">^(?!.*青空文庫txt).*\.zip$</Value>
+    </Setting>
+    <Setting Name="AozoraBunkoArchiveFileNamePatternText" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">青空文庫txt.*\.zip$</Value>
+    </Setting>
+    <Setting Name="ContentArchiveFileNamePatternText" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">^((?!.*青空文庫txt).*\.zip)|(.*\.epub)$</Value>
+    </Setting>
+    <Setting Name="NotedEntryNamePatternText" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">(\.(pdf|bmp|zip)$)|(resized)</Value>
+    </Setting>
+    <Setting Name="MimeTypeEntryNamePatternText" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">^mimetype$</Value>
+    </Setting>
+    <Setting Name="UselessEntryNameForImageCollectionPatternText" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">^(.*\.(exe|bat|scr|com|vbs|jar|db|ini|url|lst|dvi|htm|html|mht|mhtml|rtf|txt)|\.DS_Store)$</Value>
+    </Setting>
+    <Setting Name="UselessEntryNameForAozoraBunkoPatternText" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">^(.*\.(exe|bat|scr|com|vbs|jar|db|ini|url|lst|dvi|htm|html|mht|mhtml|rtf)|\.DS_Store)$</Value>
+    </Setting>
+    <Setting Name="UselessEntryNameForContentPatternText" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">\.(exe|bat|scr|com|vbs|jar)$</Value>
+    </Setting>
+    <Setting Name="FilesNotToBeExtractedForAozoraBunkoPatternText" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">^(read ?me'?|誤字脱字|置換|訂正リスト|追記|注|校正情報|おまけ|注意)(\s*\((unicode|utf-?(7|8|16|31))\))?$</Value>
+    </Setting>
+    <Setting Name="ApplicationName" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">ZipArchiveNormalizer</Value>
+    </Setting>
+    <Setting Name="NotedEntryCrc32List" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">0E8080EB;E159561F</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>

@@ -4,10 +4,10 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{07435AB7-A490-4814-8D67-B349344725F7}</ProjectGuid>
+    <ProjectGuid>{14F12A9D-4FF2-4D38-BCC3-DA4E35E51C78}</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <RootNamespace>ZipArchiveNormalizer</RootNamespace>
-    <AssemblyName>ZipArchiveNormalizer</AssemblyName>
+    <RootNamespace>ImageFileRenumber</RootNamespace>
+    <AssemblyName>ImageFileRenumber</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -35,12 +35,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="ICSharpCode.SharpZipLib, Version=1.3.2.10, Culture=neutral, PublicKeyToken=1b03e6acf1164f73, processorArchitecture=MSIL">
-      <HintPath>..\packages\SharpZipLib.1.3.2\lib\net45\ICSharpCode.SharpZipLib.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Numerics" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -50,51 +47,22 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="FileExtensions.cs" />
-    <Compile Include="FileImportanceComparer.cs" />
-    <Compile Include="BadFileFoundEventArgs.cs" />
-    <Compile Include="IPhaseWorker.cs" />
-    <Compile Include="NormalizerWorker.cs" />
-    <Compile Include="Phase0\Phase0Worker.cs" />
-    <Compile Include="Phase1\EntryTree.cs" />
-    <Compile Include="Phase1\IReporter.cs" />
-    <Compile Include="Phase1\ManualVerificationProposedEventArgs.cs" />
-    <Compile Include="Phase1\ModifiedEntry.cs" />
-    <Compile Include="Phase1\Phase1Worker.cs" />
-    <Compile Include="Phase2\Phase2Worker.cs" />
-    <Compile Include="Phase3\Phase3Worker.cs" />
-    <Compile Include="Phase4\Phase4Worker.cs" />
-    <Compile Include="Phase5\Phase5Worker.cs" />
-    <Compile Include="Phase6\Phase6Worker.cs" />
+    <Compile Include="ImageFileNameRenumberWorker.cs" />
     <Compile Include="Program.cs" />
-    <Compile Include="ProgressUpdatedEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Properties\Settings.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTimeSharedInput>True</DesignTimeSharedInput>
-      <DependentUpon>Settings.settings</DependentUpon>
-    </Compile>
-    <Compile Include="Phase1\EntryTreeNode.cs" />
-    <Compile Include="ArchiveType.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <None Include="packages.config" />
-    <None Include="Properties\Settings.settings">
-      <Generator>SettingsSingleFileGenerator</Generator>
-      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
-    </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ImageUtility\ImageUtility.csproj">
+      <Project>{7a5fd31b-1231-4e1d-8cae-a2a69ef03c9e}</Project>
+      <Name>ImageUtility</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Utility\Utility.csproj">
       <Project>{9d9afae8-0b42-4134-96cb-eeb614872d83}</Project>
       <Name>Utility</Name>
     </ProjectReference>
-    <ProjectReference Include="..\ZipUtility\ZipUtility.csproj">
-      <Project>{e040429b-c16f-4493-a6a0-dfb4801a23e2}</Project>
-      <Name>ZipUtility</Name>
-    </ProjectReference>
   </ItemGroup>
-  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

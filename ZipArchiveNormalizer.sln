@@ -5,6 +5,18 @@ VisualStudioVersion = 16.0.31515.178
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipArchiveNormalizer", "ZipArchiveNormalizer\ZipArchiveNormalizer.csproj", "{07435AB7-A490-4814-8D67-B349344725F7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoImageTrimmer", "..\AutoImageTrimmer\AutoImageTrimmer\AutoImageTrimmer.csproj", "{C417CAFE-39E1-412A-AD7D-63E0A1E28EF0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utility", "Utility\Utility.csproj", "{9D9AFAE8-0B42-4134-96CB-EEB614872D83}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImageFileRenumber", "ImageFileRenumber\ImageFileRenumber.csproj", "{14F12A9D-4FF2-4D38-BCC3-DA4E35E51C78}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Experiment", "Experiment\Experiment.csproj", "{CE76880F-0F2D-4893-9ABB-1034FDF05B77}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtility", "ZipUtility\ZipUtility.csproj", "{E040429B-C16F-4493-A6A0-DFB4801A23E2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImageUtility", "ImageUtility\ImageUtility.csproj", "{7A5FD31B-1231-4E1D-8CAE-A2A69EF03C9E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +27,30 @@ Global
 		{07435AB7-A490-4814-8D67-B349344725F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{07435AB7-A490-4814-8D67-B349344725F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{07435AB7-A490-4814-8D67-B349344725F7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C417CAFE-39E1-412A-AD7D-63E0A1E28EF0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C417CAFE-39E1-412A-AD7D-63E0A1E28EF0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C417CAFE-39E1-412A-AD7D-63E0A1E28EF0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C417CAFE-39E1-412A-AD7D-63E0A1E28EF0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9D9AFAE8-0B42-4134-96CB-EEB614872D83}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9D9AFAE8-0B42-4134-96CB-EEB614872D83}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9D9AFAE8-0B42-4134-96CB-EEB614872D83}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9D9AFAE8-0B42-4134-96CB-EEB614872D83}.Release|Any CPU.Build.0 = Release|Any CPU
+		{14F12A9D-4FF2-4D38-BCC3-DA4E35E51C78}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{14F12A9D-4FF2-4D38-BCC3-DA4E35E51C78}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{14F12A9D-4FF2-4D38-BCC3-DA4E35E51C78}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{14F12A9D-4FF2-4D38-BCC3-DA4E35E51C78}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CE76880F-0F2D-4893-9ABB-1034FDF05B77}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE76880F-0F2D-4893-9ABB-1034FDF05B77}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE76880F-0F2D-4893-9ABB-1034FDF05B77}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CE76880F-0F2D-4893-9ABB-1034FDF05B77}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E040429B-C16F-4493-A6A0-DFB4801A23E2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E040429B-C16F-4493-A6A0-DFB4801A23E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E040429B-C16F-4493-A6A0-DFB4801A23E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E040429B-C16F-4493-A6A0-DFB4801A23E2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A5FD31B-1231-4E1D-8CAE-A2A69EF03C9E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A5FD31B-1231-4E1D-8CAE-A2A69EF03C9E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A5FD31B-1231-4E1D-8CAE-A2A69EF03C9E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A5FD31B-1231-4E1D-8CAE-A2A69EF03C9E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
