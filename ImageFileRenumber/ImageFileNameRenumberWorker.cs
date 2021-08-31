@@ -221,7 +221,11 @@ namespace ImageFileRenumber
             return directoryParameter;
         }
 
-        protected override IComparer<string> FileNameComparer => _fileNameComparer;
+        protected override IComparer<FileInfo> FileComparer =>
+            new CustomizableComparer<FileInfo>(
+                (file1, file2) => _fileNameComparer.Compare(file1.FullName, file2.FullName),
+                (file1, file2) => StringComparer.InvariantCultureIgnoreCase.Equals(file1.FullName, file2.FullName),
+                file => file.GetHashCode());
 
         protected override void ActionForFile(FileInfo sourceFile, IFileWorkerActionParameter parameter)
         {

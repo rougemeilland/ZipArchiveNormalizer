@@ -46,7 +46,7 @@ namespace ZipUtility.ZipExtraField
                 ParseInternalBuffer(_headerType);
         }
 
-        internal IZip64ExtendedInformationExtraFieldValueSource Source
+        internal IZip64ExtendedInformationExtraFieldValueSource ZipHeaderSource
         {
             get => _source;
 

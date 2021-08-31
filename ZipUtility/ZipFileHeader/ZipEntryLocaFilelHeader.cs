@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -9,9 +8,12 @@ using ZipUtility.ZipExtraField;
 namespace ZipUtility.ZipFileHeader
 {
     class ZipEntryLocaFilelHeader
+        : IZip64ExtendedInformationExtraFieldValueSource
     {
         private static byte[] _localHeaderSignature;
         private static Encoding _utf8EncodingWithouBOM;
+        private UInt32 _packedSizeValueInLocalFileHeader;
+        private UInt32 _sizeValueInLocalFileHeader;
 
         static ZipEntryLocaFilelHeader()
         {
@@ -19,16 +21,31 @@ namespace ZipUtility.ZipFileHeader
             _utf8EncodingWithouBOM = new UTF8Encoding(false);
         }
 
-        private ZipEntryLocaFilelHeader(ZipEntryCentralDirectoryHeader centralDirectoryHeader, ZipFileEntryGeneralPurposeBitFlag generalPurposeBitFlag, IReadOnlyArray<byte> fullNameBytes, IReadOnlyArray<byte> commentBytes, IReadOnlyArray<byte> extraDataSource, ExtraFieldStorage extraFieldsOnCentralDirectoryHeader)
+        private ZipEntryLocaFilelHeader(ZipEntryGeneralPurposeBitFlag generalPurposeBitFlag, ZipEntryCompressionMethod compressionMethod, UInt32 crc, UInt32 packedSizeValueInLocalFileHeader, UInt32 sizeValueInLocalFileHeader, IReadOnlyArray<byte> fullNameBytes, IReadOnlyArray<byte> commentBytes, IReadOnlyArray<byte> extraDataSource, ExtraFieldStorage extraFieldsOnCentralDirectoryHeader)
         {
-            Index = centralDirectoryHeader.Index;
-            Offset = centralDirectoryHeader.LocalFileHeaderOffset;
             GeneralPurposeBitFlag = generalPurposeBitFlag;
-            DosTime = centralDirectoryHeader.DosTime;
+            CompressionMethod = compressionMethod;
+            Crc = crc;
+            _packedSizeValueInLocalFileHeader = packedSizeValueInLocalFileHeader;
+            _sizeValueInLocalFileHeader = sizeValueInLocalFileHeader;
             FullNameBytes = fullNameBytes;
             CommentBytes = commentBytes;
             ExtraFields = new ExtraFieldStorage(ZipEntryHeaderType.LocalFileHeader, extraFieldsOnCentralDirectoryHeader, extraDataSource);
- 
+
+            // エントリのサイズの設定
+            var zip64ExtraData = ExtraFields.GetData<Zip64ExtendedInformationExtraFieldForLocalHeader>();
+            if (zip64ExtraData != null)
+            {
+                zip64ExtraData.ZipHeaderSource = this;
+                PackedSize = zip64ExtraData.PackedSize;
+                Size = zip64ExtraData.Size;
+            }
+            else
+            {
+                PackedSize = _packedSizeValueInLocalFileHeader;
+                Size = _sizeValueInLocalFileHeader;
+            }
+
             // 日付に関する extra field を検索して日付を設定する (上から順に優先される)
             var timeStampExtraFields = new[]
             {
@@ -52,16 +69,20 @@ namespace ZipUtility.ZipFileHeader
             }
 
             // エントリ名とコメントを設定する
-            if ((GeneralPurposeBitFlag & ZipFileEntryGeneralPurposeBitFlag.UseUnicodeEncodingForNameAndComment) != ZipFileEntryGeneralPurposeBitFlag.None)
+            if ((GeneralPurposeBitFlag & ZipEntryGeneralPurposeBitFlag.UseUnicodeEncodingForNameAndComment) != ZipEntryGeneralPurposeBitFlag.None)
             {
                 // ローカルヘッダのフラグでパス名とコメントにUNICODEを使用するように求められている場合
                 // エントリ名とコメントのエンコーディングにUTF8を採用する
                 FullName = _utf8EncodingWithouBOM.GetString(fullNameBytes.ToArray());
                 Comment = _utf8EncodingWithouBOM.GetString(commentBytes.ToArray());
+                OriginalFullName = FullName;
             }
             else
             {
                 // ローカルヘッダのフラグでパス名とコメントにUNICODEを使用するように求められていない場合
+
+                OriginalFullName = Encoding.Default.GetString(fullNameBytes.ToArray());
+
                 var codePageExtraField = ExtraFields.GetData<CodePageExtraField>();
                 if (codePageExtraField != null)
                 {
@@ -106,18 +127,24 @@ namespace ZipUtility.ZipFileHeader
             }
         }
 
-        public long Index { get; }
-        public long Offset { get; }
-        public ZipFileEntryGeneralPurposeBitFlag GeneralPurposeBitFlag { get; }
-        public DateTime DosTime { get; }
+        public ZipEntryGeneralPurposeBitFlag GeneralPurposeBitFlag { get; }
+        public ZipEntryCompressionMethod CompressionMethod { get; }
+        public UInt32 Crc { get; }
+        public long PackedSize { get; }
+        public long Size { get; }
         public IReadOnlyArray<byte> FullNameBytes { get; }
         public IReadOnlyArray<byte> CommentBytes { get; }
         public ExtraFieldStorage ExtraFields { get; }
         public DateTime? LastWriteTimeUtc { get; }
         public DateTime? LastAccessTimeUtc { get; }
         public DateTime? CreationTimeUtc { get; }
+        public string OriginalFullName { get; }
         public string FullName { get; }
         public string Comment { get; }
+        UInt32? IZip64ExtendedInformationExtraFieldValueSource.Size { get => _sizeValueInLocalFileHeader; set => _sizeValueInLocalFileHeader = value ?? throw new NullReferenceException(@"Do not set ""IZip64ExtendedInformationExtraFieldValueSource.Size"" to null."); }
+        UInt32? IZip64ExtendedInformationExtraFieldValueSource.PackedSize { get => _packedSizeValueInLocalFileHeader; set => _packedSizeValueInLocalFileHeader = value ?? throw new NullReferenceException(@"Do not set ""IZip64ExtendedInformationExtraFieldValueSource.PackedSize"" to null."); }
+        UInt32? IZip64ExtendedInformationExtraFieldValueSource.RelativeHeaderOffset { get => null; set => throw new NotSupportedException(); }
+        UInt16? IZip64ExtendedInformationExtraFieldValueSource.DiskStartNumber { get => null; set => throw new NotSupportedException(); }
 
         public static ZipEntryLocaFilelHeader Parse(Stream zipFileBaseStream, ZipEntryCentralDirectoryHeader centralDirectoryHeader)
         {
@@ -127,28 +154,36 @@ namespace ZipUtility.ZipFileHeader
             var signature = minimumHeaderBytes.GetSequence(0, _localHeaderSignature.Length);
             if (!signature.SequenceEqual(_localHeaderSignature))
                 throw new BadZipFormatException("Not found in local header in expected position");
-            var generalPurposeBitFlag = (ZipFileEntryGeneralPurposeBitFlag)minimumHeaderBytes.ToUInt16(6);
-            //var compressionMethod = minimumHeaderBytes.ToUInt16(8);
+            var generalPurposeBitFlag = (ZipEntryGeneralPurposeBitFlag)minimumHeaderBytes.ToUInt16(6);
+            var compressionMethod = (ZipEntryCompressionMethod)minimumHeaderBytes.ToUInt16(8);
             //var dosTime = minimumHeaderBytes.ToUInt16(10);
             //var dosDate = minimumHeaderBytes.ToUInt16(12);
-            //var packedSize = minimumHeaderBytes.ToUInt32(18);
-            //var size = minimumHeaderBytes.ToUInt32(22);
+            var crc = minimumHeaderBytes.ToUInt32(14);
+            var packedSize = minimumHeaderBytes.ToUInt32(18);
+            var size = minimumHeaderBytes.ToUInt32(22);
             var fileNameLength = minimumHeaderBytes.ToUInt16(26);
             var extraFieldLength = minimumHeaderBytes.ToUInt16(28);
             var fullNameBytes = zipFileBaseStream.ReadBytes(fileNameLength);
             var extraData = zipFileBaseStream.ReadBytes(extraFieldLength);
 
-            // ファイルサイズ/圧縮後ファイルサイズ/CRC を真面目に取得しようとすると、(ファイルサイズがわからないまま)ファイルを全部読み取り、
-            // その後にある Data Descriptor を読まねばならないことがある。
-            // 圧縮元のデータがファイルシステム上のファイルではなくストリームだとそういう圧縮がされることがあるらしい。
-            // このプログラムの目的としては、ファイルサイズやCRCを独自に取得することは必須ではないので、それらの情報の取得は断念することにした。
+            // データディスクリプタが存在する場合は取得する
+            if (generalPurposeBitFlag.HasFlag(ZipEntryGeneralPurposeBitFlag.HasDataDescriptor))
+            {
+                var dataDescriptor = ZipEntryDataDescriptor.Parse(zipFileBaseStream, centralDirectoryHeader.Index);
+                crc = dataDescriptor.Crc;
+                packedSize = dataDescriptor.PackedSize;
+                size = dataDescriptor.Size;
+            }
 
             // ローカルディレクトリでは日時が設定されないことがあるので使用しない
             // var dosDateTime = new[] { dosDate, dosTime }.FromDosDateTimeToDateTime(DateTimeKind.Local).ToUniversalTime();
             return
                 new ZipEntryLocaFilelHeader(
-                    centralDirectoryHeader,
                     generalPurposeBitFlag,
+                    compressionMethod,
+                    crc,
+                    packedSize,
+                    size,
                     fullNameBytes,
                     centralDirectoryHeader.CommentBytes,
                     extraData,

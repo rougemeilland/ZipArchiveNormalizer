@@ -4,7 +4,7 @@ using System.IO;
 
 namespace ZipUtility.ZipFileHeader
 {
-    class ZipFileInfo
+    class ZipFileSummary
     {
         private Int64 _zipStartOffset;
         private UInt32 _numberOfThisDisk;
@@ -15,7 +15,7 @@ namespace ZipUtility.ZipFileHeader
         private Int64 _offsetOfStartOfCentralDirectory;
 
 
-        public ZipFileInfo(Int64 zipStartOffset, UInt32 numberOfThisDisk, UInt32 diskWhereCentralDirectoryStarts, Int64 numberOfCentralDirectoryRecordsOnThisDisk, Int64 totalNumberOfCentralDirectoryRecords, Int64 sizeOfCentralDirectory, Int64 offsetOfStartOfCentralDirectory)
+        public ZipFileSummary(Int64 zipStartOffset, UInt32 numberOfThisDisk, UInt32 diskWhereCentralDirectoryStarts, Int64 numberOfCentralDirectoryRecordsOnThisDisk, Int64 totalNumberOfCentralDirectoryRecords, Int64 sizeOfCentralDirectory, Int64 offsetOfStartOfCentralDirectory)
         {
             _zipStartOffset = zipStartOffset;
             _numberOfThisDisk = numberOfThisDisk;
@@ -26,22 +26,27 @@ namespace ZipUtility.ZipFileHeader
             _offsetOfStartOfCentralDirectory = offsetOfStartOfCentralDirectory;
         }
 
-        public IEnumerable<ZipEntryLocaFilelHeader> EnumerateEntry(Stream zipInputStream)
+        public IEnumerable<ZipEntryHeader> EnumerateEntry(Stream zipInputStream)
         {
             var centralHeaders = new List<ZipEntryCentralDirectoryHeader>();
             foreach (var centralHeader in ZipEntryCentralDirectoryHeader.Enumerate(zipInputStream, _zipStartOffset, _offsetOfStartOfCentralDirectory, _numberOfCentralDirectoryRecordsOnThisDisk))
                 centralHeaders.Add(centralHeader);
-            var localHeaders = new List<ZipEntryLocaFilelHeader>();
+            var headers = new List<ZipEntryHeader>();
             foreach (var centralHeader in centralHeaders)
-                localHeaders.Add(ZipEntryLocaFilelHeader.Parse(zipInputStream, centralHeader));
-            return localHeaders;
+                headers.Add(new ZipEntryHeader(centralHeader, ZipEntryLocaFilelHeader.Parse(zipInputStream, centralHeader)));
+            return headers;
         }
 
-        public static ZipFileInfo Parse(Stream zipInputStream)
+        public static ZipFileSummary Parse(Stream zipInputStream)
         {
             var zipStartOffset = zipInputStream.FindFirstSigunature(4, 0, zipInputStream.Length, (buffer, index) => buffer[index] == 0x50 && buffer[index + 1] ==  0x4b && (buffer[index + 2] == 0x03 && buffer[index + 3] == 0x04 || buffer[index + 2] < 0x10 && buffer[index + 3] < 0x10));
             if (zipStartOffset < 0)
-                throw new BadZipFormatException("No local file header.");
+            {
+                // ローカルファイルヘッダが一つもない場合
+                // エントリが一つもないZIPファイルかあるいはそもそもZIPファイルではない場合が考えられる
+                // この時点では区別がつかないので、とりあえず zipStartOffset = 0 にして続行する
+                zipStartOffset = 0;
+            }
             var eocd = ZipFileEOCD.Find(zipInputStream, zipStartOffset);
             var commentBytes = eocd.CommentBytes;
             var zip64EndOfCentralDirectoryLocator = ZipFileZip64EndOfCentralDirectoryLocator.Find(zipInputStream, zipStartOffset, eocd);
@@ -52,7 +57,7 @@ namespace ZipUtility.ZipFileHeader
                 var zip64EndOfCentralDirectoryRecord = ZipFileZip64EndOfCentralDirectoryRecord.Parse(zipInputStream, zipStartOffset, zip64EndOfCentralDirectoryLocator);
                 var unknown1 = zip64EndOfCentralDirectoryRecord.NumberOfThisDisk;
                 var unknown2 = zip64EndOfCentralDirectoryRecord.NumberOfTheDiskWithTheStartOfTheCentralDirectory;
-                return new ZipFileInfo(
+                return new ZipFileSummary(
                     zipStartOffset,
                     zip64EndOfCentralDirectoryLocator.TotalNumberOfDisks,
                     zip64EndOfCentralDirectoryLocator.NumberOfTheDiskWithTheStartOfTheZip64EndOfCentralDirectory,
@@ -67,7 +72,7 @@ namespace ZipUtility.ZipFileHeader
                 if (eocd.OffsetOfStartOfCentralDirectory < eocd.OffsetOfThisHeader - eocd.SizeOfCentralDirectory)
                     throw new BadZipFormatException("Detected embedded resource?");
 
-                return new ZipFileInfo(
+                return new ZipFileSummary(
                     zipStartOffset,
                     eocd.NumberOfThisDisk,
                     eocd.DiskWhereCentralDirectoryStarts,

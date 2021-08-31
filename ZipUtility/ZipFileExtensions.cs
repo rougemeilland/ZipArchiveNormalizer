@@ -36,14 +36,14 @@ namespace ZipUtility
             var zipEntriesArray =
                 zipEntries
                 .ToArray();
-            var localHeaders =
-                ZipFileInfo.Parse(ziInputStream).EnumerateEntry(ziInputStream)
+            var headers =
+                ZipFileSummary.Parse(ziInputStream).EnumerateEntry(ziInputStream)
                 .ToArray();
-            if (zipEntriesArray.Length != localHeaders.Length)
+            if (zipEntriesArray.Length != headers.Length)
                 throw new Exception();
             return
                 Enumerable.Range(0, zipEntriesArray.Length)
-                .Select(index => new ZipArchiveEntry(zipEntriesArray[index], localHeaders[index]))
+                .Select(index => new ZipArchiveEntry(zipEntriesArray[index], headers[index]))
                 .ToList();
         }
 
@@ -63,8 +63,8 @@ namespace ZipUtility
 
             // 基本属性の設定
             newEntry.Comment = entry.Comment;
-            newEntry.HostSystem = entry.HostSystem;
-            newEntry.ExternalFileAttributes = entry.ExternalFileAttributes;
+            newEntry.HostSystem = (int)entry.HostSystem;
+            newEntry.ExternalFileAttributes = (int)entry.ExternalFileAttributes;
             newEntry.Size = entry.Size; // これをセットしないと 出力先エントリに Zip64 拡張属性が勝手についてしまう
 
             // mimetype ファイルの場合は圧縮しない

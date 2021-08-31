@@ -54,6 +54,10 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Utility\Utility.csproj">
+      <Project>{9d9afae8-0b42-4134-96cb-eeb614872d83}</Project>
+      <Name>Utility</Name>
+    </ProjectReference>
     <ProjectReference Include="..\ZipUtility\ZipUtility.csproj">
       <Project>{e040429b-c16f-4493-a6a0-dfb4801a23e2}</Project>
       <Name>ZipUtility</Name>

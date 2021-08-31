@@ -1,5 +1,4 @@
-﻿using ICSharpCode.SharpZipLib.Zip;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -22,14 +21,17 @@ namespace ZipUtility.ZipFileHeader
             _centralHeaderSignature = new byte[] { 0x50, 0x4b, 0x01, 0x02 };
         }
 
-        private ZipEntryCentralDirectoryHeader(Int64 index, Int64 zipStartOffset, ZipFileEntryGeneralPurposeBitFlag generalPurposeBitFlag, DateTime dosTime, UInt32 packedSizeValueInCentralDirectory, UInt32 sizeValueInCentralDirectory, UInt16 diskStartNumberValueInCentralDirectory, UInt32 localFileHeaderOffsetValueInCentralDirectory, IReadOnlyArray<byte> fullNameBytes, IReadOnlyArray<byte> commentBytes, IReadOnlyArray<byte> extraDataSource)
+        private ZipEntryCentralDirectoryHeader(Int64 index, Int64 zipStartOffset, ZipEntryHostSystem hostSystem, ZipEntryGeneralPurposeBitFlag generalPurposeBitFlag, DateTime dosTime, UInt32 packedSizeValueInCentralDirectory, UInt32 sizeValueInCentralDirectory, UInt16 diskStartNumberValueInCentralDirectory, UInt32 externalFileAttributes, UInt32 localFileHeaderOffsetValueInCentralDirectory, IReadOnlyArray<byte> fullNameBytes, IReadOnlyArray<byte> commentBytes, IReadOnlyArray<byte> extraDataSource)
         {
             Index = index;
+            HostSystem = hostSystem;
+            GeneralPurposeBitFlag = GeneralPurposeBitFlag;
             DosTime = dosTime;
             _packedSizeValueInCentralDirectory = packedSizeValueInCentralDirectory;
             _sizeValueInCentralDirectory = sizeValueInCentralDirectory;
-            _localFileHeaderOffsetValueInCentralDirectory = localFileHeaderOffsetValueInCentralDirectory;
             _diskStartNumberValueInCentralDirectory = diskStartNumberValueInCentralDirectory;
+            ExternalFileAttributes = externalFileAttributes;
+            _localFileHeaderOffsetValueInCentralDirectory = localFileHeaderOffsetValueInCentralDirectory;
             FullNameBytes = fullNameBytes;
             CommentBytes = commentBytes;
             ExtraFields = new ExtraFieldStorage(ZipEntryHeaderType.CentralDirectoryHeader, extraDataSource);
@@ -37,7 +39,7 @@ namespace ZipUtility.ZipFileHeader
             var zip64ExtraData = ExtraFields.GetData<Zip64ExtendedInformationExtraFieldForCentraHeader>();
             if (zip64ExtraData != null)
             {
-                zip64ExtraData.Source = this;
+                zip64ExtraData.ZipHeaderSource = this;
                 DiskStartNumber = zip64ExtraData.DiskStartNumber;
                 LocalFileHeaderOffset = zipStartOffset + zip64ExtraData.RelativeHeaderOffset;
             }
@@ -49,10 +51,11 @@ namespace ZipUtility.ZipFileHeader
         }
 
         public long Index { get; }
-
-        public ZipFileEntryGeneralPurposeBitFlag GeneralPurposeBitFlag { get; }
+        public ZipEntryHostSystem HostSystem { get; }
+        public ZipEntryGeneralPurposeBitFlag GeneralPurposeBitFlag { get; }
         public DateTime DosTime { get; }
         public UInt32 DiskStartNumber { get; }
+        public UInt32 ExternalFileAttributes { get; }
         public long LocalFileHeaderOffset { get; }
         public IReadOnlyArray<byte> FullNameBytes { get; }
         public IReadOnlyArray<byte> CommentBytes { get; }
@@ -74,9 +77,9 @@ namespace ZipUtility.ZipFileHeader
             var signature = minimumHeaderBytes.GetSequence(0, _centralHeaderSignature.Length);
             if (!signature.SequenceEqual(_centralHeaderSignature))
                 throw new BadZipFormatException("Not found central header in expected position");
-            //var versionMadeBy = minimumHeaderBytes.ToUInt16(4);
-            //var hostSystem = (versionMadeBy >> 8);
-            var generalPurposeBitFlag = (ZipFileEntryGeneralPurposeBitFlag)minimumHeaderBytes.ToUInt16(8);
+            var versionMadeBy = minimumHeaderBytes.ToUInt16(4);
+            var hostSystem = (ZipEntryHostSystem)(versionMadeBy >> 8);
+            var generalPurposeBitFlag = (ZipEntryGeneralPurposeBitFlag)minimumHeaderBytes.ToUInt16(8);
             //var compressionMethod = minimumHeaderBytes.ToUInt16(10);
             var dosTime = minimumHeaderBytes.ToUInt16(12);
             var dosDate = minimumHeaderBytes.ToUInt16(14);
@@ -87,7 +90,7 @@ namespace ZipUtility.ZipFileHeader
             var extraFieldLength = minimumHeaderBytes.ToUInt16(30);
             var commentLength = minimumHeaderBytes.ToUInt16(32);
             var diskStartNumber = minimumHeaderBytes.ToUInt16(34);
-            // var externalFileAttribute = (ZipFileEntryExternalFileAttributes)minimumHeaderBytes.ToUInt32(38);
+            var externalFileAttribute = minimumHeaderBytes.ToUInt32(38);
             var relativeLocalFileHeaderOffset = minimumHeaderBytes.ToUInt32(42);
 
             // ファイルサイズ/圧縮後ファイルサイズ/CRC を真面目に取得しようとすると、(ファイルサイズがわからないまま)ファイルを全部読み取り、
@@ -102,7 +105,7 @@ namespace ZipUtility.ZipFileHeader
 
             // MS-DOS形式の日時はタイムゾーンが規定されていないが現地時刻とみなして(というよりそう解釈する以外に選択の余地がない)、その後にUTCに変換して使用する。
             var dosDateTime = new[] { dosDate, dosTime }.FromDosDateTimeToDateTime(DateTimeKind.Local).ToUniversalTime();
-            return new ZipEntryCentralDirectoryHeader(index, zipStartOffset, generalPurposeBitFlag, dosDateTime, packedSize, size, diskStartNumber, relativeLocalFileHeaderOffset, fullNameBytes, commentBytes, extraDataSource);
+            return new ZipEntryCentralDirectoryHeader(index, zipStartOffset, hostSystem, generalPurposeBitFlag, dosDateTime, packedSize, size, diskStartNumber, externalFileAttribute, relativeLocalFileHeaderOffset, fullNameBytes, commentBytes, extraDataSource);
         }
 
         UInt32? IZip64ExtendedInformationExtraFieldValueSource.Size { get => _sizeValueInCentralDirectory; set => _sizeValueInCentralDirectory = value ?? throw new NullReferenceException(@"Do not set ""IZip64ExtendedInformationExtraFieldValueSource.Size"" to null."); }

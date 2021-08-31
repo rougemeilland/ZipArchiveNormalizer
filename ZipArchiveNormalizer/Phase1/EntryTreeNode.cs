@@ -112,7 +112,7 @@ namespace ZipArchiveNormalizer.Phase1
                     reporter.ReportInformationMessage(
                         string.Format(
                             "無駄なディレクトリエントリを短縮します。: \"{0}\"",
-                            string.Join("/", directoryPathElements.Concat(new[] { singleDirectoryElement.Name }))));
+                            string.Join("/", directoryPathElements.Concat(new[] { singleDirectoryElement.Name, "" }))));
                 }
                 _children = singleDirectoryElement._children.ToList();
                 updated = true;

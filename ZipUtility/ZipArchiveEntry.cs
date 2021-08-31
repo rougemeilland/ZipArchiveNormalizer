@@ -1,61 +1,87 @@
 ﻿using ICSharpCode.SharpZipLib.Zip;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using ZipUtility.ZipFileHeader;
+using Utility;
 using ZipUtility.ZipExtraField;
+using ZipUtility.ZipFileHeader;
 
 namespace ZipUtility
 {
     public class ZipArchiveEntry
     {
-        internal ZipArchiveEntry(ZipEntry zipEntry, ZipEntryLocaFilelHeader localFileyHeader)
+        internal ZipArchiveEntry(ZipEntry zipEntry, ZipEntryHeader internalHeader)
         {
-            if (zipEntry.Offset != localFileyHeader.Offset)
-                throw new Exception();
-            Index = localFileyHeader.Index;
+            Index = internalHeader.CentralDirectoryHeader.Index;
+            GeneralPurposeBitFlag = internalHeader.LocalFileHeader.GeneralPurposeBitFlag;
             IsFile = zipEntry.IsFile;
             IsDirectory = zipEntry.IsDirectory;
-            FullNameForPrimaryKey = zipEntry.Name;
-            Offset = zipEntry.Offset;
-            Crc = zipEntry.Crc;
-            Size = zipEntry.Size;
-            PackedSize = zipEntry.CompressedSize;
-            IsCompressed = zipEntry.CompressionMethod != CompressionMethod.Stored;
-            HostSystem = zipEntry.HostSystem;
-            ExternalFileAttributes = zipEntry.ExternalFileAttributes;
-            EntryTextEncoding = zipEntry.IsUnicodeText ? ZipArchiveEntryTextEncoding.UTF8 : ZipArchiveEntryTextEncoding.Local;
-            ExtraFields = new ExtraFieldStorage(localFileyHeader.ExtraFields);
-            LastWriteTimeUtc = localFileyHeader.LastWriteTimeUtc ?? localFileyHeader.DosTime;
-            CreationTimeUtc = localFileyHeader.CreationTimeUtc;
-            LastAccessTimeUtc = localFileyHeader.LastAccessTimeUtc;
-            FullName = localFileyHeader.FullName ?? zipEntry.Name;
-            Comment = localFileyHeader.Comment ?? zipEntry.Comment;
-            FullNameBytes = localFileyHeader.FullNameBytes.ToArray();
-            CommentBytes = localFileyHeader.CommentBytes.ToArray();
+            IsEncrypted =
+                internalHeader.LocalFileHeader.GeneralPurposeBitFlag.HasFlag(ZipEntryGeneralPurposeBitFlag.IsEncrypted | ZipEntryGeneralPurposeBitFlag.IsStrongEncrypted | ZipEntryGeneralPurposeBitFlag.IsMoreStrongEncrypted);
+            FullNameForPrimaryKey = internalHeader.LocalFileHeader.OriginalFullName?.Replace(@"\", "/");
+
+            Offset = internalHeader.CentralDirectoryHeader.LocalFileHeaderOffset;
+            Crc = internalHeader.LocalFileHeader.Crc;
+            Size = internalHeader.LocalFileHeader.Size;
+            PackedSize = internalHeader.LocalFileHeader.PackedSize;
+            CompressionMethod = internalHeader.LocalFileHeader.CompressionMethod;
+            HostSystem = internalHeader.CentralDirectoryHeader.HostSystem;
+            ExternalFileAttributes = internalHeader.CentralDirectoryHeader.ExternalFileAttributes;
+            EntryTextEncoding =
+                internalHeader.LocalFileHeader.GeneralPurposeBitFlag.HasFlag(ZipEntryGeneralPurposeBitFlag.UseUnicodeEncodingForNameAndComment)
+                ? ZipEntryTextEncoding.UTF8Encoding
+                : ZipEntryTextEncoding.LocalEncoding;
+            ExtraFields = new ExtraFieldStorage(internalHeader.LocalFileHeader.ExtraFields);
+            LastWriteTimeUtc = internalHeader.LocalFileHeader.LastWriteTimeUtc ?? internalHeader.CentralDirectoryHeader.DosTime;
+            LastAccessTimeUtc = internalHeader.LocalFileHeader.LastAccessTimeUtc;
+            CreationTimeUtc = internalHeader.LocalFileHeader.CreationTimeUtc;
+            FullNameBytes = internalHeader.LocalFileHeader.FullNameBytes;
+            CommentBytes = internalHeader.LocalFileHeader.CommentBytes;
+            FullName = internalHeader.LocalFileHeader.FullName?.Replace(@"\", "/") ?? zipEntry.Name;
+            Comment = internalHeader.LocalFileHeader.Comment ?? zipEntry.Comment;
+#if DEBUG
+            if (Offset != zipEntry.Offset)
+                throw new Exception();
+            if (Crc != zipEntry.Crc)
+                throw new Exception();
+            if (Size != zipEntry.Size)
+                throw new Exception();
+            if (PackedSize != zipEntry.CompressedSize)
+                throw new Exception();
+            if (FullNameForPrimaryKey != zipEntry.Name)
+                throw new Exception();
+            if ((UInt16)CompressionMethod != (UInt16)zipEntry.CompressionMethod)
+                throw new Exception();
+            if ((byte)HostSystem != (byte)zipEntry.HostSystem)
+                throw new Exception();
+            if ((UInt32)ExternalFileAttributes != (UInt32)zipEntry.ExternalFileAttributes)
+                throw new Exception();
+            if ((EntryTextEncoding == ZipEntryTextEncoding.UTF8Encoding) != zipEntry.IsUnicodeText)
+                throw new Exception();
+#endif
         }
 
         public long Index { get; }
+        public ZipEntryGeneralPurposeBitFlag GeneralPurposeBitFlag { get; }
         public bool IsFile { get; }
         public bool IsDirectory { get; }
-        public string FullName { get; }
-        public IEnumerable<byte> FullNameBytes { get; }
+        public bool IsEncrypted { get; }
         public string FullNameForPrimaryKey { get; }
-        public string Comment { get; }
-        public IEnumerable<byte> CommentBytes { get; }
         public long Offset { get; }
-        public DateTime LastWriteTimeUtc { get; }
-        public DateTime? CreationTimeUtc { get; }
-        public DateTime? LastAccessTimeUtc { get; }
         public long Crc { get; }
         public long Size { get; }
         public long PackedSize { get; }
-        public bool IsCompressed { get; }
-        public int HostSystem { get; }
-        public int ExternalFileAttributes { get; }
-        public ZipArchiveEntryTextEncoding EntryTextEncoding { get; }
+        public ZipEntryCompressionMethod CompressionMethod { get; }
+        public ZipEntryHostSystem HostSystem { get; }
+        public UInt32 ExternalFileAttributes { get; }
+        public ZipEntryTextEncoding EntryTextEncoding { get; }
         public ExtraFieldStorage ExtraFields { get; }
+        public DateTime LastWriteTimeUtc { get; }
+        public DateTime? LastAccessTimeUtc { get; }
+        public DateTime? CreationTimeUtc { get; }
+        public IReadOnlyArray<byte> FullNameBytes { get; }
+        public IReadOnlyArray<byte> CommentBytes { get; }
+        public string FullName { get; }
+        public string Comment { get; }
 
         public void SeTimeStampToExtractedFile(string extractedEntryFilePath)
         {

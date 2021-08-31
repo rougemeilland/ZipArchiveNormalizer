@@ -69,7 +69,7 @@ namespace ZipArchiveNormalizer
             try
             {
                 using (var sourceZipFileInputStream = new FileStream(archiveFile.FullName, FileMode.Open, FileAccess.Read, FileShare.Read))
-                using (var sourceZipFile = new ZipFile(sourceZipFileInputStream))
+                using (var sourceZipFile = new ZipFile(sourceZipFileInputStream, true))
                 {
                     foreach (var sourceEntry in sourceZipFile.EnumerateZipArchiveEntry(sourceZipFileInputStream).Where(entry => entry.IsFile == true))
                     {

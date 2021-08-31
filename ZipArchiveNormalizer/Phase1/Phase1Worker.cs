@@ -1,8 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using Utility;
-using ZipUtility;
 using Utility.FileWorker;
+using ZipUtility;
 
 namespace ZipArchiveNormalizer.Phase1
 {
@@ -30,6 +31,12 @@ namespace ZipArchiveNormalizer.Phase1
                 ? DefaultFileParameter
                 : null;
         }
+
+        protected override IComparer<FileInfo> FileComparer =>
+            new CustomizableComparer<FileInfo>(
+                (file1, file2) => -file1.Length.CompareTo(file2.Length),
+                (file1, file2) => file1.Length.Equals(file2.Length),
+                file => file.Length.GetHashCode());
 
         protected override void ActionForFile(FileInfo sourceFile, IFileWorkerActionParameter parameter)
         {
@@ -63,6 +70,13 @@ namespace ZipArchiveNormalizer.Phase1
                     if (entryTree.ContainsDuplicateName())
                     {
                         RaiseErrorReportedEvent(sourceFile, "アーカイブファイルに重複したエントリが含まれているため無視します。");
+                        RaiseBadFileFoundEvent(sourceFile);
+                        return;
+                    }
+
+                    if (entryTree.ContainsEncryptedEntry())
+                    {
+                        RaiseErrorReportedEvent(sourceFile, "アーカイブファイルに暗号化されたエントリが含まれているため無視します。");
                         RaiseBadFileFoundEvent(sourceFile);
                         return;
                     }

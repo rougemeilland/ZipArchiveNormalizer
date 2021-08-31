@@ -46,13 +46,14 @@ namespace ZipUtility.Helper
 
         public byte[] ReadBytes(UInt16 count)
         {
-            if (_index + 1 > _length)
-                throw new IndexOutOfRangeException();
             if (_index + count > _length)
                 throw new IndexOutOfRangeException();
             var buffer = new byte[count];
-            _source.CopyTo(_index, buffer, 0, buffer.Length);
-            _index += count;
+            if (count > 0)
+            {
+                _source.CopyTo(_index, buffer, 0, buffer.Length);
+                _index += count;
+            }
             return buffer;
         }
 

@@ -2,7 +2,7 @@
 
 namespace Utility
 {
-    class CustomizableComparer<VALUE_T>
+    public class CustomizableComparer<VALUE_T>
         : IUniversalComparer<VALUE_T>
     {
         private Func<VALUE_T, VALUE_T, int> _comparer;
@@ -18,17 +18,27 @@ namespace Utility
 
         public int Compare(VALUE_T x, VALUE_T y)
         {
-            return _comparer(x, y);
+            if (x == null)
+                return y == null ? 0 : -1;
+            else if (y == null)
+                return 1;
+            else
+                return _comparer(x, y);
         }
 
         public bool Equals(VALUE_T x, VALUE_T y)
         {
-            return _equalityComparer(x, y);
+            if (x == null)
+                return y == null;
+            else if (y == null)
+                return false;
+            else
+                return _equalityComparer(x, y);
         }
 
         public int GetHashCode(VALUE_T obj)
         {
-            return _hashCalculater(obj);
+            return obj == null ? 0 : _hashCalculater(obj);
         }
     }
 }

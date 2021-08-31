@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Utility
 {
-    class CustomizableEqualityComparer<VALUE_T>
+    public class CustomizableEqualityComparer<VALUE_T>
         : IEqualityComparer<VALUE_T>
     {
         private Func<VALUE_T, VALUE_T, bool> _equalityComparer;
@@ -17,12 +17,17 @@ namespace Utility
 
         public bool Equals(VALUE_T x, VALUE_T y)
         {
-            return _equalityComparer(x, y);
+            if (x == null)
+                return y == null;
+            else if (y == null)
+                return false;
+            else
+                return _equalityComparer(x, y);
         }
 
         public int GetHashCode(VALUE_T obj)
         {
-            return _hashCalculater(obj);
+            return obj == null ? 0 : _hashCalculater(obj);
         }
     }
 }

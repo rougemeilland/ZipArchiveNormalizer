@@ -186,8 +186,16 @@ namespace Utility.FileWorker
             return DefaultDirectoryParameter;
         }
 
-        protected virtual IComparer<string> FileNameComparer => StringComparer.InvariantCultureIgnoreCase;
-        protected virtual IEqualityComparer<string> FileNameEqualityComparer => StringComparer.CurrentCultureIgnoreCase;
+        protected virtual IComparer<FileInfo> FileComparer =>
+            new CustomizableComparer<FileInfo>(
+                (file1, file2) => StringComparer.CurrentCultureIgnoreCase.Compare(file1.FullName, file2.FullName),
+                (file1, file2) => StringComparer.CurrentCultureIgnoreCase.Equals(file1.FullName, file2.FullName),
+                file => file.FullName.ToLowerInvariant().GetHashCode());
+
+        protected virtual IEqualityComparer<DirectoryInfo> DirectoryEqualityComparer =>
+            new CustomizableEqualityComparer<DirectoryInfo>(
+                (dir1, dir2) => StringComparer.CurrentCultureIgnoreCase.Equals(dir1.FullName, dir2.FullName),
+                dir => dir.FullName.ToLowerInvariant().GetHashCode());
 
         protected abstract void ActionForFile(FileInfo sourceFile, IFileWorkerActionParameter parameter);
 
@@ -226,13 +234,13 @@ namespace Utility.FileWorker
                     }
                 })
                 .Where(item => item != null && item.fileParameter != null)
-                .GroupBy(item => item.sourceFile.Directory.FullName, FileNameEqualityComparer)
+                .GroupBy(item => item.sourceFile.Directory, DirectoryEqualityComparer)
                 .Select(g => new
                 {
                     directory = g.First().sourceFile.Directory,
                     fileItems =
                         g
-                        .OrderBy(item => item.sourceFile.Name, FileNameComparer)
+                        .OrderBy(item => item.sourceFile, FileComparer)
                         .Select((item, index) => new FileWorkerItem { SourceFile = item.sourceFile, Index = index, FileParameter = item.fileParameter })
                         .ToList()
                 })

@@ -601,7 +601,7 @@ namespace ZipArchiveNormalizer.Phase1
                         RaiseInformationReportedEvent("mimetype エントリを先頭に移動します。");
                         needToUpdate = true;
                     }
-                    if (!needToUpdate && foundMimeTypeEntry.IsCompressed)
+                    if (!needToUpdate && foundMimeTypeEntry.CompressionMethod != ZipEntryCompressionMethod.Stored)
                     {
                         RaiseInformationReportedEvent("mimetype エントリを非圧縮に変更します。");
                         needToUpdate = true;
@@ -700,7 +700,7 @@ namespace ZipArchiveNormalizer.Phase1
                         });
                 foreach (var entry in entries)
                 {
-                    if (entry.encoding == ZipArchiveEntryTextEncoding.Local && entry.isConvertableToMinimumCharacterSet == false)
+                    if (entry.encoding == ZipEntryTextEncoding.LocalEncoding && entry.isConvertableToMinimumCharacterSet == false)
                     {
                         RaiseInformationReportedEvent(
                             string.Format(
@@ -709,7 +709,7 @@ namespace ZipArchiveNormalizer.Phase1
                         needToUpdate = true;
                         break;
                     }
-                    else if (entry.encoding == ZipArchiveEntryTextEncoding.UTF8 && entry.isConvertableToMinimumCharacterSet == true)
+                    else if (entry.encoding == ZipEntryTextEncoding.UTF8Encoding && entry.isConvertableToMinimumCharacterSet == true)
                     {
                         RaiseInformationReportedEvent(
                             string.Format(
@@ -732,7 +732,7 @@ namespace ZipArchiveNormalizer.Phase1
                     .Where(entry =>
                         !string.Equals(entry.NewEntryFullName, "mimetype", StringComparison.InvariantCultureIgnoreCase) &&
                         entry.SourceEntry.Size > 0 &&
-                        entry.SourceEntry.IsCompressed == false)
+                        entry.SourceEntry.CompressionMethod == ZipEntryCompressionMethod.Stored)
                     .FirstOrDefault();
                 if (foundCompressableEntry != null)
                 {
@@ -806,6 +806,11 @@ namespace ZipArchiveNormalizer.Phase1
         public bool ContainsDuplicateName()
         {
             return ContainsDuplicateName(_rootEntries);
+        }
+
+        public bool ContainsEncryptedEntry()
+        {
+            return _sourceEntries.Any(entry => entry.IsEncrypted);
         }
 
         public bool IsEmpty => _rootEntries.None();
