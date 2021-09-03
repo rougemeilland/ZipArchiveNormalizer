@@ -8,9 +8,10 @@ using ZipUtility.ZipExtraField;
 namespace ZipUtility.ZipFileHeader
 {
     class ZipEntryCentralDirectoryHeader
-        : IZip64ExtendedInformationExtraFieldValueSource
+        : ZipEntryInternalHeader<Zip64ExtendedInformationExtraFieldForCentraHeader>
     {
         private static byte[] _centralHeaderSignature;
+        private Int64 _zipStartOffset;
         private UInt32 _packedSizeValueInCentralDirectory;
         private UInt32 _sizeValueInCentralDirectory;
         private UInt32 _localFileHeaderOffsetValueInCentralDirectory;
@@ -21,45 +22,25 @@ namespace ZipUtility.ZipFileHeader
             _centralHeaderSignature = new byte[] { 0x50, 0x4b, 0x01, 0x02 };
         }
 
-        private ZipEntryCentralDirectoryHeader(Int64 index, Int64 zipStartOffset, ZipEntryHostSystem hostSystem, ZipEntryGeneralPurposeBitFlag generalPurposeBitFlag, DateTime dosTime, UInt32 packedSizeValueInCentralDirectory, UInt32 sizeValueInCentralDirectory, UInt16 diskStartNumberValueInCentralDirectory, UInt32 externalFileAttributes, UInt32 localFileHeaderOffsetValueInCentralDirectory, IReadOnlyArray<byte> fullNameBytes, IReadOnlyArray<byte> commentBytes, IReadOnlyArray<byte> extraDataSource)
+        private ZipEntryCentralDirectoryHeader(Int64 index, Int64 zipStartOffset, ZipEntryHostSystem hostSystem, ZipEntryGeneralPurposeBitFlag generalPurposeBitFlag, ZipEntryCompressionMethod? compressionMethod, DateTime? dosDateTime, UInt32 packedSizeValueInCentralDirectory, UInt32 sizeValueInCentralDirectory, UInt16 diskStartNumberValueInCentralDirectory, UInt32 externalFileAttributes, UInt32 localFileHeaderOffsetValueInCentralDirectory, IReadOnlyArray<byte> fullNameBytes, IReadOnlyArray<byte> commentBytes, IReadOnlyArray<byte> extraFieldDataSource)
+            : base(generalPurposeBitFlag, compressionMethod, dosDateTime, fullNameBytes, commentBytes, new ExtraFieldStorage(ZipEntryHeaderType.CentralDirectoryHeader, extraFieldDataSource))
         {
             Index = index;
+            _zipStartOffset = zipStartOffset;
             HostSystem = hostSystem;
-            GeneralPurposeBitFlag = GeneralPurposeBitFlag;
-            DosTime = dosTime;
             _packedSizeValueInCentralDirectory = packedSizeValueInCentralDirectory;
             _sizeValueInCentralDirectory = sizeValueInCentralDirectory;
             _diskStartNumberValueInCentralDirectory = diskStartNumberValueInCentralDirectory;
             ExternalFileAttributes = externalFileAttributes;
             _localFileHeaderOffsetValueInCentralDirectory = localFileHeaderOffsetValueInCentralDirectory;
-            FullNameBytes = fullNameBytes;
-            CommentBytes = commentBytes;
-            ExtraFields = new ExtraFieldStorage(ZipEntryHeaderType.CentralDirectoryHeader, extraDataSource);
-
-            var zip64ExtraData = ExtraFields.GetData<Zip64ExtendedInformationExtraFieldForCentraHeader>();
-            if (zip64ExtraData != null)
-            {
-                zip64ExtraData.ZipHeaderSource = this;
-                DiskStartNumber = zip64ExtraData.DiskStartNumber;
-                LocalFileHeaderOffset = zipStartOffset + zip64ExtraData.RelativeHeaderOffset;
-            }
-            else
-            {
-                DiskStartNumber = _diskStartNumberValueInCentralDirectory;
-                LocalFileHeaderOffset = zipStartOffset + _localFileHeaderOffsetValueInCentralDirectory;
-            }
+            ApplyZip64ExtraField(ExtraFields.GetData<Zip64ExtendedInformationExtraFieldForCentraHeader>());
         }
 
         public long Index { get; }
         public ZipEntryHostSystem HostSystem { get; }
-        public ZipEntryGeneralPurposeBitFlag GeneralPurposeBitFlag { get; }
-        public DateTime DosTime { get; }
-        public UInt32 DiskStartNumber { get; }
+        public UInt32 DiskStartNumber => Zip64ExtraField?.DiskStartNumber ?? _diskStartNumberValueInCentralDirectory;
         public UInt32 ExternalFileAttributes { get; }
-        public long LocalFileHeaderOffset { get; }
-        public IReadOnlyArray<byte> FullNameBytes { get; }
-        public IReadOnlyArray<byte> CommentBytes { get; }
-        public ExtraFieldStorage ExtraFields { get; }
+        public long LocalFileHeaderOffset => _zipStartOffset + (Zip64ExtraField?.RelativeHeaderOffset ?? _localFileHeaderOffsetValueInCentralDirectory);
 
         public static IEnumerable<ZipEntryCentralDirectoryHeader> Enumerate(Stream zipFileBaseStream, Int64 zipStartOffset, Int64 centralHeadersStartOffset, Int64 centralHeadersCount)
         {
@@ -69,6 +50,11 @@ namespace ZipUtility.ZipFileHeader
                 centralHeaders.Add(Parse(zipFileBaseStream, index, zipStartOffset));
             return centralHeaders;
         }
+
+        protected override UInt32? PackedSizeInHeader { get => _packedSizeValueInCentralDirectory; set => _packedSizeValueInCentralDirectory = value ?? throw new InvalidOperationException(@"Do not set ""IZip64ExtendedInformationExtraFieldValueSource.PackedSize"" to null."); }
+        protected override UInt32? SizeInHeader { get => _sizeValueInCentralDirectory; set => _sizeValueInCentralDirectory = value ?? throw new InvalidOperationException(@"Do not set ""IZip64ExtendedInformationExtraFieldValueSource.Size"" to null."); }
+        protected override UInt32? RelativeHeaderOffsetInHeader { get => _localFileHeaderOffsetValueInCentralDirectory; set => _localFileHeaderOffsetValueInCentralDirectory = value ?? throw new InvalidOperationException(@"Do not set ""IZip64ExtendedInformationExtraFieldValueSource.RelativeHeaderOffset"" to null."); }
+        protected override UInt16? DiskStartNumberInHeader { get => _diskStartNumberValueInCentralDirectory; set => _diskStartNumberValueInCentralDirectory = value ?? throw new InvalidOperationException(@"Do not set ""IZip64ExtendedInformationExtraFieldValueSource.DiskStartNumber"" to null."); }
 
         private static ZipEntryCentralDirectoryHeader Parse(Stream zipFileBaseStream, Int64 index, Int64 zipStartOffset)
         {
@@ -80,12 +66,11 @@ namespace ZipUtility.ZipFileHeader
             var versionMadeBy = minimumHeaderBytes.ToUInt16(4);
             var hostSystem = (ZipEntryHostSystem)(versionMadeBy >> 8);
             var generalPurposeBitFlag = (ZipEntryGeneralPurposeBitFlag)minimumHeaderBytes.ToUInt16(8);
-            //var compressionMethod = minimumHeaderBytes.ToUInt16(10);
-            var dosTime = minimumHeaderBytes.ToUInt16(12);
-            var dosDate = minimumHeaderBytes.ToUInt16(14);
-            //var crc = minimumHeaderBytes.ToUInt32(16);
-            var packedSize = minimumHeaderBytes.ToUInt32(20);
-            var size = minimumHeaderBytes.ToUInt32(24);
+            var compressionMethod = (ZipEntryCompressionMethod)minimumHeaderBytes.ToUInt16(10); // この値はgeneralPurposeBitFlagのbit13がセットされているとゼロクリアされ意味を持たなくなる。
+            var dosTime = minimumHeaderBytes.ToUInt16(12); // この値はgeneralPurposeBitFlagのbit13がセットされているとゼロクリアされ意味を持たなくなる。
+            var dosDate = minimumHeaderBytes.ToUInt16(14); // この値はgeneralPurposeBitFlagのbit13がセットされているとゼロクリアされ意味を持たなくなる。
+            var packedSize = minimumHeaderBytes.ToUInt32(20); // この値は、ZIP64の場合、generalPurposeBitFlagのbit13がセットされていてもゼロクリアされず0xffffffffのまま。
+            var size = minimumHeaderBytes.ToUInt32(24); // この値は、ZIP64の場合、generalPurposeBitFlagのbit13がセットされていてもゼロクリアされず0xffffffffのまま。
             var fileNameLength = minimumHeaderBytes.ToUInt16(28);
             var extraFieldLength = minimumHeaderBytes.ToUInt16(30);
             var commentLength = minimumHeaderBytes.ToUInt16(32);
@@ -93,24 +78,33 @@ namespace ZipUtility.ZipFileHeader
             var externalFileAttribute = minimumHeaderBytes.ToUInt32(38);
             var relativeLocalFileHeaderOffset = minimumHeaderBytes.ToUInt32(42);
 
-            // ファイルサイズ/圧縮後ファイルサイズ/CRC を真面目に取得しようとすると、(ファイルサイズがわからないまま)ファイルを全部読み取り、
-            // その後にある Data Descriptor を読まねばならないことがある。
-            // 圧縮元のデータがファイルシステム上のファイルではなくストリームだとそういう圧縮がされることがあるらしい。
-            // このプログラムの目的としては、ファイルサイズやCRCを独自に取得することは必須ではないので、それらの情報の取得は断念することにした。
-            // ただし、セントラルディレクトリ上のファイルサイズと圧縮後ファイルサイスの値はZip64かどうかの検出に必要となるため、取得はすることにする。
-
             var fullNameBytes = zipFileBaseStream.ReadBytes(fileNameLength);
             var extraDataSource = zipFileBaseStream.ReadBytes(extraFieldLength);
             var commentBytes = zipFileBaseStream.ReadBytes(commentLength);
 
-            // MS-DOS形式の日時はタイムゾーンが規定されていないが現地時刻とみなして(というよりそう解釈する以外に選択の余地がない)、その後にUTCに変換して使用する。
-            var dosDateTime = new[] { dosDate, dosTime }.FromDosDateTimeToDateTime(DateTimeKind.Local).ToUniversalTime();
-            return new ZipEntryCentralDirectoryHeader(index, zipStartOffset, hostSystem, generalPurposeBitFlag, dosDateTime, packedSize, size, diskStartNumber, externalFileAttribute, relativeLocalFileHeaderOffset, fullNameBytes, commentBytes, extraDataSource);
-        }
+            var dosDateTime =
+                (dosDate == 0 && dosTime == 0) || generalPurposeBitFlag.HasFlag(ZipEntryGeneralPurposeBitFlag.IsMoreStrongEncrypted)
+                    ? (DateTime?)null
+                    :  new[] { dosDate, dosTime }.FromDosDateTimeToDateTime(DateTimeKind.Local).ToUniversalTime();
 
-        UInt32? IZip64ExtendedInformationExtraFieldValueSource.Size { get => _sizeValueInCentralDirectory; set => _sizeValueInCentralDirectory = value ?? throw new NullReferenceException(@"Do not set ""IZip64ExtendedInformationExtraFieldValueSource.Size"" to null."); }
-        UInt32? IZip64ExtendedInformationExtraFieldValueSource.PackedSize { get => _packedSizeValueInCentralDirectory; set => _packedSizeValueInCentralDirectory = value ?? throw new NullReferenceException(@"Do not set ""IZip64ExtendedInformationExtraFieldValueSource.PackedSize"" to null."); }
-        UInt32? IZip64ExtendedInformationExtraFieldValueSource.RelativeHeaderOffset { get => _localFileHeaderOffsetValueInCentralDirectory; set => _localFileHeaderOffsetValueInCentralDirectory = value ?? throw new NullReferenceException(@"Do not set ""IZip64ExtendedInformationExtraFieldValueSource.RelativeHeaderOffset"" to null."); }
-        UInt16? IZip64ExtendedInformationExtraFieldValueSource.DiskStartNumber { get => _diskStartNumberValueInCentralDirectory; set => _diskStartNumberValueInCentralDirectory = value ?? throw new NullReferenceException(@"Do not set ""IZip64ExtendedInformationExtraFieldValueSource.DiskStartNumber"" to null."); }
+            return
+                new ZipEntryCentralDirectoryHeader(
+                    index,
+                    zipStartOffset,
+                    hostSystem,
+                    generalPurposeBitFlag,
+                    generalPurposeBitFlag.HasFlag(ZipEntryGeneralPurposeBitFlag.IsMoreStrongEncrypted)
+                        ? (ZipEntryCompressionMethod?)null
+                        : (ZipEntryCompressionMethod)compressionMethod,
+                    dosDateTime,
+                    packedSize,
+                    size,
+                    diskStartNumber,
+                    externalFileAttribute,
+                    relativeLocalFileHeaderOffset,
+                    fullNameBytes,
+                    commentBytes,
+                    extraDataSource);
+        }
     }
 }

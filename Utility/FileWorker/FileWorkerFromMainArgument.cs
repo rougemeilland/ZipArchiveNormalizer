@@ -178,24 +178,20 @@ namespace Utility.FileWorker
 
         protected virtual IFileWorkerActionFileParameter IsMatchFile(FileInfo sourceFile)
         {
-            return DefaultFileParameter;
+            return new EmptyFileParameter();
         }
 
         protected virtual IFileWorkerActionDirectoryParameter IsMatchDirectory(DirectoryInfo directory, IEnumerable<string> fileNames)
         {
-            return DefaultDirectoryParameter;
+            return new EmptyDirectoryParameter();
         }
 
-        protected virtual IComparer<FileInfo> FileComparer =>
-            new CustomizableComparer<FileInfo>(
-                (file1, file2) => StringComparer.CurrentCultureIgnoreCase.Compare(file1.FullName, file2.FullName),
-                (file1, file2) => StringComparer.CurrentCultureIgnoreCase.Equals(file1.FullName, file2.FullName),
-                file => file.FullName.ToLowerInvariant().GetHashCode());
+        protected virtual IComparer<FileInfo> FileComparer => null;
 
         protected virtual IEqualityComparer<DirectoryInfo> DirectoryEqualityComparer =>
             new CustomizableEqualityComparer<DirectoryInfo>(
-                (dir1, dir2) => StringComparer.CurrentCultureIgnoreCase.Equals(dir1.FullName, dir2.FullName),
-                dir => dir.FullName.ToLowerInvariant().GetHashCode());
+                (dir1, dir2) => StringComparer.OrdinalIgnoreCase.Equals(dir1.FullName, dir2.FullName),
+                dir => dir.FullName.ToUpper().GetHashCode());
 
         protected abstract void ActionForFile(FileInfo sourceFile, IFileWorkerActionParameter parameter);
 
@@ -203,10 +199,6 @@ namespace Utility.FileWorker
         {
             return GetUniqueFileNameFromTimeStamp(DateTime.Now);
         }
-
-        protected IFileWorkerActionDirectoryParameter DefaultDirectoryParameter => new EmptyDirectoryParameter();
-
-        protected IFileWorkerActionFileParameter DefaultFileParameter => new EmptyFileParameter();
 
         private IEnumerable<DirectoryWorkerItem> GetWorkingSource(IEnumerable<FileInfo> sourceFiles)
         {
@@ -235,14 +227,21 @@ namespace Utility.FileWorker
                 })
                 .Where(item => item != null && item.fileParameter != null)
                 .GroupBy(item => item.sourceFile.Directory, DirectoryEqualityComparer)
-                .Select(g => new
+                .Select(g =>
                 {
-                    directory = g.First().sourceFile.Directory,
-                    fileItems =
-                        g
-                        .OrderBy(item => item.sourceFile, FileComparer)
-                        .Select((item, index) => new FileWorkerItem { SourceFile = item.sourceFile, Index = index, FileParameter = item.fileParameter })
-                        .ToList()
+                    var directory = g.First().sourceFile.Directory;
+                    var groupedItems = g.AsEnumerable();
+                    var fileComparer = FileComparer;
+                    if (fileComparer != null)
+                        groupedItems = groupedItems.OrderBy(groupedItem => groupedItem.sourceFile, fileComparer);
+                    return new
+                    {
+                        directory,
+                        fileItems =
+                            groupedItems
+                            .Select((item, index) => new FileWorkerItem { SourceFile = item.sourceFile, Index = index, FileParameter = item.fileParameter })
+                            .ToList()
+                    };
                 })
                 .Select(item =>
                 {

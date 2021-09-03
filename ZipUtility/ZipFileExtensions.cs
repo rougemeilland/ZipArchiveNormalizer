@@ -77,7 +77,8 @@ namespace ZipUtility
                 !newEntry.Comment.IsConvertableToMinimumCharacterSet();
 
             // 更新日付の設定
-            newEntry.SetLastModificationTime(entry.LastWriteTimeUtc);
+            if (entry.LastWriteTimeUtc.HasValue)
+                newEntry.SetLastModificationTime(entry.LastWriteTimeUtc.Value);
 
             // extra data の設定の開始 (基本的に元の extra field を引き継ぐ)
             var newExtraData = new ExtraFieldStorage(entry.ExtraFields);
@@ -89,7 +90,7 @@ namespace ZipUtility
             // Extended Timestamp extra field を追加する
             var extendedTimestampExtraField = newExtraData.GetData<ExtendedTimestampExtraField>();
             if (extendedTimestampExtraField == null ||
-                extendedTimestampExtraField.LastWriteTimeUtc == null ||
+                (entry.LastWriteTimeUtc.HasValue && extendedTimestampExtraField.LastWriteTimeUtc == null) ||
                 (entry.LastAccessTimeUtc.HasValue && extendedTimestampExtraField.LastAccessTimeUtc == null) ||
                 (entry.CreationTimeUtc.HasValue && extendedTimestampExtraField.CreationTimeUtc == null))
             {
@@ -104,7 +105,8 @@ namespace ZipUtility
 
             // 最終アクセス日時と作成日時がともに設定されていて、かつ NTFS extra field が存在しない場合
             // NTFS extra field を追加する
-            if (entry.LastAccessTimeUtc.HasValue &&
+            if (entry.LastWriteTimeUtc.HasValue &&
+                entry.LastAccessTimeUtc.HasValue &&
                 entry.CreationTimeUtc.HasValue &&
                 !newExtraData.Contains(NtfsExtraField.ExtraFieldId))
             {

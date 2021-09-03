@@ -17,7 +17,7 @@ namespace ZipUtility
             IsDirectory = zipEntry.IsDirectory;
             IsEncrypted =
                 internalHeader.LocalFileHeader.GeneralPurposeBitFlag.HasFlag(ZipEntryGeneralPurposeBitFlag.IsEncrypted | ZipEntryGeneralPurposeBitFlag.IsStrongEncrypted | ZipEntryGeneralPurposeBitFlag.IsMoreStrongEncrypted);
-            FullNameForPrimaryKey = internalHeader.LocalFileHeader.OriginalFullName?.Replace(@"\", "/");
+            FullNameForPrimaryKey = internalHeader.LocalFileHeader.OriginalFullName?.Replace(@"\", "/") ?? zipEntry.Name;
 
             Offset = internalHeader.CentralDirectoryHeader.LocalFileHeaderOffset;
             Crc = internalHeader.LocalFileHeader.Crc;
@@ -31,14 +31,32 @@ namespace ZipUtility
                 ? ZipEntryTextEncoding.UTF8Encoding
                 : ZipEntryTextEncoding.LocalEncoding;
             ExtraFields = new ExtraFieldStorage(internalHeader.LocalFileHeader.ExtraFields);
-            LastWriteTimeUtc = internalHeader.LocalFileHeader.LastWriteTimeUtc ?? internalHeader.CentralDirectoryHeader.DosTime;
-            LastAccessTimeUtc = internalHeader.LocalFileHeader.LastAccessTimeUtc;
-            CreationTimeUtc = internalHeader.LocalFileHeader.CreationTimeUtc;
+            LastWriteTimeUtc =
+                internalHeader.LocalFileHeader.LastWriteTimeUtc
+                ?? internalHeader.CentralDirectoryHeader.LastWriteTimeUtc
+                ?? internalHeader.LocalFileHeader.DosDateTime
+                ?? internalHeader.CentralDirectoryHeader.DosDateTime;
+            LastAccessTimeUtc =
+                internalHeader.LocalFileHeader.LastAccessTimeUtc
+                ?? internalHeader.CentralDirectoryHeader.LastAccessTimeUtc;
+            CreationTimeUtc =
+                internalHeader.LocalFileHeader.CreationTimeUtc
+                ?? internalHeader.CentralDirectoryHeader.CreationTimeUtc;
             FullNameBytes = internalHeader.LocalFileHeader.FullNameBytes;
             CommentBytes = internalHeader.LocalFileHeader.CommentBytes;
             FullName = internalHeader.LocalFileHeader.FullName?.Replace(@"\", "/") ?? zipEntry.Name;
             Comment = internalHeader.LocalFileHeader.Comment ?? zipEntry.Comment;
 #if DEBUG
+            Func<DateTime?, DateTime?, bool> dateTimeEqualityComparer =
+                (dateTime1, dateTime2) =>
+                {
+                    if (dateTime1 == null)
+                        return dateTime2 == null;
+                    else if (dateTime2 == null)
+                        return false;
+                    else
+                        return dateTime1.Value.Equals(dateTime2.Value);
+                };
             if (Offset != zipEntry.Offset)
                 throw new Exception();
             if (Crc != zipEntry.Crc)
@@ -49,13 +67,25 @@ namespace ZipUtility
                 throw new Exception();
             if (FullNameForPrimaryKey != zipEntry.Name)
                 throw new Exception();
-            if ((UInt16)CompressionMethod != (UInt16)zipEntry.CompressionMethod)
+            if (CompressionMethod.HasValue && (UInt16)CompressionMethod.Value != (UInt16)zipEntry.CompressionMethod)
                 throw new Exception();
             if ((byte)HostSystem != (byte)zipEntry.HostSystem)
                 throw new Exception();
             if ((UInt32)ExternalFileAttributes != (UInt32)zipEntry.ExternalFileAttributes)
                 throw new Exception();
             if ((EntryTextEncoding == ZipEntryTextEncoding.UTF8Encoding) != zipEntry.IsUnicodeText)
+                throw new Exception();
+            if (dateTimeEqualityComparer(internalHeader.LocalFileHeader.DosDateTime, internalHeader.CentralDirectoryHeader.DosDateTime) == false)
+                throw new Exception();
+            if (internalHeader.CentralDirectoryHeader.GeneralPurposeBitFlag != internalHeader.LocalFileHeader.GeneralPurposeBitFlag)
+                throw new Exception();
+            if (!dateTimeEqualityComparer(internalHeader.CentralDirectoryHeader.DosDateTime, internalHeader.LocalFileHeader.DosDateTime))
+                throw new Exception();
+            if (internalHeader.CentralDirectoryHeader.CompressionMethod != internalHeader.LocalFileHeader.CompressionMethod)
+                throw new Exception();
+            if (!internalHeader.CentralDirectoryHeader.FullNameBytes.SequenceEqual(internalHeader.LocalFileHeader.FullNameBytes))
+                throw new Exception();
+            if (internalHeader.CentralDirectoryHeader.FullName != internalHeader.LocalFileHeader.FullName)
                 throw new Exception();
 #endif
         }
@@ -70,12 +100,12 @@ namespace ZipUtility
         public long Crc { get; }
         public long Size { get; }
         public long PackedSize { get; }
-        public ZipEntryCompressionMethod CompressionMethod { get; }
+        public ZipEntryCompressionMethod? CompressionMethod { get; }
         public ZipEntryHostSystem HostSystem { get; }
         public UInt32 ExternalFileAttributes { get; }
         public ZipEntryTextEncoding EntryTextEncoding { get; }
         public ExtraFieldStorage ExtraFields { get; }
-        public DateTime LastWriteTimeUtc { get; }
+        public DateTime? LastWriteTimeUtc { get; }
         public DateTime? LastAccessTimeUtc { get; }
         public DateTime? CreationTimeUtc { get; }
         public IReadOnlyArray<byte> FullNameBytes { get; }
@@ -87,7 +117,8 @@ namespace ZipUtility
         {
             try
             {
-                File.SetLastWriteTimeUtc(extractedEntryFilePath, LastWriteTimeUtc);
+                if (LastWriteTimeUtc.HasValue)
+                    File.SetLastWriteTimeUtc(extractedEntryFilePath, LastWriteTimeUtc.Value);
             }
             catch (Exception)
             {

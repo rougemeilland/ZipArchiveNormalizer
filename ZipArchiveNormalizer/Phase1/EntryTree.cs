@@ -60,7 +60,7 @@ namespace ZipArchiveNormalizer.Phase1
             {
                 if (other == null)
                     return false;
-                if (!string.Equals(Name, other.Name, StringComparison.InvariantCultureIgnoreCase))
+                if (!string.Equals(Name, other.Name, StringComparison.OrdinalIgnoreCase))
                     return false;
                 if (!ExistsChild.Equals(other.ExistsChild))
                     return false;
@@ -73,232 +73,31 @@ namespace ZipArchiveNormalizer.Phase1
             }
         }
 
-#if false
-        private class EntryFileName
-        {
-            public EntryFileName(IEnumerable<string> entryDirectryNames, string entryFileName, bool isFile, EntryTreeNode entry = null)
-            {
-                if (entryDirectryNames.None())
-                {
-                    FullPath = entryFileName;
-                    DirectoryPath = null;
-                }
-                else
-                {
-                    FullPath = string.Join("/", entryDirectryNames.Concat(new[] { entryFileName }));
-                    DirectoryPath = string.Join("/", entryDirectryNames);
-                }
-                FileName = entryFileName;
-                FileNameWithoutExtension = isFile ? Path.GetFileNameWithoutExtension(entryFileName) : entryFileName;
-                Extension = isFile ? Path.GetExtension(entryFileName) : "";
-                IsFile = isFile;
-                Entry = entry;
-            }
-
-            public string FullPath { get; }
-            public string DirectoryPath { get; }
-            public string FileName { get; }
-            public string FileNameWithoutExtension { get; }
-            public string Extension { get; }
-            public bool IsFile { get; }
-            public EntryTreeNode Entry { get; }
-        }
-#endif
-
-#if false
-        private class EntryFileNamePair
-        {
-            public EntryFileNamePair(EntryFileName source, string newFileNameWithoutExtension)
-            {
-                Source = source;
-                Destination =
-                    new EntryFileName(
-                        source.DirectoryPath != null ? source.DirectoryPath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries) : new string[0],
-                        newFileNameWithoutExtension + source.Extension,
-                        source.IsFile);
-            }
-
-            public EntryFileName Source { get; }
-            public EntryFileName Destination { get; }
-        }
-#endif
-
-#if false
-        private class PageNumberText
-            : IEquatable<PageNumberText>, IComparable<PageNumberText>
-        {
-            private static Regex _pageNumberFormatPattern;
-            private int _pageNumberWidth;
-            private BigInteger _pageNumber;
-            private string _pageNumberText;
-            private string _minorSymbol;
-            private BigInteger _otherPageNumber;
-            private string _otherPageNumberText;
-            private string _otherMinorSymbol;
-
-            static PageNumberText()
-            {
-                _pageNumberFormatPattern = new Regex(@"^(?<digits>[0-9]+)(?<minorsymbol>[a-z]?)([+\-_](?<otherdigits>[0-9]+)(?<otherminorsymbol>[a-z]?))?$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            }
-
-            public PageNumberText(string sourceText)
-            {
-                if (sourceText == null)
-                    throw new ArgumentNullException();
-                SourceText = sourceText;
-                IsOk = false;
-                _pageNumberWidth = -1;
-                _pageNumber = -1;
-                _pageNumberText = null;
-                _minorSymbol = null;
-                _otherPageNumber = -1;
-                _otherPageNumberText = null;
-                _otherMinorSymbol = null;
-                _otherPageNumber = -1;
-                _otherPageNumberText = null;
-                HasSecondPart = false;
-                var match = _pageNumberFormatPattern.Match(sourceText.Length == 0 ? "0" : sourceText);
-                if (match.Success)
-                {
-                    var rawPageNumberText = match.Groups["digits"].Value;
-                    _pageNumber = BigInteger.Parse(match.Groups["digits"].Value, NumberStyles.None, CultureInfo.InvariantCulture.NumberFormat);
-                    _pageNumberText = _pageNumber.ToString("D");
-                    _pageNumberWidth = _pageNumberText.Length;
-                    if (!match.Groups["otherdigits"].Success)
-                        IsOk = true;
-                    else
-                    {
-                        var rawOtherPageNumberText = match.Groups["otherdigits"].Value;
-                        if (rawPageNumberText.Length == rawOtherPageNumberText.Length)
-                        {
-                            _otherPageNumber = BigInteger.Parse(match.Groups["otherdigits"].Value, NumberStyles.None, CultureInfo.InvariantCulture.NumberFormat);
-                            _otherPageNumberText = _otherPageNumber.ToString("D");
-                            if (_pageNumberWidth < _otherPageNumberText.Length)
-                                _pageNumberWidth = _otherPageNumberText.Length;
-                            HasSecondPart = true;
-                            IsOk = true;
-                        }
-                    }
-                    if (match.Groups["minorsymbol"].Success)
-                        _minorSymbol = match.Groups["minorsymbol"].Value;
-                    if (match.Groups["otherminorsymbol"].Success)
-                        _otherMinorSymbol = match.Groups["otherminorsymbol"].Value;
-                }
-            }
-
-            public string SourceText { get; }
-            public bool IsOk { get; }
-            public int PageNumberWidth => IsOk ? _pageNumberWidth : throw new InvalidOperationException();
-            public bool HasSecondPart { get; }
-            public string FirstPageText => IsOk ? _pageNumberText + (_minorSymbol ?? "") : throw new InvalidOperationException();
-
-            public string Format(int newPageNumberWidth)
-            {
-                if (!IsOk)
-                    throw new InvalidOperationException();
-                if (newPageNumberWidth < _pageNumberWidth)
-                    throw new ArgumentException();
-                var sb = new StringBuilder();
-                sb.Append(_pageNumber.ToString(string.Format("D{0}", newPageNumberWidth)));
-                if (_minorSymbol != null)
-                    sb.Append(_minorSymbol);
-                if (_otherPageNumber >= 0)
-                {
-                    sb.Append("-");
-                    sb.Append(_otherPageNumber.ToString(string.Format("D{0}", newPageNumberWidth)));
-                    if (_otherMinorSymbol != null)
-                        sb.Append(_otherMinorSymbol);
-                }
-                return sb.ToString();
-            }
-
-            public int CompareTo(PageNumberText other)
-            {
-                if (!IsOk)
-                    throw new InvalidOperationException();
-                if (other == null)
-                    return 1;
-                if (!other.IsOk)
-                    throw new ArgumentException();
-                int c;
-                if ((c = _pageNumber.CompareTo(other._pageNumber)) != 0)
-                    return c;
-                if ((c = string.Compare(_minorSymbol, other._minorSymbol, StringComparison.InvariantCultureIgnoreCase)) != 0)
-                    return c;
-                if ((c = _otherPageNumber.CompareTo(other._otherPageNumber)) != 0)
-                    return c;
-                if ((c = string.Compare(_otherMinorSymbol, other._otherMinorSymbol, StringComparison.InvariantCultureIgnoreCase)) != 0)
-                    return c;
-                return 0;
-            }
-
-            public bool Equals(PageNumberText other)
-            {
-                if (!IsOk)
-                    throw new InvalidOperationException();
-                if (other == null)
-                    return false;
-                if (!other.IsOk)
-                    throw new ArgumentException();
-                if (!_pageNumber.Equals(other._pageNumber))
-                    return false;
-                if (!string.Equals(_minorSymbol, other._minorSymbol, StringComparison.InvariantCultureIgnoreCase))
-                    return false;
-                if (!_otherPageNumber.Equals(other._otherPageNumber))
-                    return false;
-                if (!string.Equals(_otherMinorSymbol, other._otherMinorSymbol, StringComparison.InvariantCultureIgnoreCase))
-                    return false;
-                return true;
-            }
-
-            public override bool Equals(object obj)
-            {
-                if (obj == null || GetType() != obj.GetType())
-                    return false;
-                return Equals((PageNumberText)obj);
-            }
-
-            public override int GetHashCode()
-            {
-                if (!IsOk)
-                    throw new InvalidOperationException();
-                var hashCode = _pageNumber.GetHashCode();
-                if (_minorSymbol != null)
-                    hashCode ^= _minorSymbol.ToLowerInvariant().GetHashCode();
-                if (_otherPageNumber >= 0)
-                    hashCode ^= _otherPageNumber.GetHashCode();
-                if (_otherMinorSymbol != null)
-                    hashCode ^= _otherMinorSymbol.ToLowerInvariant().GetHashCode();
-                return hashCode;
-            }
-        }
-#endif
-
-        private enum EntryNameComparerMethod
+        private enum ZipArchiveEntryComparerMethod
         {
             Normal,
             ConsiderSequenceOfDigitsAsNumber,
             Ordinal,
         }
 
-        private class SimpleEntryNameComparer
-            : EntryNodeComparer
+        private class SimpleZipArchiveEntryComparer
+            : ZipArchiveEntryComparer
         {
             private IComparer<string> _comparer;
-            private EntryNameComparerMethod _method;
+            private ZipArchiveEntryComparerMethod _method;
 
-            public SimpleEntryNameComparer(bool ignoreFileExtension, Encoding encoding, EntryNameComparerMethod method)
+            public SimpleZipArchiveEntryComparer(bool ignoreFileExtension, Encoding encoding, ZipArchiveEntryComparerMethod method)
                 : base(ignoreFileExtension, encoding)
             {
                 switch (method)
                 {
-                    case EntryNameComparerMethod.Normal:
+                    case ZipArchiveEntryComparerMethod.Normal:
                         _comparer = StringComparer.CurrentCultureIgnoreCase;
                         break;
-                    case EntryNameComparerMethod.ConsiderSequenceOfDigitsAsNumber:
-                        _comparer = new FilePathNameComparer(FilePathNameComparerrOption.ConsiderSequenceOfDigitsAsNumber);
+                    case ZipArchiveEntryComparerMethod.ConsiderSequenceOfDigitsAsNumber:
+                        _comparer = new FilePathNameComparer(FilePathNameComparerrOption.ConsiderDigitSequenceOfsAsNumber | FilePathNameComparerrOption.IgnoreCase);
                         break;
-                    case EntryNameComparerMethod.Ordinal:
+                    case ZipArchiveEntryComparerMethod.Ordinal:
                         _comparer = StringComparer.OrdinalIgnoreCase;
                         break;
                     default:
@@ -314,13 +113,13 @@ namespace ZipArchiveNormalizer.Phase1
                     var descriptions = base.Descriptions;
                     switch (_method)
                     {
-                        case EntryNameComparerMethod.Normal:
+                        case ZipArchiveEntryComparerMethod.Normal:
                             descriptions = descriptions.Concat(new[] { "通常の比較" });
                             break;
-                        case EntryNameComparerMethod.ConsiderSequenceOfDigitsAsNumber:
+                        case ZipArchiveEntryComparerMethod.ConsiderSequenceOfDigitsAsNumber:
                             descriptions = descriptions.Concat(new[] { "数字列を数値とみなして比較" });
                             break;
-                        case EntryNameComparerMethod.Ordinal:
+                        case ZipArchiveEntryComparerMethod.Ordinal:
                             descriptions = descriptions.Concat(new[] { "コードポイントで比較" });
                             break;
                         default:
@@ -333,20 +132,20 @@ namespace ZipArchiveNormalizer.Phase1
             protected override IComparer<string> PathElementComparer => _comparer;
         }
 
-        private interface IEntryNodeComparer
+        private interface IZipArchiveEntryComparer
             : IComparer<ZipArchiveEntry>
         {
             IEnumerable<string> Descriptions { get; }
         }
 
-        private abstract class EntryNodeComparer
-            : IEntryNodeComparer
+        private abstract class ZipArchiveEntryComparer
+            : IZipArchiveEntryComparer
         {
             private static Regex _entryFullNameExtensionPattern;
             private bool _ignoreFileExtension;
             private Encoding _encoding;
 
-            static EntryNodeComparer()
+            static ZipArchiveEntryComparer()
             {
                 _entryFullNameExtensionPattern = new Regex(@"^(?<entryfullnamewithoutextension>.*?)(?<extension>\.[^\\/\.]*)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 #if DEBUG
@@ -375,7 +174,7 @@ namespace ZipArchiveNormalizer.Phase1
 #endif
             }
 
-            protected EntryNodeComparer(bool ignoreFileExtension, Encoding encoding)
+            protected ZipArchiveEntryComparer(bool ignoreFileExtension, Encoding encoding)
             {
                 _ignoreFileExtension = ignoreFileExtension;
                 _encoding = encoding;
@@ -431,14 +230,10 @@ namespace ZipArchiveNormalizer.Phase1
         private static Regex _notedEntryFileNamePattern;
         private static IDictionary<long, object> _notedEntryCrcs;
         private static IComparer<string> _entryNameComparer;
-#if false
-        private static Regex _prefixTailingZeroPattern;
-        private static Regex _generalEntryPageNumberPattern;
-#endif
         private static Regex _absolutePathEntryNamePattern;
         private static Regex _entryNamePatternsThatShouldBeIgnored;
         private static Regex _notRootEntryNamePattern;
-        private static IEnumerable<IEntryNodeComparer> _variousNodecomparers;
+        private static IEnumerable<IZipArchiveEntryComparer> _variousNodecomparers;
         private static IEnumerable<UInt16> _knownExtraFieldIds;
         private FileInfo _sourceArchiveFile;
         private ArchiveType _archiveType;
@@ -472,34 +267,30 @@ namespace ZipArchiveNormalizer.Phase1
                 .Where(crc32 => crc32 >= 0)
                 .Distinct()
                 .ToDictionary(crc => crc, crc => (object)null);
-            _entryNameComparer = new FilePathNameComparer(FilePathNameComparerrOption.ConsiderSequenceOfDigitsAsNumber | FilePathNameComparerrOption.ContainsContentFile);
-#if false
-            _prefixTailingZeroPattern = new Regex(@"^(?<prefix>.*?)0*$", RegexOptions.Compiled);
-            _generalEntryPageNumberPattern = new Regex(@"^(?<prefix>.*?)(?<digits>[0-9]+)[a-z]?$", RegexOptions.Compiled);
-#endif
+            _entryNameComparer = new FilePathNameComparer(FilePathNameComparerrOption.ConsiderContentFile | FilePathNameComparerrOption.ConsiderDigitSequenceOfsAsNumber | FilePathNameComparerrOption.ConsiderPathNameDelimiter | FilePathNameComparerrOption.IgnoreCase);
             _absolutePathEntryNamePattern = new Regex(@"^[/\\]", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             _entryNamePatternsThatShouldBeIgnored = new Regex(@"([/\\]\.)|(^\.)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             _notRootEntryNamePattern = new Regex(@"[/\\]", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             _variousNodecomparers = new[]
             {
-                new SimpleEntryNameComparer(false, Encoding.UTF8, EntryNameComparerMethod.Normal) as IEntryNodeComparer,
-                new SimpleEntryNameComparer(false, Encoding.UTF8, EntryNameComparerMethod.ConsiderSequenceOfDigitsAsNumber),
-                new SimpleEntryNameComparer(false, Encoding.UTF8, EntryNameComparerMethod.Ordinal),
-                new SimpleEntryNameComparer(false, Encoding.GetEncoding("IBM437"), EntryNameComparerMethod.Normal),
-                new SimpleEntryNameComparer(false, Encoding.GetEncoding("IBM437"), EntryNameComparerMethod.ConsiderSequenceOfDigitsAsNumber),
-                new SimpleEntryNameComparer(false, Encoding.GetEncoding("IBM437"), EntryNameComparerMethod.Ordinal),
-                new SimpleEntryNameComparer(false, Encoding.GetEncoding(0), EntryNameComparerMethod.Normal),
-                new SimpleEntryNameComparer(false, Encoding.GetEncoding(0), EntryNameComparerMethod.ConsiderSequenceOfDigitsAsNumber),
-                new SimpleEntryNameComparer(false, Encoding.GetEncoding(0), EntryNameComparerMethod.Ordinal),
-                new SimpleEntryNameComparer(true, Encoding.UTF8, EntryNameComparerMethod.Normal),
-                new SimpleEntryNameComparer(true, Encoding.UTF8, EntryNameComparerMethod.ConsiderSequenceOfDigitsAsNumber),
-                new SimpleEntryNameComparer(true, Encoding.UTF8, EntryNameComparerMethod.Ordinal),
-                new SimpleEntryNameComparer(true, Encoding.GetEncoding("IBM437"), EntryNameComparerMethod.Normal),
-                new SimpleEntryNameComparer(true, Encoding.GetEncoding("IBM437"), EntryNameComparerMethod.ConsiderSequenceOfDigitsAsNumber),
-                new SimpleEntryNameComparer(true, Encoding.GetEncoding("IBM437"), EntryNameComparerMethod.Ordinal),
-                new SimpleEntryNameComparer(true, Encoding.GetEncoding(0), EntryNameComparerMethod.Normal),
-                new SimpleEntryNameComparer(true, Encoding.GetEncoding(0), EntryNameComparerMethod.ConsiderSequenceOfDigitsAsNumber),
-                new SimpleEntryNameComparer(true, Encoding.GetEncoding(0), EntryNameComparerMethod.Ordinal),
+                new SimpleZipArchiveEntryComparer(false, Encoding.UTF8, ZipArchiveEntryComparerMethod.Normal) as IZipArchiveEntryComparer,
+                new SimpleZipArchiveEntryComparer(false, Encoding.UTF8, ZipArchiveEntryComparerMethod.ConsiderSequenceOfDigitsAsNumber),
+                new SimpleZipArchiveEntryComparer(false, Encoding.UTF8, ZipArchiveEntryComparerMethod.Ordinal),
+                new SimpleZipArchiveEntryComparer(false, Encoding.GetEncoding("IBM437"), ZipArchiveEntryComparerMethod.Normal),
+                new SimpleZipArchiveEntryComparer(false, Encoding.GetEncoding("IBM437"), ZipArchiveEntryComparerMethod.ConsiderSequenceOfDigitsAsNumber),
+                new SimpleZipArchiveEntryComparer(false, Encoding.GetEncoding("IBM437"), ZipArchiveEntryComparerMethod.Ordinal),
+                new SimpleZipArchiveEntryComparer(false, Encoding.GetEncoding(0), ZipArchiveEntryComparerMethod.Normal),
+                new SimpleZipArchiveEntryComparer(false, Encoding.GetEncoding(0), ZipArchiveEntryComparerMethod.ConsiderSequenceOfDigitsAsNumber),
+                new SimpleZipArchiveEntryComparer(false, Encoding.GetEncoding(0), ZipArchiveEntryComparerMethod.Ordinal),
+                new SimpleZipArchiveEntryComparer(true, Encoding.UTF8, ZipArchiveEntryComparerMethod.Normal),
+                new SimpleZipArchiveEntryComparer(true, Encoding.UTF8, ZipArchiveEntryComparerMethod.ConsiderSequenceOfDigitsAsNumber),
+                new SimpleZipArchiveEntryComparer(true, Encoding.UTF8, ZipArchiveEntryComparerMethod.Ordinal),
+                new SimpleZipArchiveEntryComparer(true, Encoding.GetEncoding("IBM437"), ZipArchiveEntryComparerMethod.Normal),
+                new SimpleZipArchiveEntryComparer(true, Encoding.GetEncoding("IBM437"), ZipArchiveEntryComparerMethod.ConsiderSequenceOfDigitsAsNumber),
+                new SimpleZipArchiveEntryComparer(true, Encoding.GetEncoding("IBM437"), ZipArchiveEntryComparerMethod.Ordinal),
+                new SimpleZipArchiveEntryComparer(true, Encoding.GetEncoding(0), ZipArchiveEntryComparerMethod.Normal),
+                new SimpleZipArchiveEntryComparer(true, Encoding.GetEncoding(0), ZipArchiveEntryComparerMethod.ConsiderSequenceOfDigitsAsNumber),
+                new SimpleZipArchiveEntryComparer(true, Encoding.GetEncoding(0), ZipArchiveEntryComparerMethod.Ordinal),
             };
 
             var extraFieldInterfaceName = typeof(IExtraField).FullName;
@@ -627,7 +418,7 @@ namespace ZipArchiveNormalizer.Phase1
                     .ToList();
                 var emptyDirectories =
                     directoryPathList
-                    .Where(directoryPath => filePathList.None(filePath => filePath.StartsWith(directoryPath, StringComparison.InvariantCultureIgnoreCase)));
+                    .Where(directoryPath => filePathList.None(filePath => filePath.StartsWith(directoryPath, StringComparison.OrdinalIgnoreCase)));
                 if (emptyDirectories.Any())
                 {
                     if (!needToUpdate)
@@ -657,7 +448,7 @@ namespace ZipArchiveNormalizer.Phase1
             if (!needToUpdate)
             {
                 if (EnumerateEntry()
-                    .NotAll(entry => string.Equals(entry.SourceEntry.FullName, entry.NewEntryFullName, StringComparison.InvariantCultureIgnoreCase)))
+                    .NotAll(entry => string.Equals(entry.SourceEntry.FullName, entry.NewEntryFullName, StringComparison.OrdinalIgnoreCase)))
                 {
                     RaiseInformationReportedEvent(string.Format("エントリのパス名または順序が変更されているのでアーカイブを変更します。"));
                     needToUpdate = true;
@@ -730,7 +521,7 @@ namespace ZipArchiveNormalizer.Phase1
                 var foundCompressableEntry =
                     EnumerateEntry()
                     .Where(entry =>
-                        !string.Equals(entry.NewEntryFullName, "mimetype", StringComparison.InvariantCultureIgnoreCase) &&
+                        !string.Equals(entry.NewEntryFullName, "mimetype", StringComparison.Ordinal) &&
                         entry.SourceEntry.Size > 0 &&
                         entry.SourceEntry.CompressionMethod == ZipEntryCompressionMethod.Stored)
                     .FirstOrDefault();
@@ -747,7 +538,7 @@ namespace ZipArchiveNormalizer.Phase1
                 {
                     var extendedTimestampExtraField = entry.SourceEntry.ExtraFields.GetData<ExtendedTimestampExtraField>();
                     if (extendedTimestampExtraField == null ||
-                        extendedTimestampExtraField.LastWriteTimeUtc == null ||
+                        (entry.SourceEntry.LastWriteTimeUtc.HasValue && extendedTimestampExtraField.LastWriteTimeUtc == null) ||
                         (entry.SourceEntry.LastAccessTimeUtc.HasValue && extendedTimestampExtraField.LastAccessTimeUtc == null) ||
                         (entry.SourceEntry.CreationTimeUtc.HasValue && extendedTimestampExtraField.CreationTimeUtc == null))
                     {
@@ -764,7 +555,8 @@ namespace ZipArchiveNormalizer.Phase1
                         break;
                     }
 
-                    if (entry.SourceEntry.LastAccessTimeUtc.HasValue &&
+                    if (entry.SourceEntry.LastWriteTimeUtc.HasValue &&
+                        entry.SourceEntry.LastAccessTimeUtc.HasValue &&
                         entry.SourceEntry.CreationTimeUtc.HasValue &&
                         !entry.SourceEntry.ExtraFields.Contains(NtfsExtraField.ExtraFieldId))
                     {
@@ -835,11 +627,11 @@ namespace ZipArchiveNormalizer.Phase1
 
                         // アーカイブファイルの日付の更新 (全エントリ内で最も新しい更新日付を見つける)
 #if DEBUG
-                        if (modifiedEntry.SourceEntry.LastWriteTimeUtc.Kind != DateTimeKind.Utc)
+                        if (modifiedEntry.SourceEntry.LastWriteTimeUtc == null || modifiedEntry.SourceEntry.LastWriteTimeUtc.Value.Kind != DateTimeKind.Utc)
                             throw new Exception();
 #endif
-                        if (fileTimeStamp == null || fileTimeStamp.Value < modifiedEntry.SourceEntry.LastWriteTimeUtc)
-                            fileTimeStamp = modifiedEntry.SourceEntry.LastWriteTimeUtc;
+                        if (fileTimeStamp == null || (modifiedEntry.SourceEntry.LastWriteTimeUtc.HasValue && fileTimeStamp.Value < modifiedEntry.SourceEntry.LastWriteTimeUtc.Value))
+                            fileTimeStamp = modifiedEntry.SourceEntry.LastWriteTimeUtc.Value;
 
                         // アーカイブファイルへの書き込み
                         newZipArchiveOutputStream.PutNextEntry(newEntry);
@@ -1048,7 +840,7 @@ namespace ZipArchiveNormalizer.Phase1
                 var foundPartialNames =
                     Enumerable.Range(0, shortNames.Length - 1)
                     .Select(index => new { element1 = shortNames[index], element2 = shortNames[index + 1] })
-                    .Where(item => item.element2.nameWithoutExtension.StartsWith(item.element1.nameWithoutExtension, StringComparison.InvariantCultureIgnoreCase))
+                    .Where(item => item.element2.nameWithoutExtension.StartsWith(item.element1.nameWithoutExtension, StringComparison.OrdinalIgnoreCase))
                     .Select(item => new { node1 = item.element1.node, node2 = item.element2.node })
                     .FirstOrDefault();
                 if (foundPartialNames != null)
@@ -1060,30 +852,6 @@ namespace ZipArchiveNormalizer.Phase1
                             GetEntryFullPath(pathElements, foundPartialNames.node2, true)));
                 }
             }
-#if false
-            var source = nodes.Select(node => new EntryFileName(pathElements, node.Name, node.IsFile, node)).ToList();
-            foreach (var renameFile in new[] { false, true })
-            {
-                var renamingDetails =
-                    SuggestNewEntryFileNames(source.Where(item => item.IsFile == renameFile), renameFile);
-                foreach (var renamingDetail in renamingDetails)
-                {
-                    if (nodes.None(node => string.Equals(node.Name, renamingDetail.Destination.FileName)))
-                    {
-                        var renamed = renamingDetail.Source.Entry.Rename(renamingDetail.Destination.FileName);
-                        if (updated == false && renamed == true)
-                        {
-                            RaiseInformationReportedEvent(
-                                string.Format(
-                                    "エントリ名のページ番号の桁を揃えます。: \"{0}\" => \"{1}\", ...",
-                                    renamingDetail.Source.FileName,
-                                    renamingDetail.Destination.FileName));
-                        }
-                        updated |= renamed;
-                    }
-                }
-            }
-#endif
         }
 
         private void WarnAboutConfusingEntryNameOrder()
@@ -1156,162 +924,6 @@ namespace ZipArchiveNormalizer.Phase1
             }
 
         }
-
-#if false
-        private IEnumerable<EntryFileNamePair> SuggestNewEntryFileNames(IEnumerable<EntryFileName> entryFileNames, bool renameFile)
-        {
-#if DEBUG
-            if (entryFileNames.Any(item => item.IsFile != renameFile))
-                throw new Exception();
-#endif
-            var prefix =
-                entryFileNames
-                .Select(item => item.FileNameWithoutExtension)
-                .Aggregate((string)null, (name1, name2) => name1.GetLeadingCommonPart(name2));
-            var suffix =
-                entryFileNames
-                .Select(item => item.FileNameWithoutExtension)
-                .Aggregate((string)null, (name1, name2) => name1.GetTrailingCommonPart(name2));
-            if (prefix == null ||
-                suffix == null ||
-                entryFileNames.Any(item => item.FileNameWithoutExtension.Length < prefix.Length + suffix.Length))
-                return new EntryFileNamePair[0];
-            var matchPrefix = _prefixTailingZeroPattern.Match(prefix);
-            if (!matchPrefix.Success)
-                throw new Exception();
-            prefix = matchPrefix.Groups["prefix"].Value;
-
-            var pageNumbers =
-                entryFileNames
-                .Select(source => new
-                {
-                    source,
-                    pageNumber =
-                        new PageNumberText(
-                            source.FileNameWithoutExtension
-                            .Substring(
-                                prefix.Length,
-                                source.FileNameWithoutExtension.Length - prefix.Length - suffix.Length)),
-                })
-                .ToList();
-
-            if (pageNumbers.All(item => item.pageNumber.IsOk))
-            {
-                // dddd-dddd (dは数字) の解釈が正しいかチェックする
-                // ページ番号が dddd-dddd 形式であった場合、それがページの範囲を示すものなら前半部分が重複するエントリは存在しないはず
-                var foundDuplicatePageRange =
-                    pageNumbers
-                    //.Where(item => item.pageNumber.HasSecondPart) // 例: "0000" と "0000-1" の同時存在時も警告を発したいため、このチェックはしない
-                    .GroupBy(item => item.pageNumber.FirstPageText)
-                    .Select(g => new { firstPart = g.Key, pageItems = g.ToList() })
-                    .Where(item => item.pageItems.Count > 1)
-                    .ToList();
-                if (foundDuplicatePageRange.Any())
-                {
-                    // ページ番号が dddd-dddd (dは数字) の形式で、かつ前半部分が同じエントリが複数ある場合
-                    // dddd-dddd (dは数字) をページ範囲として解釈していいか確証が持てないので、ユーザに警告を発する
-                    RaiseWarningReportedEvent(
-                        string.Format(
-                            "エントリ名のページ番号の桁を揃えようとしましたが、ページ番号の形式として不明なエントリ名が見つかったため、桁揃えを中断しました。: \"{0}\", \"{1}\", ...",
-                            foundDuplicatePageRange.OrderBy(item => item.firstPart).First().pageItems.OrderBy(item => item.pageNumber).First().source.FullPath,
-                            foundDuplicatePageRange.OrderBy(item => item.firstPart).First().pageItems.OrderByDescending(item => item.pageNumber).First().source.FullPath));
-                    RaiseManualVerificationProposedEvent();
-                    return new EntryFileNamePair[0];
-                }
-                else
-                {
-                    // 全てのエントリのページ番号を取得できた場合
-                    if (pageNumbers.Any(item => item.pageNumber.PageNumberWidth >= 4))
-                    {
-                        // ページ数が4桁以上のエントリがあった場合
-                        RaiseWarningReportedEvent(
-                            string.Format(
-                                "エントリ名のページ番号の桁を揃えようとしましたが、ページ番号と思われる数値の桁が長すぎます。単純なページ番号ではない可能性もあるので桁揃えを中断しました。: \"{0}\", \"{1}\", ...",
-                                pageNumbers.OrderBy(item => item.pageNumber.PageNumberWidth).ThenBy(item => item.pageNumber).First().source.FullPath,
-                                pageNumbers.OrderByDescending(item => item.pageNumber.PageNumberWidth).ThenByDescending(item => item.pageNumber).First().source.FullPath));
-                        RaiseManualVerificationProposedEvent();
-                        return new EntryFileNamePair[0];
-                    }
-                    else
-                    {
-                        // すべてのエントリのページ数が4桁以下であった場合
-
-                        // 最大の桁数のページ番号に合わせて全てのページテキストの桁を揃える
-                        var maximumPageNumberWidth = pageNumbers.Max(item => item.pageNumber.PageNumberWidth);
-                        var formattedPageNumbers =
-                            pageNumbers
-                            .Select(item => new
-                            {
-                                item.source,
-                                item.pageNumber,
-                                newFileName =
-                                    item.source.IsFile
-                                    ? Properties.Settings.Default.DefaultImageCollectionEntryNamePrefix + item.pageNumber.Format(maximumPageNumberWidth)
-                                    : item.pageNumber.Format(maximumPageNumberWidth),
-                            })
-                            .ToList();
-
-                        // 桁揃えの結果重複するページテキストがないか調べる
-                        var foundDuplicateMiddleName =
-                            formattedPageNumbers
-                            .GroupBy(item => item.newFileName)
-                            .Select(g => new { list = g.ToList() })
-                            .Where(item => item.list.Count > 1)
-                            .FirstOrDefault();
-                        if (foundDuplicateMiddleName != null)
-                        {
-                            // 揃えたページ番号に重複が見つかった場合
-                            RaiseWarningReportedEvent(
-                                string.Format("エントリ名のページ番号の桁を揃えようとしましたが、その結果エントリ名が重複してしまうため桁揃えを中断しました。: \"{0}\", \"{1}\", ...",
-                                    foundDuplicateMiddleName.list.OrderBy(item => item.source.FileName.Length).ThenBy(item => item.source.FileName).First().source.FullPath,
-                                    foundDuplicateMiddleName.list.OrderByDescending(item => item.source.FileName.Length).ThenByDescending(item => item.source.FileName).First().source.FullPath));
-                            RaiseManualVerificationProposedEvent();
-                            return new EntryFileNamePair[0];
-                        }
-                        else
-                        {
-                            // 揃えたページ番号に重複が見つからなかった場合
-                            // ページ数を揃えた変名案のうち、実際にエントリ名に変更があるものを抽出して返す
-                            return
-                                formattedPageNumbers
-                                .Where(item => !string.Equals(item.source.FileName, item.newFileName))
-                                .Select(item => new EntryFileNamePair(item.source, item.newFileName))
-                                .ToList();
-                        }
-                    }
-                }
-            }
-            else
-            {
-                // middleName に数字以外を含むエントリが1つでも存在した場合
-                // 単純なページ番号パターンを適用して、ページ番号の桁数が異なるエントリが存在するか調べる
-                var pageNumberLengths =
-                    entryFileNames
-                    .Select(source => new { source, match = _generalEntryPageNumberPattern.Match(source.FileNameWithoutExtension) })
-                    .Where(item => item.match.Success)
-                    .Select(item => new { item.source, prefix = item.match.Groups["prefix"].Value, lengthOfDigits = item.match.Groups["digits"].Value.Length })
-                    .GroupBy(item => item.prefix)
-                    .Select(g =>
-                        g
-                        .Select(item => new { item.source, item.lengthOfDigits })
-                        .GroupBy(item => item.lengthOfDigits)
-                        .Select(g2 => new { lengthOfDigits = g2.Key, sources = g2.Select(item => item.source).ToList() })
-                        .ToList())
-                    .Where(item => item.Count >= 2)
-                    .ToList();
-                if (pageNumberLengths.Any())
-                {
-                    // 複数の異なる桁数のページ番号のエントリが見つかった場合
-                    RaiseWarningReportedEvent(
-                        string.Format("異なる桁数のページ番号のエントリが見つかりました。: \"{0}\", \"{1}\", ...",
-                            pageNumberLengths.First().OrderBy(item => item.lengthOfDigits).First().sources.OrderBy(item => item.FileName.Length).ThenBy(item => item.FileName).First().FullPath,
-                            pageNumberLengths.First().OrderByDescending(item => item.lengthOfDigits).First().sources.OrderByDescending(item => item.FileName.Length).ThenByDescending(item => item.FileName).First().FullPath));
-                    RaiseManualVerificationProposedEvent();
-                }
-                return new EntryFileNamePair[0];
-            }
-        }
-#endif
 
         private void WarnImageUnderDirectory()
         {

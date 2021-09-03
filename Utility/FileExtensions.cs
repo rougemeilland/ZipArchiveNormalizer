@@ -40,7 +40,7 @@ namespace Utility
                             Path.Combine(
                                 sourceFileDirectory.FullName,
                                 sourceFileNameWithoutExtension + (retryCount <= 1 ? "" : string.Format(" ({0})", retryCount)) + sourceFileExtension));
-                    if (string.Equals(newFile.FullName, sourceFile.FullName, StringComparison.InvariantCultureIgnoreCase))
+                    if (string.Equals(newFile.FullName, sourceFile.FullName, StringComparison.OrdinalIgnoreCase))
                         return newFile;
                     else if (!newFile.Exists)
                     {

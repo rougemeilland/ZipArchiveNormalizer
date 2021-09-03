@@ -31,8 +31,8 @@ namespace ZipArchiveNormalizer.Phase0
         {
             return
                 _isBadFileSelecter(sourceFile) == false &&
-                sourceFile.Extension.IsAnyOf(".zip", ".epub", StringComparison.InvariantCultureIgnoreCase)
-                ? DefaultFileParameter
+                sourceFile.Extension.IsAnyOf(".zip", ".epub", StringComparison.OrdinalIgnoreCase)
+                ? base.IsMatchFile(sourceFile)
                 : null;
         }
 

@@ -83,6 +83,7 @@
     <Compile Include="ZipFileHeader\StreamExtensions.cs" />
     <Compile Include="ZipFileHeader\ZipEntryCentralDirectoryHeader.cs" />
     <Compile Include="ZipFileHeader\ZipEntryHeader.cs" />
+    <Compile Include="ZipFileHeader\ZipEntryInternalHeader.cs" />
     <Compile Include="ZipFileHeader\ZipEntryLocaFilelHeader.cs" />
     <Compile Include="ZipEntryGeneralPurposeBitFlag.cs" />
     <Compile Include="ZipFileHeader\ZipFileEOCD.cs" />

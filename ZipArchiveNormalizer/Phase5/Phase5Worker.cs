@@ -35,8 +35,8 @@ namespace ZipArchiveNormalizer.Phase5
             // 拡張子が ".zip", ".epub", ".pdf" のいずれかのファイルのみを対象とする
             return
                 _isBadFileSelecter(sourceFile) == false &&
-                sourceFile.Extension.IsAnyOf(".zip", ".epub", ".pdf", StringComparison.InvariantCultureIgnoreCase)
-                ? DefaultFileParameter
+                sourceFile.Extension.IsAnyOf(".zip", ".epub", ".pdf", StringComparison.OrdinalIgnoreCase)
+                ? base.IsMatchFile(sourceFile)
                 : null;
         }
 
@@ -45,11 +45,11 @@ namespace ZipArchiveNormalizer.Phase5
             var extension = DetermineNewArchiveFileExtension(sourceFile);
             var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(sourceFile.Name);
             var newFileNameWithoutExtension = _fileNameReplacePattern.Replace(fileNameWithoutExtension, FileNameReplacer);
-            if (sourceFile.IsAozoraBunko() && !sourceFile.Name.StartsWith(".", StringComparison.InvariantCultureIgnoreCase))
+            if (sourceFile.IsAozoraBunko() && !sourceFile.Name.StartsWith(".", StringComparison.OrdinalIgnoreCase))
                 fileNameWithoutExtension = "." + fileNameWithoutExtension;
             var zipArchiveFileDirectory = sourceFile.Directory;
             var newArchiveFile = sourceFile.RenameFile(newFileNameWithoutExtension + extension);
-            if (!string.Equals(newArchiveFile.FullName, sourceFile.FullName, StringComparison.InvariantCultureIgnoreCase))
+            if (!string.Equals(newArchiveFile.FullName, sourceFile.FullName, StringComparison.OrdinalIgnoreCase))
             {
                 RaiseInformationReportedEvent(sourceFile, string.Format("アーカイブファイルを変名しました。: \"{0}\"", newArchiveFile.Name));
                 IncrementChangedFileCount();
@@ -59,7 +59,7 @@ namespace ZipArchiveNormalizer.Phase5
 
         private string DetermineNewArchiveFileExtension(FileInfo sourceFile)
         {
-            if (sourceFile.Extension.IsNoneOf(".zip", ".epub", StringComparison.InvariantCultureIgnoreCase))
+            if (sourceFile.Extension.IsNoneOf(".zip", ".epub", StringComparison.OrdinalIgnoreCase))
                 return sourceFile.Extension;
             using (var zipFile = new ZipFile(sourceFile.FullName))
             {

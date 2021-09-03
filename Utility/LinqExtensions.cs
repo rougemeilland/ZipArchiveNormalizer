@@ -314,9 +314,9 @@ namespace Utility
             }
         }
 
-        public static IUniversalComparer<VALUE_T> CreateComparer<VALUE_T>(this IEnumerable<VALUE_T> source, Func<VALUE_T, VALUE_T, int> comparer, Func<VALUE_T, VALUE_T, bool> equalityComparer, Func<VALUE_T, int> hashCalculater)
+        public static IComparer<VALUE_T> CreateComparer<VALUE_T>(this IEnumerable<VALUE_T> source, Func<VALUE_T, VALUE_T, int> comparer)
         {
-            return new CustomizableComparer<VALUE_T>(comparer, equalityComparer, hashCalculater);
+            return new CustomizableComparer<VALUE_T>(comparer);
         }
 
         public static IEqualityComparer<VALUE_T> CreateEqualityComparer<VALUE_T>(this IEnumerable<VALUE_T> source, Func<VALUE_T, VALUE_T, bool> equalityComparer, Func<VALUE_T, int> hashCalculater)
@@ -332,6 +332,19 @@ namespace Utility
         public static IReadOnlyCollection<ELEMENT_T> ToReadOnlyCollection<ELEMENT_T>(this IEnumerable<ELEMENT_T> source)
         {
             return new ReadOnlyCollectionWrapper<ELEMENT_T>(source.ToList());
+        }
+
+        public static IComparer<CAPSULE_T> Map<CAPSULE_T, VALUE_T>(this IComparer<VALUE_T> comparer, Func<CAPSULE_T, VALUE_T> selecter)
+        {
+            return new CustomizableComparer<CAPSULE_T>((value1, value2) => comparer.Compare(selecter(value1), selecter(value2)));
+        }
+
+        public static IEqualityComparer<CAPSULE_T> Map<CAPSULE_T, VALUE_T>(this IEqualityComparer<VALUE_T> equalityComparer, Func<CAPSULE_T, VALUE_T> selecter)
+        {
+            return
+                new CustomizableEqualityComparer<CAPSULE_T>(
+                    (value1, value2) => equalityComparer.Equals(selecter(value1), selecter(value2)),
+                    value => selecter(value).GetHashCode());
         }
 
         private static void QuickSort<ELEMENT_T, KEY_T>(this ELEMENT_T[] source, Func<ELEMENT_T, KEY_T> keySekecter, int startIndex, int endIndex)

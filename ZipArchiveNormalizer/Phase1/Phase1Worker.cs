@@ -27,16 +27,10 @@ namespace ZipArchiveNormalizer.Phase1
             // 拡張子が ".zip", ".epub" のいずれかのファイルのみを対象とする
             return
                 _isBadFileSelecter(sourceFile) == false &&
-                sourceFile.Extension.IsAnyOf(".zip", ".epub", StringComparison.InvariantCultureIgnoreCase)
-                ? DefaultFileParameter
+                sourceFile.Extension.IsAnyOf(".zip", ".epub", StringComparison.OrdinalIgnoreCase)
+                ? base.IsMatchFile(sourceFile)
                 : null;
         }
-
-        protected override IComparer<FileInfo> FileComparer =>
-            new CustomizableComparer<FileInfo>(
-                (file1, file2) => -file1.Length.CompareTo(file2.Length),
-                (file1, file2) => file1.Length.Equals(file2.Length),
-                file => file.Length.GetHashCode());
 
         protected override void ActionForFile(FileInfo sourceFile, IFileWorkerActionParameter parameter)
         {

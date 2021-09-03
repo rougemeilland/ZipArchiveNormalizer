@@ -29,7 +29,7 @@ namespace ZipArchiveNormalizer.Phase4
                 TotalOfEntryCount = _entries.Values.Sum(item => item.Count);
                 TotalOfExtraFieldCount = _entries.Values.Sum(item => item.Sum(entry => (long)entry.ExtraFields.Count));
                 TotalOfEntryNameLength = _entries.Values.Sum(item => item.Sum(entry => (long)entry.FullName.Length));
-                NewestWriteTimeTicks = _entries.Values.Max(item => item.Max(entry => entry.LastWriteTimeUtc.Ticks));
+                NewestWriteTimeTicks = _entries.Values.Max(item => item.Max(entry => entry.LastWriteTimeUtc?.Ticks ?? long.MinValue));
             }
 
             public FileInfo ArchiveFile { get; }
@@ -116,7 +116,7 @@ namespace ZipArchiveNormalizer.Phase4
                 sourceFiles
                 .Where(file =>
                     _isBadFileSelecter(file) == false &&
-                    file.Extension.IsAnyOf(".zip", ".epub", StringComparison.InvariantCultureIgnoreCase))
+                    file.Extension.IsAnyOf(".zip", ".epub", StringComparison.OrdinalIgnoreCase))
                 .ToReadOnlyCollection();
             SetToSourceFiles(archiveFiles);
 
@@ -202,7 +202,7 @@ namespace ZipArchiveNormalizer.Phase4
             var equalCrcAndEntryCount =
                 crcAndEntryCount1.SequenceEqual(
                     crcAndEntryCount2,
-                    crcAndEntryCount1.CreateEqualityComparer(
+                    crcAndEntryCount2.CreateEqualityComparer(
                         (x, y) => x.crc == y.crc && x.entryCount == y.entryCount,
                         x => x.crc.GetHashCode() ^ x.entryCount.GetHashCode()));
             var result1 = CheckIfEntriesAreIncludedInOtherEntries(summary1, summary2, progressUpdater);

@@ -37,7 +37,7 @@ namespace ZipArchiveNormalizer.Phase2
                 sourceFiles
                 .Where(file =>
                     _isBadFileSelecter(file) == false &&
-                    file.Extension.IsAnyOf(".zip", ".epub", ".pdf", StringComparison.InvariantCultureIgnoreCase))
+                    file.Extension.IsAnyOf(".zip", ".epub", ".pdf", StringComparison.OrdinalIgnoreCase))
                 .ToReadOnlyCollection();
             SetToSourceFiles(targetSourceFiles);
 
@@ -172,7 +172,7 @@ namespace ZipArchiveNormalizer.Phase2
             if (fileToDelete != null)
             {
 #if DEBUG
-                if (string.Equals(fileToDelete.FullName, otherFile.FullName, StringComparison.InvariantCultureIgnoreCase))
+                if (string.Equals(fileToDelete.FullName, otherFile.FullName, StringComparison.OrdinalIgnoreCase))
                     throw new Exception();
 #endif
                 RaiseInformationReportedEvent(
@@ -184,7 +184,7 @@ namespace ZipArchiveNormalizer.Phase2
                 IncrementChangedFileCount();
                 return
                     files
-                    .Where(file => !string.Equals(file.FullName, fileToDelete.FullName, StringComparison.InvariantCultureIgnoreCase));
+                    .Where(file => !string.Equals(file.FullName, fileToDelete.FullName, StringComparison.OrdinalIgnoreCase));
             }
             else
             {

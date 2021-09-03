@@ -38,7 +38,8 @@ namespace Utility
         {
             try
             {
-                Console.WriteLine(FirstMessage);
+                if (!string.IsNullOrEmpty(FirstMessage))
+                    Console.WriteLine(FirstMessage);
                 Console.ResetColor();
                 _existsError = false;
                 _existsWarning = false;
@@ -187,7 +188,8 @@ namespace Utility
                     ? "中断処理中..."
                     : totalCount > 0
                         ? string.Format("Phase {0}/{1}: {2}%完了", currentPhaseNumber, maximumPhaseNumber, countOfDone * 100 / totalCount)
-                        : string.Format("Phase {0}/{1}: 準備中...", currentPhaseNumber, maximumPhaseNumber));
+                        : string.Format("Phase {0}/{1}: 準備中...", currentPhaseNumber, maximumPhaseNumber),
+                    worker.IsRequestedToCancel);
             };
             worker.InformationReported += informationReportedEventHandler;
             worker.WarningReported += warningReportedEventHandler;
@@ -282,7 +284,7 @@ namespace Utility
             }
         }
 
-        private void PrintProgress(string percentageText)
+        private void PrintProgress(string percentageText, bool requestedToCancel)
         {
             lock (this)
             {
@@ -298,7 +300,7 @@ namespace Utility
                             _eraseLineConsoleControlText,
                             percentageText,
                             GetProgressText(),
-                            _canceller.Usage,
+                            requestedToCancel ? "しばらくお待ちください" : _canceller.Usage,
                             _carriageReturnConsoleControlText));
                     _previousPrintedPercentageText = percentageText;
                     _previousPrintedTime = now;

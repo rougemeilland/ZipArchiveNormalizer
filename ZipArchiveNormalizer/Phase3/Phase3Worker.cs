@@ -39,7 +39,7 @@ namespace ZipArchiveNormalizer.Phase3
                     // compareEntryName が true の場合はエントリ名の違いを無視するが、
                     // エントリ名が違う場合にはオフセットの一致も期待できないので、オフセットも無視する
                     return
-                        (_compareEntryName == false || string.Equals(x.FullName, y.FullName, StringComparison.InvariantCultureIgnoreCase)) &&
+                        (_compareEntryName == false || string.Equals(x.FullName, y.FullName, StringComparison.OrdinalIgnoreCase)) &&
                         (_compareEntryName == false || x.Offset.Equals(y.Offset)) &&
                         x.Size.Equals(y.Size) &&
                         x.Crc.Equals(y.Crc);
@@ -108,16 +108,16 @@ namespace ZipArchiveNormalizer.Phase3
                     .CompareTo(y.ZipEntries.Sum(entry => (long)entry.FullName.Length))) != 0)
                     return c;
 
-                // アーカイブファイルに含まれているエントリの最新更新日付が古い方のファイルが重要
+                // アーカイブファイルに含まれているエントリの最新更新日付が古い方のファイルが重要 (日付がないエントリが一つでもあればそのファイルは「より重要ではない」)
                 if ((c =
-                    x.ZipEntries.Max(entry => entry.LastWriteTimeUtc.Ticks)
-                    .CompareTo(y.ZipEntries.Max(entry => entry.LastWriteTimeUtc.Ticks))) != 0)
+                    x.ZipEntries.Max(entry => entry.LastWriteTimeUtc?.Ticks ?? long.MaxValue)
+                    .CompareTo(y.ZipEntries.Max(entry => entry.LastWriteTimeUtc?.Ticks ?? long.MaxValue))) != 0)
                     return -c;
 
-                // アーカイブファイルに含まれているエントリの最新作成日付が古い方のファイルが重要
+                // アーカイブファイルに含まれているエントリの最新作成日付が古い方のファイルが重要 (日付がないエントリが一つでもあればそのファイルは「より重要ではない」)
                 if ((c =
-                    x.ZipEntries.Max(entry => (entry.CreationTimeUtc ?? DateTime.MaxValue).Ticks)
-                    .CompareTo(y.ZipEntries.Max(entry => (entry.CreationTimeUtc ?? DateTime.MaxValue).Ticks))) != 0)
+                    x.ZipEntries.Max(entry => entry.CreationTimeUtc?.Ticks ?? long.MaxValue)
+                    .CompareTo(y.ZipEntries.Max(entry => entry.CreationTimeUtc?.Ticks ?? long.MaxValue))) != 0)
                     return -c;
 
                 return _fileImportanceComparer.Compare(x.ZipFile, y.ZipFile);
@@ -166,7 +166,7 @@ namespace ZipArchiveNormalizer.Phase3
                 sourceFiles
                 .Where(file =>
                     _isBadFileSelecter(file) == false &&
-                    file.Extension.IsAnyOf(".zip", ".epub", StringComparison.InvariantCultureIgnoreCase))
+                    file.Extension.IsAnyOf(".zip", ".epub", StringComparison.OrdinalIgnoreCase))
                 .ToReadOnlyCollection();
             SetToSourceFiles(targetArchiveFiles);
 
@@ -309,7 +309,7 @@ namespace ZipArchiveNormalizer.Phase3
             if (fileToDelete != null)
             {
 #if DEBUG
-                if (string.Equals(fileToDelete.FullName, otherFile.FullName, StringComparison.InvariantCultureIgnoreCase))
+                if (string.Equals(fileToDelete.FullName, otherFile.FullName, StringComparison.OrdinalIgnoreCase))
                     throw new Exception();
 #endif
                 RaiseInformationReportedEvent(
@@ -321,7 +321,7 @@ namespace ZipArchiveNormalizer.Phase3
                 IncrementChangedFileCount();
                 return
                     zipArchives
-                    .Where(item => !string.Equals(item.ZipFile.FullName, fileToDelete.FullName, StringComparison.InvariantCultureIgnoreCase));
+                    .Where(item => !string.Equals(item.ZipFile.FullName, fileToDelete.FullName, StringComparison.OrdinalIgnoreCase));
             }
             else
             {

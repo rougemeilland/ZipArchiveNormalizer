@@ -31,7 +31,7 @@ namespace ZipArchiveNormalizer.Phase1
 
         public bool Rename(string newName)
         {
-            var changed = !string.Equals(Name, newName, StringComparison.InvariantCultureIgnoreCase);
+            var changed = !string.Equals(Name, newName, StringComparison.OrdinalIgnoreCase);
             Name = newName;
             return changed;
         }

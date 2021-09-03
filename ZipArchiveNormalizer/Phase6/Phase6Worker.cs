@@ -48,7 +48,7 @@ namespace ZipArchiveNormalizer.Phase6
             return
                 _isBadFileSelecter(sourceFile) == false &&
                 sourceFile.IsAozoraBunko()
-                ? DefaultFileParameter
+                ? base.IsMatchFile(sourceFile)
                 : null;
         }
 
@@ -88,11 +88,11 @@ namespace ZipArchiveNormalizer.Phase6
             if (localTextFileName.StartsWith("."))
                 localTextFileName = localTextFileName.Substring(1);
 #if DEBUG
-            if (mainContentTextEntry.LastWriteTimeUtc.Kind != DateTimeKind.Utc)
-                throw new Exception();
-            if (mainContentTextEntry.CreationTimeUtc.HasValue && mainContentTextEntry.CreationTimeUtc.Value.Kind != DateTimeKind.Utc)
+            if (mainContentTextEntry.LastWriteTimeUtc.HasValue && mainContentTextEntry.LastWriteTimeUtc.Value.Kind != DateTimeKind.Utc)
                 throw new Exception();
             if (mainContentTextEntry.LastAccessTimeUtc.HasValue && mainContentTextEntry.LastAccessTimeUtc.Value.Kind != DateTimeKind.Utc)
+                throw new Exception();
+            if (mainContentTextEntry.CreationTimeUtc.HasValue && mainContentTextEntry.CreationTimeUtc.Value.Kind != DateTimeKind.Utc)
                 throw new Exception();
 #endif
             var success = false;
@@ -131,7 +131,7 @@ namespace ZipArchiveNormalizer.Phase6
                 if (extracted)
                     RaiseInformationReportedEvent(sourceFile, "アーカイブファイルを展開しました。");
                 var newSourceFileName = sourceFile.Name;
-                if (!newSourceFileName.StartsWith(".", StringComparison.InvariantCultureIgnoreCase))
+                if (!newSourceFileName.StartsWith(".", StringComparison.OrdinalIgnoreCase))
                 {
                     newSourceFileName = "." + newSourceFileName;
                     UpdateProgress();
@@ -199,14 +199,14 @@ namespace ZipArchiveNormalizer.Phase6
             var type = match.Groups["type"].Value;
             var prefix = match.Groups["prefix"].Value;
             var imagePath = match.Groups["imagepath"].Value;
-            if (string.Equals(type, "img", StringComparison.InvariantCultureIgnoreCase))
+            if (string.Equals(type, "img", StringComparison.OrdinalIgnoreCase))
                 imagePath = WebUtility.HtmlDecode(imagePath);
             var suffix = match.Groups["suffix"].Value;
             var imageFileSubdirectory = Path.GetDirectoryName(imagePath);
             var imageFileName = Path.GetFileName(imagePath);
             if (string.IsNullOrEmpty(imageFileSubdirectory))
                 imageFileSubdirectory = ".img";
-            else if (!imageFileSubdirectory.StartsWith(".", StringComparison.InvariantCultureIgnoreCase))
+            else if (!imageFileSubdirectory.StartsWith(".", StringComparison.OrdinalIgnoreCase))
                 imageFileSubdirectory = "." + imageFileSubdirectory;
             else
             {
@@ -224,16 +224,16 @@ namespace ZipArchiveNormalizer.Phase6
                     return match.Value;
                 var foundImageArchiveEntry =
                     zipArchiveEntries
-                    .Where(entry => string.Equals(entry.FullName, imageEntryName, StringComparison.InvariantCultureIgnoreCase))
+                    .Where(entry => string.Equals(entry.FullName, imageEntryName, StringComparison.OrdinalIgnoreCase))
                     .FirstOrDefault();
                 if (foundImageArchiveEntry == null)
                     throw new Exception();
 #if DEBUG
-                if (foundImageArchiveEntry.LastWriteTimeUtc.Kind != DateTimeKind.Utc)
-                    throw new Exception();
-                if (foundImageArchiveEntry.CreationTimeUtc.HasValue && foundImageArchiveEntry.CreationTimeUtc.Value.Kind != DateTimeKind.Utc)
+                if (foundImageArchiveEntry.LastWriteTimeUtc.HasValue && foundImageArchiveEntry.LastWriteTimeUtc.Value.Kind != DateTimeKind.Utc)
                     throw new Exception();
                 if (foundImageArchiveEntry.LastAccessTimeUtc.HasValue && foundImageArchiveEntry.LastAccessTimeUtc.Value.Kind != DateTimeKind.Utc)
+                    throw new Exception();
+                if (foundImageArchiveEntry.CreationTimeUtc.HasValue && foundImageArchiveEntry.CreationTimeUtc.Value.Kind != DateTimeKind.Utc)
                     throw new Exception();
 #endif
                 bool alreadyExistsImageFile;
@@ -246,7 +246,7 @@ namespace ZipArchiveNormalizer.Phase6
                 var tagSource = Path.Combine(imageFileSubdirectory, Path.GetFileName(newImageFile.FullName)).Replace('\\', '/');
                 var result =
                     prefix +
-                    (string.Equals(type, "img", StringComparison.InvariantCultureIgnoreCase) ? WebUtility.HtmlEncode(tagSource) : tagSource) +
+                    (string.Equals(type, "img", StringComparison.OrdinalIgnoreCase) ? WebUtility.HtmlEncode(tagSource) : tagSource) +
                     suffix;
                 return result;
             }

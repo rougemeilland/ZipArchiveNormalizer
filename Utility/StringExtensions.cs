@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 using System.Linq;
 
@@ -7,6 +8,76 @@ namespace Utility
 {
     public static class StringExtensions
     {
+        private class StringEnumerable
+            : IEnumerable<char>
+        {
+            private class Enumerator
+                : IEnumerator<char>
+            {
+                private string _originalString;
+                private int _offset;
+                private int _index;
+                private int _limit;
+
+                public Enumerator(string originalString, int offset, int count)
+                {
+                    if (offset < 0)
+                        throw new ArgumentException();
+                    if (count < 0)
+                        throw new ArgumentException();
+                    if (offset + count > originalString.Length)
+                        throw new ArgumentException();
+                    _originalString = originalString;
+                    _offset = offset;
+                    _index = offset - 1;
+                    _limit = offset + count;
+                }
+
+                public char Current => _index >= _offset && _index < _limit ? _originalString[_index] : throw new InvalidOperationException();
+
+                object IEnumerator.Current => Current;
+
+                public void Dispose()
+                {
+                    // NOP
+                }
+
+                public bool MoveNext()
+                {
+                    if (_index >= _limit)
+                        throw new InvalidOperationException();
+                    ++_index;
+                    return _index < _limit;
+                }
+
+                public void Reset()
+                {
+                    _index = _offset - 1;
+                }
+            }
+
+            private string _originalString;
+            private int _offset;
+            private int _count;
+
+            public StringEnumerable(string originalString, int offset, int count)
+            {
+                _originalString = originalString;
+                _offset = offset;
+                _count = count;
+            }
+
+            public IEnumerator<char> GetEnumerator()
+            {
+                return new Enumerator(_originalString, _offset, _count);
+            }
+
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return GetEnumerator();
+            }
+        }
+
         public static IEnumerable<FileInfo> EnumerateFilesFromArgument(this IEnumerable<string> args)
         {
             return
@@ -75,29 +146,29 @@ namespace Utility
             return found != null ? s1.Substring(s1.Length - found.index, found.index) : s1;
         }
 
-        public static bool IsNoneOf(this string s, string s1, string s2, StringComparison stringComparison = StringComparison.CurrentCulture)
+        public static bool IsNoneOf(this string s, string s1, string s2, StringComparison stringComparison = StringComparison.Ordinal)
         {
             return !s.IsAnyOf(s1, s2, stringComparison);
         }
 
-        public static bool IsNoneOf(this string s, string s1, string s2, string s3, StringComparison stringComparison = StringComparison.CurrentCulture)
+        public static bool IsNoneOf(this string s, string s1, string s2, string s3, StringComparison stringComparison = StringComparison.Ordinal)
         {
             return !s.IsAnyOf(s1, s2, s3, stringComparison);
         }
 
-        public static bool IsNoneOf(this string s, string s1, string s2, string s3, string s4, StringComparison stringComparison = StringComparison.CurrentCulture)
+        public static bool IsNoneOf(this string s, string s1, string s2, string s3, string s4, StringComparison stringComparison = StringComparison.Ordinal)
         {
             return !s.IsAnyOf(s1, s2, s3, s4, stringComparison);
         }
 
-        public static bool IsAnyOf(this string s, string s1, string s2, StringComparison stringComparison = StringComparison.CurrentCulture)
+        public static bool IsAnyOf(this string s, string s1, string s2, StringComparison stringComparison = StringComparison.Ordinal)
         {
             return
                 string.Equals(s, s1, stringComparison) ||
                 string.Equals(s, s2, stringComparison);
         }
 
-        public static bool IsAnyOf(this string s, string s1, string s2, string s3, StringComparison stringComparison = StringComparison.CurrentCulture)
+        public static bool IsAnyOf(this string s, string s1, string s2, string s3, StringComparison stringComparison = StringComparison.Ordinal)
         {
             return
                 string.Equals(s, s1, stringComparison) ||
@@ -105,13 +176,28 @@ namespace Utility
                 string.Equals(s, s3, stringComparison);
         }
 
-        public static bool IsAnyOf(this string s, string s1, string s2, string s3, string s4, StringComparison stringComparison = StringComparison.CurrentCulture)
+        public static bool IsAnyOf(this string s, string s1, string s2, string s3, string s4, StringComparison stringComparison = StringComparison.Ordinal)
         {
             return
                 string.Equals(s, s1, stringComparison) ||
                 string.Equals(s, s2, stringComparison) ||
                 string.Equals(s, s3, stringComparison) ||
                 string.Equals(s, s4, stringComparison);
+        }
+
+        public static IEnumerable<char> GetSequence(this string s)
+        {
+            return new StringEnumerable(s, 0, s.Length);
+        }
+
+        public static IEnumerable<char> GetSequence(this string s, int offset)
+        {
+            return new StringEnumerable(s, offset, s.Length - offset);
+        }
+
+        public static IEnumerable<char> GetSequence(this string s, int offset, int count)
+        {
+            return new StringEnumerable(s, offset, count);
         }
 
         private static FileInfo TryParseAsFilePath(string path)
@@ -147,7 +233,7 @@ namespace Utility
         private static bool CharacterEqual(char c1, char c2, bool ignoreCase)
         {
             if (ignoreCase)
-                return char.ToLowerInvariant(c1) == char.ToLowerInvariant(c2);
+                return char.ToUpperInvariant(c1) == char.ToUpperInvariant(c2);
             else
                 return c1 == c2;
         }

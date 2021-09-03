@@ -71,7 +71,7 @@ namespace ImageFileRenumber
             _digitsPattern = new Regex(@"^[0-9]+$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             _startsWithDigitsPattern = new Regex(@"^[0-9]*(?<suffix>.*?)$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             _endsWithDigitsPattern = new Regex(@"^(?<prefix>.*?)[0-9]*$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            _fileNameComparer = new FilePathNameComparer(FilePathNameComparerrOption.ConsiderSequenceOfDigitsAsNumber);
+            _fileNameComparer = new FilePathNameComparer(FilePathNameComparerrOption.ConsiderDigitSequenceOfsAsNumber | FilePathNameComparerrOption.ConsiderPathNameDelimiter | FilePathNameComparerrOption.IgnoreCase);
         }
 
         public ImageFileNameRenumberWorker(IWorkerCancellable canceller)
@@ -84,11 +84,11 @@ namespace ImageFileRenumber
         protected override IFileWorkerActionFileParameter IsMatchFile(FileInfo sourceFile)
         {
             // いずれかの階層のディレクトリ名またはファイル名が '.' で始まるパス名は対象外とする
-            // 拡張子が ".jpg", ".png", ".bmp" のいずれかのファイルのみを対象とする
+            // 拡張子が ".jpg", ".jpeg", ".png", ".bmp" のいずれかのファイルのみを対象とする
             return
                 sourceFile.FullName.Contains(@"\.") == false &&
-                sourceFile.Extension.IsAnyOf(".jpg", ".png", ".bmp", StringComparison.InvariantCultureIgnoreCase)
-                ? DefaultFileParameter
+                sourceFile.Extension.IsAnyOf(".jpg", ".jpeg", ".png", ".bmp", StringComparison.OrdinalIgnoreCase)
+                ? base.IsMatchFile(sourceFile)
                 : null;
         }
 
@@ -213,7 +213,7 @@ namespace ImageFileRenumber
             var found =
                 newFileNames
                 .Where(item =>
-                    string.Equals(item.currentFileName, item.newFileName, StringComparison.InvariantCultureIgnoreCase) == false &&
+                    string.Equals(item.currentFileName, item.newFileName, StringComparison.OrdinalIgnoreCase) == false &&
                     File.Exists(item.newFileNPath))
                 .FirstOrDefault();
             if (found != null)
@@ -222,10 +222,7 @@ namespace ImageFileRenumber
         }
 
         protected override IComparer<FileInfo> FileComparer =>
-            new CustomizableComparer<FileInfo>(
-                (file1, file2) => _fileNameComparer.Compare(file1.FullName, file2.FullName),
-                (file1, file2) => StringComparer.InvariantCultureIgnoreCase.Equals(file1.FullName, file2.FullName),
-                file => file.GetHashCode());
+            _fileNameComparer.Map<FileInfo, string>(file => file.FullName);
 
         protected override void ActionForFile(FileInfo sourceFile, IFileWorkerActionParameter parameter)
         {
