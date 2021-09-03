@@ -66,10 +66,7 @@ namespace Utility.FileWorker
         {
             var sourceFileItems = GetWorkingSource(sourceFiles);
             SetToSourceFiles(sourceFileItems.SelectMany(sourceFileItem => sourceFileItem.FileItems).Select(fileItem => fileItem.SourceFile));
-
-            if (IsRequestedToCancel)
-                throw new OperationCanceledException();
-
+            SafetyCancellationCheck();
             var totalCount = sourceFileItems.Sum(item => item.FileItems.Count);
             long countOfDone = 0;
             UpdateProgress(totalCount, countOfDone);
@@ -172,8 +169,7 @@ namespace Utility.FileWorker
                 if (cancellationTokenSource.IsCancellationRequested)
                     throw new OperationCanceledException();
             }
-            if (IsRequestedToCancel)
-                throw new OperationCanceledException();
+            SafetyCancellationCheck();
         }
 
         protected virtual IFileWorkerActionFileParameter IsMatchFile(FileInfo sourceFile)
@@ -206,8 +202,7 @@ namespace Utility.FileWorker
                 sourceFiles
                 .Select(sourceFile =>
                 {
-                    if (IsRequestedToCancel)
-                        throw new OperationCanceledException();
+                    SafetyCancellationCheck();
                     try
                     {
                         return new { sourceFile = sourceFile, fileParameter = IsMatchFile(sourceFile) };
@@ -245,8 +240,7 @@ namespace Utility.FileWorker
                 })
                 .Select(item =>
                 {
-                    if (IsRequestedToCancel)
-                        throw new OperationCanceledException();
+                    SafetyCancellationCheck();
                     try
                     {
                         return new DirectoryWorkerItem { SourceFileDirectory = item.directory, FileItems = item.fileItems, DirectoryParameter = IsMatchDirectory(item.directory, item.fileItems.Select(fileItem => fileItem.SourceFile.Name)) };
@@ -270,8 +264,7 @@ namespace Utility.FileWorker
 
         private void ExecuteAction(FileInfo sourceFile, int index, IFileWorkerActionDirectoryParameter directoryParameter, IFileWorkerActionFileParameter fileParameter, int totalCount, ref long countOfDone)
         {
-            if (IsRequestedToCancel)
-                throw new OperationCanceledException();
+            SafetyCancellationCheck();
             try
             {
                 // 呼び出された関数で FileInfo.MoveTo などを実行すると呼び出し元の FileInfo オブジェクトも改変されてしまうため、

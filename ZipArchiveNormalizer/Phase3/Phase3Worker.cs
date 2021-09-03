@@ -180,8 +180,7 @@ namespace ZipArchiveNormalizer.Phase3
                 targetArchiveFiles
                 .Select(file =>
                 {
-                    if (IsRequestedToCancel)
-                        throw new OperationCanceledException();
+                    SafetyCancellationCheck();
                     var o = new ZipArchiveEntriesOfZipFile(file);
                     UpdateProgress(totalCount, Interlocked.Increment(ref counrOfDone));
                     return o;
@@ -233,8 +232,7 @@ namespace ZipArchiveNormalizer.Phase3
                 if (cancellationTokenSource.IsCancellationRequested)
                     throw new OperationCanceledException();
             }
-            if (IsRequestedToCancel)
-                throw new OperationCanceledException();
+            SafetyCancellationCheck();
             UpdateProgress();
             foreach (var destinationFile in destinationFiles.Values)
                 AddToDestinationFiles(destinationFile);
@@ -248,8 +246,7 @@ namespace ZipArchiveNormalizer.Phase3
             var zipArchiveFileInfo1 = zipArchives.First();
             foreach (var zipArchiveFileInfo2 in zipArchives.Skip(1))
             {
-                if (IsRequestedToCancel)
-                    throw new OperationCanceledException();
+                SafetyCancellationCheck();
                 UpdateProgress();
 
                 var isLikelyToBeEqual = EntriesEqualMoreEasily(zipArchiveFileInfo1, zipArchiveFileInfo2);
@@ -371,7 +368,7 @@ namespace ZipArchiveNormalizer.Phase3
                         .Zip(archiveFile2.ZipEntries, (entry1, entry2) => new { entry1, entry2 })
                         .All(item =>
                             zipFile1.GetInputStream(item.entry1)
-                            .StreamBytesEqual(zipFile2.GetInputStream(item.entry2)));
+                            .StreamBytesEqual(zipFile2.GetInputStream(item.entry2), progressNotification: () => UpdateProgress()));
                 }
             }
             catch (Exception)

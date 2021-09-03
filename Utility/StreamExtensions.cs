@@ -319,9 +319,9 @@ namespace Utility
             return new ReverseByteSequence(inputStream, offset, count, leaveOpen);
         }
 
-        public static bool StreamBytesEqual(this Stream stream1, Stream stream2, bool leaveOpen = false)
+        public static bool StreamBytesEqual(this Stream stream1, Stream stream2, bool leaveOpen = false, Action progressNotification = null)
         {
-            const int bufferSize = 64 * 1024;
+            const int bufferSize = 81920;
 #if DEBUG
             if (bufferSize % sizeof(UInt64) != 0)
                 throw new Exception();
@@ -359,6 +359,16 @@ namespace Utility
                         // 全てのデータが一致したと判断して true を返す。
                         return true;
                     }
+                    if (progressNotification != null)
+                    {
+                        try
+                        {
+                            progressNotification();
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
                 }
             }
             finally
@@ -367,6 +377,44 @@ namespace Utility
                 {
                     stream1.Dispose();
                     stream2.Dispose();
+                }
+            }
+        }
+
+        public static void CopyTo(this Stream source, Stream destination, Action progressNotification)
+        {
+            source.CopyTo(destination, 81920, progressNotification);
+        }
+
+        public static void CopyTo(this Stream source, Stream destination, int bufferSize, Action progressNotification)
+        {
+            if (source == null)
+                throw new ArgumentNullException();
+            if (destination == null)
+                throw new ArgumentNullException();
+            if (bufferSize < 1)
+                throw new ArgumentException();
+            if (progressNotification == null)
+                throw new ArgumentNullException();
+            var buffer = new byte[bufferSize];
+            var progressCount = 0;
+            while (true)
+            {
+                var length = source.Read(buffer, 0, buffer.Length);
+                if (length <= 0)
+                    break;
+                destination.Write(buffer, 0, length);
+                progressCount += length;
+                if (progressCount >= bufferSize)
+                {
+                    try
+                    {
+                        progressNotification();
+                    }
+                    catch (Exception)
+                    {
+                    }
+                    progressCount -= bufferSize;
                 }
             }
         }

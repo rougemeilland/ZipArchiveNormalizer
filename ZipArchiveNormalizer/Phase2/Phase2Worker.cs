@@ -60,8 +60,7 @@ namespace ZipArchiveNormalizer.Phase2
                     item.files
                     .Select(file =>
                     {
-                        if (IsRequestedToCancel)
-                            throw new OperationCanceledException();
+                        SafetyCancellationCheck();
                         var result =
                             new
                             {
@@ -121,8 +120,7 @@ namespace ZipArchiveNormalizer.Phase2
                 if (cancellationTokenSource.IsCancellationRequested)
                     throw new OperationCanceledException();
             }
-            if (IsRequestedToCancel)
-                throw new OperationCanceledException();
+            SafetyCancellationCheck();
             UpdateProgress();
             foreach (var destinationFile in destinationFiles.Values)
                 AddToDestinationFiles(destinationFile);
@@ -134,8 +132,7 @@ namespace ZipArchiveNormalizer.Phase2
             var fileInfos = filesOfSameLength.ToReadOnlyCollection();
             while (fileInfos.Count >= 2)
             {
-                if (IsRequestedToCancel)
-                    throw new OperationCanceledException();
+                SafetyCancellationCheck();
                 UpdateProgress();
                 fileInfos = DeleteAndExcludeUselessFile(fileInfos, onDeleteFile).ToReadOnlyCollection();
             }
@@ -148,10 +145,9 @@ namespace ZipArchiveNormalizer.Phase2
             var fileInfo1 = files.First();
             foreach (var fileInfo2 in files.Skip(1))
             {
-                if (IsRequestedToCancel)
-                    throw new OperationCanceledException();
+                SafetyCancellationCheck();
                 UpdateProgress();
-                if (fileInfo1.OpenRead().StreamBytesEqual(fileInfo2.OpenRead()))
+                if (fileInfo1.OpenRead().StreamBytesEqual(fileInfo2.OpenRead(), progressNotification: () => UpdateProgress()))
                 {
                     // ファイルの内容が一致している場合
 

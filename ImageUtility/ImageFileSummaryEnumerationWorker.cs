@@ -87,8 +87,7 @@ namespace ImageUtility
                                 {
                                     try
                                     {
-                                        if (IsRequestedToCancel)
-                                            throw new OperationCanceledException();
+                                        SafetyCancellationCheck();
                                         return new ImageFileSize(file, file.CalculateCrc32(), file.GetImageSize());
                                     }
                                     finally
@@ -121,8 +120,7 @@ namespace ImageUtility
                 if (cancellationTokenSource.IsCancellationRequested)
                     throw new OperationCanceledException();
             }
-            if (IsRequestedToCancel)
-                throw new OperationCanceledException();
+            SafetyCancellationCheck();
         }
 
         private void ActionForImageFileDirectory(ImageFileDirectorySummary summary)

@@ -30,6 +30,8 @@ namespace Utility.FileWorker
         private IEnumerable<FileInfo> _sourceFiles;
         private ICollection<FileInfo> _destinationFiles;
         private long _changedFileCount;
+        private bool _cancelledbyUser;
+        private bool _aborted;
 
         public event EventHandler<FileMessageReportedEventArgs> InformationReported;
         public event EventHandler<FileMessageReportedEventArgs> WarningReported;
@@ -43,6 +45,8 @@ namespace Utility.FileWorker
             _sourceFiles = new List<FileInfo>();
             _destinationFiles = new List<FileInfo>();
             _changedFileCount = 0;
+            _cancelledbyUser = false;
+            _aborted = false;
         }
 
         public abstract string Description { get; }
@@ -60,8 +64,7 @@ namespace Utility.FileWorker
                 _destinationFiles.Clear();
                 _changedFileCount = 0;
                 _sourceFiles = args.EnumerateFilesFromArgument();
-                if (IsRequestedToCancel)
-                    throw new OperationCanceledException();
+                SafetyCancellationCheck();
                 ExecuteWork(_sourceFiles, previousWorkerResult);
                 return new ExecutionResult(_sourceFiles, _destinationFiles, _changedFileCount);
             }
@@ -100,8 +103,7 @@ namespace Utility.FileWorker
             {
                 _destinationFiles.Clear();
                 _changedFileCount = 0;
-                if (IsRequestedToCancel)
-                    throw new OperationCanceledException();
+                SafetyCancellationCheck();
                 var copyOfSourceFiles = sourceFiles.ToReadOnlyCollection();
                 ExecuteWork(sourceFiles, previousWorkerResult);
                 return new ExecutionResult(copyOfSourceFiles, _destinationFiles, _changedFileCount);
@@ -135,19 +137,29 @@ namespace Utility.FileWorker
             {
                 lock (this)
                 {
-                    _canceller.CheckCancellatio();
-                    return _canceller.IsRequestToCancel;
+                    CheckForCancellation();
+                    return _cancelledbyUser | _aborted;
                 }
             }
         }
 
-        public void Cancel()
+        protected void SafetyCancellationCheck()
+        {
+            lock (this)
+            {
+                CheckForCancellation();
+                if (_cancelledbyUser || _aborted)
+                    throw new OperationCanceledException();
+            }
+        }
+
+        protected void Abort()
         {
             lock (this)
             {
                 if (_walkingNow)
                 {
-                    _canceller.Cancel();
+                    _aborted = true;
                 }
             }
         }
@@ -182,7 +194,10 @@ namespace Utility.FileWorker
             catch (Exception)
             {
             }
-            _canceller.CheckCancellatio();
+            lock (this)
+            {
+                CheckForCancellation();
+            }
         }
 
         protected void RaiseInformationReportedEvent(FileInfo sourceFile, string messsage)
@@ -195,7 +210,10 @@ namespace Utility.FileWorker
             catch (Exception)
             {
             }
-            _canceller.CheckCancellatio();
+            lock (this)
+            {
+                CheckForCancellation();
+            }
         }
 
         protected void RaiseWarningReportedEvent(string messsage)
@@ -208,7 +226,10 @@ namespace Utility.FileWorker
             catch (Exception)
             {
             }
-            _canceller.CheckCancellatio();
+            lock (this)
+            {
+                CheckForCancellation();
+            }
         }
 
         protected void RaiseWarningReportedEvent(FileInfo sourceFile, string messsage)
@@ -221,7 +242,10 @@ namespace Utility.FileWorker
             catch (Exception)
             {
             }
-            _canceller.CheckCancellatio();
+            lock (this)
+            {
+                CheckForCancellation();
+            }
         }
 
         protected void RaiseErrorReportedEvent(string messsage)
@@ -234,7 +258,10 @@ namespace Utility.FileWorker
             catch (Exception)
             {
             }
-            _canceller.CheckCancellatio();
+            lock (this)
+            {
+                CheckForCancellation();
+            }
         }
 
         protected void RaiseErrorReportedEvent(FileInfo sourceFile, string messsage)
@@ -247,7 +274,10 @@ namespace Utility.FileWorker
             catch (Exception)
             {
             }
-            _canceller.CheckCancellatio();
+            lock (this)
+            {
+                CheckForCancellation();
+            }
         }
 
         protected void UpdateProgress()
@@ -260,7 +290,10 @@ namespace Utility.FileWorker
             catch (Exception)
             {
             }
-            _canceller.CheckCancellatio();
+            lock (this)
+            {
+                CheckForCancellation();
+            }
         }
 
         protected void UpdateProgress(long totalCount, long countOfDone)
@@ -277,7 +310,16 @@ namespace Utility.FileWorker
             catch (Exception)
             {
             }
+            lock (this)
+            {
+                CheckForCancellation();
+            }
+        }
+
+        private void CheckForCancellation()
+        {
             _canceller.CheckCancellatio();
+            _cancelledbyUser |= _canceller.IsRequestToCancel;
         }
     }
 }

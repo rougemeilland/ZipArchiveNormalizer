@@ -54,8 +54,8 @@ namespace ZipArchiveNormalizer
 
         protected override IReadOnlyCollection<IFileWorker> Workers => _workers;
         protected override string FirstMessage => "指定されたファイル(.zip/.pdf/.epub)を正規化します。";
-        protected override string CancellationMessage => "ユーザによって中断されました。";
-        protected override string CompletionMessageOnError => "エラーが発生しました。";
+        protected override string CancellationMessage => "中断されました。";
+        protected override string CompletionMessageOnError => "エラーにより終了しました。";
         protected override string NormalCompletionMessage => "正常に終了しました。";
 
         protected override void InitializeBeforeExecution()

@@ -80,7 +80,7 @@ namespace ImageUtility
                                     try
                                     {
                                         if (item.files[index].Length == item.files[index + 1].Length &&
-                                            item.files[index].OpenRead().StreamBytesEqual(item.files[index + 1].OpenRead()))
+                                            item.files[index].OpenRead().StreamBytesEqual(item.files[index + 1].OpenRead(), progressNotification: () => UpdateProgress()))
                                         {
                                             try
                                             {
@@ -119,8 +119,7 @@ namespace ImageUtility
                 if (cancellationTokenSource.IsCancellationRequested)
                     throw new OperationCanceledException();
             }
-            if (IsRequestedToCancel)
-                throw new OperationCanceledException();
+            SafetyCancellationCheck();
         }
 
         private void ActionForSameImageFile(FileInfo imageFile1, FileInfo imageFile2)

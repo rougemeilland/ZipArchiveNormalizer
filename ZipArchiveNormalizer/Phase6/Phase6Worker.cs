@@ -262,7 +262,7 @@ namespace ZipArchiveNormalizer.Phase6
             }
         }
 
-        private static bool ExtractImageFile(ZipFile zipFile, string imageEntryName, FileInfo imageLocalFile)
+        private bool ExtractImageFile(ZipFile zipFile, string imageEntryName, FileInfo imageLocalFile)
         {
             try
             {
@@ -273,7 +273,7 @@ namespace ZipArchiveNormalizer.Phase6
                 using (var imageInputStream = zipFile.GetInputStream(imageEntry))
                 using (var localImageFileStream = imageLocalFile.Create())
                 {
-                    imageInputStream.CopyTo(localImageFileStream);
+                    imageInputStream.CopyTo(localImageFileStream, () => UpdateProgress());
                     return true;
                 }
             }

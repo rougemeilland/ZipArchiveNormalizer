@@ -19,11 +19,6 @@ namespace Utility
 
         public bool IsRequestToCancel => _canceled;
 
-        public void Cancel()
-        {
-            _canceled = true;
-        }
-
         public void ResetCancellationStatus()
         {
             _canceled = false;

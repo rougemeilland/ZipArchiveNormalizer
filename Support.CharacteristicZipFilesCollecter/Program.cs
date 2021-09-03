@@ -5,6 +5,7 @@ using System.IO;
 using Utility;
 using Utility.FileWorker;
 using ZipUtility;
+using ZipUtility.ZipExtraField;
 
 namespace Support.CharacteristicZipFilesCollecter
 {
@@ -33,7 +34,7 @@ namespace Support.CharacteristicZipFilesCollecter
                 _ok_NTFS = false;
             }
 
-            public override string Description => "すべてのZIPファイルが読み込めるか調べます。";
+            public override string Description => "テストに役立ちそうなZIPファイルを収集します。";
 
             protected override IFileWorkerActionFileParameter IsMatchFile(FileInfo sourceFile)
             {
@@ -52,7 +53,7 @@ namespace Support.CharacteristicZipFilesCollecter
                         lock (this)
                         {
                             var targetFilePath = Path.Combine(@"D:\テストデータ", "大きなZIPファイル.zip");
-                            if (!File.Exists(targetFilePath) || !new FileInfo(targetFilePath).IsCorrectZipFile())
+                            if (!File.Exists(targetFilePath))
                             {
                                 File.Delete(targetFilePath);
                                 sourceFile.CopyTo(targetFilePath);
@@ -72,7 +73,7 @@ namespace Support.CharacteristicZipFilesCollecter
                             var targetFilePath = Path.Combine(@"D:\テストデータ", "データディスクリプタがあるZIPファイル.zip");
                             lock (this)
                             {
-                                if (!File.Exists(targetFilePath) || !new FileInfo(targetFilePath).IsCorrectZipFile())
+                                if (!File.Exists(targetFilePath))
                                 {
                                     File.Delete(targetFilePath);
                                     sourceFile.CopyTo(targetFilePath);
@@ -92,7 +93,7 @@ namespace Support.CharacteristicZipFilesCollecter
                                 lock (this)
                                 {
                                     var targetFilePath = Path.Combine(@"D:\テストデータ", "Z64形式のZIPファイル.zip");
-                                    if (!File.Exists(targetFilePath) || !new FileInfo(targetFilePath).IsCorrectZipFile())
+                                    if (!File.Exists(targetFilePath))
                                     {
                                         File.Delete(targetFilePath);
                                         sourceFile.CopyTo(targetFilePath);
@@ -107,20 +108,24 @@ namespace Support.CharacteristicZipFilesCollecter
                             }
                             if (extraData.Find(0x5455) && !extraData.Find(10))
                             {
-                                lock (this)
+                                var unix = extraData.GetData<ExtendedUnixData>();
+                                if (unix.Include == (ExtendedUnixData.Flags.AccessTime | ExtendedUnixData.Flags.CreateTime | ExtendedUnixData.Flags.ModificationTime))
                                 {
-                                    var targetFilePath = Path.Combine(@"D:\テストデータ", "UNIXタイムスタンプがあるZIPファイル.zip");
-                                    if (!File.Exists(targetFilePath) || !new FileInfo(targetFilePath).IsCorrectZipFile())
+                                    lock (this)
                                     {
-                                        File.Delete(targetFilePath);
-                                        sourceFile.CopyTo(targetFilePath);
-                                        File.SetAttributes(targetFilePath, FileAttributes.ReadOnly);
-                                        RaiseInformationReportedEvent(
-                                            sourceFile,
-                                            string.Format("ファイルを見つけました。: {0}",
-                                                Path.GetFileNameWithoutExtension(targetFilePath)));
+                                        var targetFilePath = Path.Combine(@"D:\テストデータ", "UNIXタイムスタンプがあるZIPファイル.zip");
+                                        if (!File.Exists(targetFilePath))
+                                        {
+                                            File.Delete(targetFilePath);
+                                            sourceFile.CopyTo(targetFilePath);
+                                            File.SetAttributes(targetFilePath, FileAttributes.ReadOnly);
+                                            RaiseInformationReportedEvent(
+                                                sourceFile,
+                                                string.Format("ファイルを見つけました。: {0}",
+                                                    Path.GetFileNameWithoutExtension(targetFilePath)));
+                                        }
+                                        _ok_UT = true;
                                     }
-                                    _ok_UT = true;
                                 }
                             }
                             if (extraData.Find(10) && !extraData.Find(0x5455))
@@ -128,7 +133,7 @@ namespace Support.CharacteristicZipFilesCollecter
                                 lock (this)
                                 {
                                     var targetFilePath = Path.Combine(@"D:\テストデータ", "NTFSタイムスタンプがあるZIPファイル.zip");
-                                    if (!File.Exists(targetFilePath) || !new FileInfo(targetFilePath).IsCorrectZipFile())
+                                    if (!File.Exists(targetFilePath))
                                     {
                                         File.Delete(targetFilePath);
                                         sourceFile.CopyTo(targetFilePath);
@@ -146,7 +151,7 @@ namespace Support.CharacteristicZipFilesCollecter
                                 lock (this)
                                 {
                                     var targetFilePath = Path.Combine(@"D:\テストデータ", "WindowsセキュリティディスクリプタがあるZIPファイル.zip");
-                                    if (!File.Exists(targetFilePath) || !new FileInfo(targetFilePath).IsCorrectZipFile())
+                                    if (!File.Exists(targetFilePath))
                                     {
                                         File.Delete(targetFilePath);
                                         sourceFile.CopyTo(targetFilePath);
@@ -161,20 +166,24 @@ namespace Support.CharacteristicZipFilesCollecter
                             }
                             if (extraData.Find(0x7075))
                             {
-                                lock (this)
+                                var extraField = extraData.GetData<UnicodePathExtraField>();
+                                if (extraField != null && !string.Equals(entry.Name, extraField.FullName, StringComparison.OrdinalIgnoreCase))
                                 {
-                                    var targetFilePath = Path.Combine(@"D:\テストデータ", "UNICODEパス拡張があるZIPファイル.zip");
-                                    if (!File.Exists(targetFilePath) || !new FileInfo(targetFilePath).IsCorrectZipFile())
+                                    lock (this)
                                     {
-                                        File.Delete(targetFilePath);
-                                        sourceFile.CopyTo(targetFilePath);
-                                        File.SetAttributes(targetFilePath, FileAttributes.ReadOnly);
-                                        RaiseInformationReportedEvent(
-                                            sourceFile,
-                                            string.Format("ファイルを見つけました。: {0}",
-                                                Path.GetFileNameWithoutExtension(targetFilePath)));
+                                        var targetFilePath = Path.Combine(@"D:\テストデータ", "UNICODEパス拡張があるZIPファイル.zip");
+                                        if (!File.Exists(targetFilePath))
+                                        {
+                                            File.Delete(targetFilePath);
+                                            sourceFile.CopyTo(targetFilePath);
+                                            File.SetAttributes(targetFilePath, FileAttributes.ReadOnly);
+                                            RaiseInformationReportedEvent(
+                                                sourceFile,
+                                                string.Format("ファイルを見つけました。: {0}",
+                                                    Path.GetFileNameWithoutExtension(targetFilePath)));
+                                        }
+                                        _ok_up = true;
                                     }
-                                    _ok_up = true;
                                 }
                             }
                         }
@@ -187,7 +196,8 @@ namespace Support.CharacteristicZipFilesCollecter
                             _ok_up &&
                             _ok_NTFS)
                         {
-                            Cancel();
+                            RaiseErrorReportedEvent("収集を完了したので捜索を中断します。");
+                            Abort();
                         }
                     }
                 }
@@ -215,9 +225,9 @@ namespace Support.CharacteristicZipFilesCollecter
 
             protected override string NormalCompletionMessage => "正常に終了しました。";
 
-            protected override string CancellationMessage => "ユーザにより中断されました。";
+            protected override string CancellationMessage => "中断されました。";
 
-            protected override string CompletionMessageOnError => "エラーにより中断しました。";
+            protected override string CompletionMessageOnError => "エラーにより終了しました。";
         }
 
         static void Main(string[] args)

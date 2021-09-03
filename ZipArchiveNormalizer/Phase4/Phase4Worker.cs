@@ -128,8 +128,7 @@ namespace ZipArchiveNormalizer.Phase4
                 archiveFiles
                 .Select(file =>
                 {
-                    if (IsRequestedToCancel)
-                        throw new OperationCanceledException();
+                    SafetyCancellationCheck();
                     var summary = new ZipArchiveFileSummary(file);
                     UpdateProgress(totalCount, Interlocked.Increment(ref counrOfDone));
                     return summary;
@@ -185,8 +184,7 @@ namespace ZipArchiveNormalizer.Phase4
                         throw new OperationCanceledException();
                 }
             }
-            if (IsRequestedToCancel)
-                throw new OperationCanceledException();
+            SafetyCancellationCheck();
             foreach (var archiveFileSummary in archiveFileSummaries)
                 AddToDestinationFiles(archiveFileSummary.ArchiveFile);
         }
@@ -324,8 +322,7 @@ namespace ZipArchiveNormalizer.Phase4
         {
             try
             {
-                if (IsRequestedToCancel)
-                    throw new OperationCanceledException();
+                SafetyCancellationCheck();
                 UpdateProgress();
                 var entries1 = summary1.FindEntriesByCrc(crc);
                 if (!entries1.IsSingle())
@@ -338,7 +335,7 @@ namespace ZipArchiveNormalizer.Phase4
                 {
                     return
                         zipFile1.GetInputStream(entries1.Single())
-                        .StreamBytesEqual(zipFile2.GetInputStream(entries2.Single()));
+                        .StreamBytesEqual(zipFile2.GetInputStream(entries2.Single()), progressNotification: () => UpdateProgress());
                 }
             }
             finally

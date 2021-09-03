@@ -61,8 +61,8 @@ namespace Utility
                         null,
                         string.Format(
                             previousWorkerResult.TotalChangedFileCount > 0
-                            ? "{0}Phase {1}/{2}完了。{3:N0} 個のファイルが処理され、{4:N0} 個のファイルが変更/削除されました。"
-                            : "{0}Phase {1}/{2}完了。{3:N0} 個のファイルが処理されました。",
+                                ? "{0}Phase {1}/{2}完了。{3:N0} 個のファイルが処理され、{4:N0} 個のファイルが変更/削除されました。"
+                                : "{0}Phase {1}/{2}完了。{3:N0} 個のファイルが処理されました。",
                             _eraseLineConsoleControlText,
                             item.index + 1,
                             Workers.Count,
