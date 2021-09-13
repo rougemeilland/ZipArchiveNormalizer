@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -19,7 +18,6 @@ namespace ZipUtility.ZipExtraField
             _gid = null;
         }
 
-
         public const UInt16 ExtraFieldId = 0x7875;
 
         public override byte[] GetData(ZipEntryHeaderType headerType)
@@ -37,10 +35,12 @@ namespace ZipUtility.ZipExtraField
 
         public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
         {
+            _uid = null;
+            _gid = null;
+            var reader = new ByteArrayInputStream(data, index, count);
             var success = false;
             try
             {
-                var reader = new ByteArrayInputStream(data, index, count);
                 Version = reader.ReadByte();
                 if (Version != _supportedVersion)
                     return;
@@ -48,7 +48,13 @@ namespace ZipUtility.ZipExtraField
                 UID = reader.ReadBytes(uidSize);
                 var gidSize = reader.ReadByte();
                 GID = reader.ReadBytes(gidSize);
+                if (reader.ReadToEnd().Length > 0)
+                    throw GetBadFormatException(headerType, data, index, count);
                 success = true;
+            }
+            catch (UnexpectedEndOfStreamException)
+            {
+                throw GetBadFormatException(headerType, data, index, count);
             }
             finally
             {
@@ -62,7 +68,7 @@ namespace ZipUtility.ZipExtraField
         }
 
         public bool IsOk =>
-            Version == 1 &&
+            Version == _supportedVersion &&
             _uid != null && _uid.Length <= byte.MaxValue &&
             _gid != null && _gid.Length <= byte.MaxValue;
 

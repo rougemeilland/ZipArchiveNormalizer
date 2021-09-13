@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using Utility;
 using Utility.FileWorker;
+using Utility.IO;
 
 namespace ImageUtility
 {

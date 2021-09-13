@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using Utility;
+using Utility.IO;
 
 namespace ZipUtility.ZipFileHeader
 {
@@ -52,26 +53,26 @@ namespace ZipUtility.ZipFileHeader
             if (offset < zipStartOffset)
                 offset = zipStartOffset;
             if (zipFileLength < offset + minimumLengthOfHeader)
-                throw new BadZipFormatException("Too short Zip file");
+                throw new BadZipFileFormatException("Too short Zip file");
             var offsetOfThisHeader =
                 zipInputStream.FindLastSigunature(
                     _eocdSignature,
                     offset,
                     zipFileLength - offset - minimumLengthOfHeader + _eocdSignature.Length);
             if (offsetOfThisHeader < 0)
-                throw new BadZipFormatException("EOCD Not found in Zip file");
+                throw new BadZipFileFormatException("EOCD Not found in Zip file");
             zipInputStream.Seek(offsetOfThisHeader, SeekOrigin.Begin);
             var minimumHeader = zipInputStream.ReadBytes(22);
             var signature = minimumHeader.GetSequence(0, _eocdSignature.Length);
             if (!signature.SequenceEqual(_eocdSignature))
                 throw new Exception();
-            var numberOfThisDisk = minimumHeader.ToUInt16(4);
-            var diskWhereCentralDirectoryStarts = minimumHeader.ToUInt16(6);
-            var numberOfCentralDirectoryRecordsOnThisDisk = minimumHeader.ToUInt16(8);
-            var totalNumberOfCentralDirectoryRecords = minimumHeader.ToUInt16(10);
-            var sizeOfCentralDirectory = minimumHeader.ToUInt32(12);
-            var offsetOfStartOfCentralDirectory = minimumHeader.ToUInt32(16);
-            var commentLength = minimumHeader.ToUInt16(20);
+            var numberOfThisDisk = minimumHeader.ToUInt16LE(4);
+            var diskWhereCentralDirectoryStarts = minimumHeader.ToUInt16LE(6);
+            var numberOfCentralDirectoryRecordsOnThisDisk = minimumHeader.ToUInt16LE(8);
+            var totalNumberOfCentralDirectoryRecords = minimumHeader.ToUInt16LE(10);
+            var sizeOfCentralDirectory = minimumHeader.ToUInt32LE(12);
+            var offsetOfStartOfCentralDirectory = minimumHeader.ToUInt32LE(16);
+            var commentLength = minimumHeader.ToUInt16LE(20);
             var commentBytes = zipInputStream.ReadBytes(commentLength);
             return
                 new ZipFileEOCD(

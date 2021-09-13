@@ -7,11 +7,13 @@ namespace ZipUtility
         : UInt16
     {
         None = 0,
-        IsEncrypted = (UInt16)1 << 0,
+        Encrypted = (UInt16)1 << 0,
+        CompresssionOption0 = (UInt16)1 << 1,
+        CompresssionOption1 = (UInt16)1 << 2,
         HasDataDescriptor = (UInt16)1 << 3,
-        IsCompressedPatchedData = (UInt16)1 << 5,
-        IsStrongEncrypted = (UInt16)1 << 6,
+        CompressedPatchedData = (UInt16)1 << 5,
+        StrongEncrypted = (UInt16)1 << 6,
         UseUnicodeEncodingForNameAndComment = (UInt16)1 << 11,
-        IsMoreStrongEncrypted = (UInt16)1 << 13
+        EncryptedCentralDirectory = (UInt16)1 << 13
     }
 }

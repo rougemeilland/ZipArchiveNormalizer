@@ -124,12 +124,10 @@ namespace ZipArchiveNormalizer
             {
                 if (disposing)
                 {
+                    foreach (var worker in _workers)
+                        worker.BadFileFound -= Worker_BadFileFound;
+                    _workers = new IPhaseWorker[0];
                 }
-
-                foreach (var worker in _workers)
-                    worker.BadFileFound -= Worker_BadFileFound;
-                _workers = new IPhaseWorker[0];
-
                 _isDisposed = true;
             }
         }

@@ -14,20 +14,24 @@ namespace ZipArchiveNormalizer.Phase1
 
         public EntryTreeNode(string name, IEnumerable<EntryTreeNode> children, ZipArchiveEntry entry)
         {
+#if DEBUG
+            if (_children.None() && _entry == null)
+                throw new ArgumentNullException();
+            if (_children.Any() && entry.IsFile)
+                throw new Exception();
+#endif
             Name = name;
             _children = children;
-            IsFile = _children.None();
             _entry = entry;
-            if (IsFile && _entry == null)
-                throw new ArgumentNullException();
         }
 
         public string Name { get; private set; }
 
-        public bool IsFile { get; }
+        public bool IsFile => Entry.IsFile;
+        public bool IsDirectory => Entry.IsDirectory;
 
-        public IEnumerable<EntryTreeNode> Children => !IsFile ? _children : throw new InvalidOperationException();
-        public ZipArchiveEntry Entry => IsFile ? _entry : throw new InvalidOperationException();
+        public IEnumerable<EntryTreeNode> Children => IsDirectory ? _children : throw new InvalidOperationException();
+        public ZipArchiveEntry Entry { get; }
 
         public bool Rename(string newName)
         {
@@ -129,10 +133,14 @@ namespace ZipArchiveNormalizer.Phase1
 
         public IEnumerable<ModifiedEntry> EnumerateEntry(IEnumerable<string> directoryPathElements)
         {
-            if (IsFile == true)
+            if (IsFile)
                 return new[] { new ModifiedEntry(directoryPathElements.Concat(new[] { Name }), Entry) };
             else
-                return _children.SelectMany(child => child.EnumerateEntry(directoryPathElements.Concat(new[] { Name })));
+            {
+                return
+                    new[] { new ModifiedEntry(directoryPathElements.Concat(new[] { Name, "" }), Entry) }
+                    .Concat(_children.SelectMany(child => child.EnumerateEntry(directoryPathElements.Concat(new[] { Name }))));
+            }
         }
 
         public override string ToString()

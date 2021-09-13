@@ -1,6 +1,6 @@
 ﻿using System;
 using System.IO;
-using Utility;
+using Utility.IO;
 
 namespace ZipUtility.ZipFileHeader
 {

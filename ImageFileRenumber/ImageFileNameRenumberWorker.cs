@@ -118,7 +118,7 @@ namespace ImageFileRenumber
                 fileItems
                 .Select(fileItem => fileItem.currentFileNameWithoutExtension)
                 .Aggregate((string)null, (name1, name2) => name1.GetTrailingCommonPart(name2, true));
-            suffix = _startsWithDigitsPattern.Match(prefix).Groups["suffix"].Value;
+            suffix = _startsWithDigitsPattern.Match(suffix).Groups["suffix"].Value;
 
             // ファイルごとに異なる中央部分の文字列を抽出する
             var middleParts =

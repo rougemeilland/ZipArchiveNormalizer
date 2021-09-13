@@ -23,6 +23,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -33,6 +34,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="ICSharpCode.SharpZipLib, Version=1.3.2.10, Culture=neutral, PublicKeyToken=1b03e6acf1164f73, processorArchitecture=MSIL">
@@ -41,7 +43,6 @@
     <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Numerics" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -58,7 +59,6 @@
     <Compile Include="Phase0\Phase0Worker.cs" />
     <Compile Include="Phase1\EntryTree.cs" />
     <Compile Include="Phase1\IReporter.cs" />
-    <Compile Include="Phase1\ManualVerificationProposedEventArgs.cs" />
     <Compile Include="Phase1\ModifiedEntry.cs" />
     <Compile Include="Phase1\Phase1Worker.cs" />
     <Compile Include="Phase2\Phase2Worker.cs" />
@@ -86,6 +86,10 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Utility.IO\Utility.IO.csproj">
+      <Project>{1b07b24e-48af-4a55-8b16-9936b2946372}</Project>
+      <Name>Utility.IO</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Utility\Utility.csproj">
       <Project>{9d9afae8-0b42-4134-96cb-eeb614872d83}</Project>
       <Name>Utility</Name>

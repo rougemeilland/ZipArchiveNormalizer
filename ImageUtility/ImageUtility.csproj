@@ -52,6 +52,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Utility.IO\Utility.IO.csproj">
+      <Project>{1b07b24e-48af-4a55-8b16-9936b2946372}</Project>
+      <Name>Utility.IO</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Utility\Utility.csproj">
       <Project>{9d9afae8-0b42-4134-96cb-eeb614872d83}</Project>
       <Name>Utility</Name>

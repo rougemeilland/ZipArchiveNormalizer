@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using Utility;
+using Utility.IO;
 
 namespace ZipUtility.ZipFileHeader
 {
@@ -40,9 +41,9 @@ namespace ZipUtility.ZipFileHeader
             var signature = header.GetSequence(0, _zip64EndOfCentralDirectoryLocatorSignature.Length);
             if (!signature.SequenceEqual(_zip64EndOfCentralDirectoryLocatorSignature))
                 return null;
-            var numberOfTheDiskWithTheStartOfTheZip64EndOfCentralDirectory = header.ToUInt32(4);
-            var offsetOfTheZip64EndOfCentralDirectoryRecord = header.ToInt64(8);
-            var totalNumberOfDisks = header.ToUInt32(16);
+            var numberOfTheDiskWithTheStartOfTheZip64EndOfCentralDirectory = header.ToUInt32LE(4);
+            var offsetOfTheZip64EndOfCentralDirectoryRecord = header.ToInt64LE(8);
+            var totalNumberOfDisks = header.ToUInt32LE(16);
             return
                 new ZipFileZip64EndOfCentralDirectoryLocator(
                     offsetOfThisHeader,

@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Utility;
 using Utility.FileWorker;
+using Utility.IO;
 
 namespace ZipArchiveNormalizer.Phase5
 {
@@ -68,7 +69,7 @@ namespace ZipArchiveNormalizer.Phase5
                     return sourceFile.Extension;
                 using (var inputStream = zipFile.GetInputStream(entry))
                 {
-                    var text = Encoding.ASCII.GetString(inputStream.ReadAllBytes().ToArray());
+                    var text = Encoding.ASCII.GetString(inputStream.ReadAllBytes());
                     return text == _epubMediaType ? ".epub" : sourceFile.Extension;
                 }
             }

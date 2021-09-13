@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -10,8 +9,8 @@ namespace ZipUtility.ZipExtraField
         public UnixExtraFieldType2()
             : base(ExtraFieldId)
         {
-            UserId = 0;
-            GroupId = 0;
+            UserId = UInt16.MaxValue;
+            GroupId = UInt16.MaxValue;
         }
 
         public const ushort ExtraFieldId = 0x7855;
@@ -29,13 +28,32 @@ namespace ZipUtility.ZipExtraField
 
         public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
         {
-            UserId = 0;
-            GroupId = 0;
+            UserId = UInt16.MaxValue;
+            GroupId = UInt16.MaxValue;
             var reader = new ByteArrayInputStream(data, index, count);
-            if (headerType == ZipEntryHeaderType.LocalFileHeader)
+            var success = false;
+            try
             {
-                UserId = reader.ReadUInt16LE();
-                GroupId = reader.ReadUInt16LE();
+                if (headerType == ZipEntryHeaderType.LocalFileHeader)
+                {
+                    UserId = reader.ReadUInt16LE();
+                    GroupId = reader.ReadUInt16LE();
+                }
+                if (reader.ReadToEnd().Length > 0)
+                    throw GetBadFormatException(headerType, data, index, count);
+                success = true;
+            }
+            catch (UnexpectedEndOfStreamException)
+            {
+                throw GetBadFormatException(headerType, data, index, count);
+            }
+            finally
+            {
+                if (!success)
+                {
+                    UserId = UInt16.MaxValue;
+                    GroupId = UInt16.MaxValue;
+                }
             }
         }
 

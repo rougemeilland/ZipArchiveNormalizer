@@ -53,7 +53,7 @@ namespace ZipUtility.ZipFileHeader
             if (eocd.IsRequiresZip64 || zip64EndOfCentralDirectoryLocator != null)
             {
                 if (zip64EndOfCentralDirectoryLocator == null)
-                    throw new BadZipFormatException("Not found 'zip64 end of central directory locator' in Zip file");
+                    throw new BadZipFileFormatException("Not found 'zip64 end of central directory locator' in Zip file");
                 var zip64EndOfCentralDirectoryRecord = ZipFileZip64EndOfCentralDirectoryRecord.Parse(zipInputStream, zipStartOffset, zip64EndOfCentralDirectoryLocator);
                 var unknown1 = zip64EndOfCentralDirectoryRecord.NumberOfThisDisk;
                 var unknown2 = zip64EndOfCentralDirectoryRecord.NumberOfTheDiskWithTheStartOfTheCentralDirectory;
@@ -70,7 +70,7 @@ namespace ZipUtility.ZipFileHeader
             else
             {
                 if (eocd.OffsetOfStartOfCentralDirectory < eocd.OffsetOfThisHeader - eocd.SizeOfCentralDirectory)
-                    throw new BadZipFormatException("Detected embedded resource?");
+                    throw new BadZipFileFormatException("Detected embedded resource?");
 
                 return new ZipFileSummary(
                     zipStartOffset,

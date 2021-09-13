@@ -19,6 +19,11 @@ namespace ZipUtility.ZipExtraField
 
         public abstract void SetData(ZipEntryHeaderType headerType, byte[] data, int offset, int count);
 
+        protected Exception GetBadFormatException(ZipEntryHeaderType headerType, byte[] data, int offset, int count)
+        {
+            return new BadZipFileFormatException(string.Format("Bad extra field: header={0}, type=0x{1:x4}, data=\"{2}\"", headerType, _extraFieldId, BitConverter.ToString(data, offset, count)));
+        }
+
         Int16 ITaggedData.TagID
         {
             get

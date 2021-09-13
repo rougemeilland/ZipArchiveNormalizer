@@ -40,10 +40,8 @@ namespace Utility
             {
                 if (disposing)
                 {
+                    Console.CancelKeyPress -= Console_CancelKeyPress;
                 }
-
-                Console.CancelKeyPress -= Console_CancelKeyPress;
-
                 _isDisposed = true;
             }
         }

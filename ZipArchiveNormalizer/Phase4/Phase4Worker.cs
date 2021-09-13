@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using Utility;
 using Utility.FileWorker;
+using Utility.IO;
 using ZipUtility;
 
 namespace ZipArchiveNormalizer.Phase4
@@ -335,7 +336,7 @@ namespace ZipArchiveNormalizer.Phase4
                 {
                     return
                         zipFile1.GetInputStream(entries1.Single())
-                        .StreamBytesEqual(zipFile2.GetInputStream(entries2.Single()), progressNotification: () => UpdateProgress());
+                        .StreamBytesEqual(zipFile2.GetInputStream(entries2.Single()), progressNotification: count => UpdateProgress());
                 }
             }
             finally

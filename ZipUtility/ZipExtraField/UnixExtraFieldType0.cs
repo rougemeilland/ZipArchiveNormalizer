@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -10,8 +9,8 @@ namespace ZipUtility.ZipExtraField
         public UnixExtraFieldType0()
             : base(ExtraFieldId)
         {
-            UserId = 0;
-            GroupId = 0;
+            UserId = UInt16.MaxValue;
+            GroupId = UInt16.MaxValue;
             AdditionalData = new byte[0];
         }
 
@@ -32,12 +31,39 @@ namespace ZipUtility.ZipExtraField
 
         public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
         {
+            LastAccessTimeUtc = null;
+            LastWriteTimeUtc = null;
+            UserId = UInt16.MaxValue;
+            GroupId = UInt16.MaxValue;
+            AdditionalData = null;
             var reader = new ByteArrayInputStream(data, index, count);
-            LastAccessTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
-            LastWriteTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
-            UserId = reader.ReadUInt16LE();
-            GroupId = reader.ReadUInt16LE();
-            AdditionalData = reader.ReadToEnd();
+            var success = false;
+            try
+            {
+                LastAccessTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
+                LastWriteTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
+                UserId = reader.ReadUInt16LE();
+                GroupId = reader.ReadUInt16LE();
+                AdditionalData = reader.ReadToEnd();
+                if (reader.ReadToEnd().Length > 0)
+                    throw GetBadFormatException(headerType, data, index, count);
+                success = true;
+            }
+            catch (UnexpectedEndOfStreamException)
+            {
+                throw GetBadFormatException(headerType, data, index, count);
+            }
+            finally
+            {
+                if (!success)
+                {
+                    LastAccessTimeUtc = null;
+                    LastWriteTimeUtc = null;
+                    UserId = UInt16.MaxValue;
+                    GroupId = UInt16.MaxValue;
+                    AdditionalData = null;
+                }
+            }
         }
 
         public override DateTime? CreationTimeUtc { get => null; set => throw new NotSupportedException(); }

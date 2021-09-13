@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -32,8 +31,9 @@ namespace ZipUtility.ZipExtraField
                 writer.WriteBytes(dataOfSubTag0001);
                 ok = true;
             }
-
-            return ok == true ? writer.ToByteSequence().ToArray() : null;
+            if (!ok)
+                return null;
+            return writer.ToByteSequence().ToArray();
         }
 
         public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
@@ -41,23 +41,41 @@ namespace ZipUtility.ZipExtraField
             LastWriteTimeUtc = null;
             LastAccessTimeUtc = null;
             CreationTimeUtc = null;
-
             var reader = new ByteArrayInputStream(data, index, count);
-            reader.ReadUInt32LE(); //Reserved
-
-            while (!reader.IsEndOfStream())
+            var success = false;
+            try
             {
-                var subTagId = reader.ReadUInt16LE();
-                var subTagLength = reader.ReadUInt16LE();
-                var subTagData = reader.ReadBytes(subTagLength);
-                switch (subTagId)
+                reader.ReadUInt32LE(); //Reserved
+                while (!reader.IsEndOfStream())
                 {
-                    case 0x001:
-                        SetDataForSubTag0001(subTagData);
-                        break;
-                    default:
-                        // unknown sub tag id
-                        break;
+                    var subTagId = reader.ReadUInt16LE();
+                    var subTagLength = reader.ReadUInt16LE();
+                    var subTagData = reader.ReadBytes(subTagLength);
+                    switch (subTagId)
+                    {
+                        case 0x001:
+                            SetDataForSubTag0001(subTagData);
+                            break;
+                        default:
+                            // unknown sub tag id
+                            break;
+                    }
+                }
+                if (reader.ReadToEnd().Length > 0)
+                    throw GetBadFormatException(headerType, data, index, count);
+                success = true;
+            }
+            catch (UnexpectedEndOfStreamException)
+            {
+                throw GetBadFormatException(headerType, data, index, count);
+            }
+            finally
+            {
+                if (!success)
+                {
+                    LastWriteTimeUtc = null;
+                    LastAccessTimeUtc = null;
+                    CreationTimeUtc = null;
                 }
             }
         }

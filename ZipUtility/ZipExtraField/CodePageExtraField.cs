@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -19,6 +18,8 @@ namespace ZipUtility.ZipExtraField
 
         public override byte[] GetData(ZipEntryHeaderType headerType)
         {
+            if (CodePage < 0)
+                return null;
             var writer = new ByteArrayOutputStream();
             writer.WriteInt32LE(CodePage);
             return writer.ToByteSequence().ToArray();
@@ -26,8 +27,28 @@ namespace ZipUtility.ZipExtraField
 
         public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
         {
+            CodePage = -1;
             var reader = new ByteArrayInputStream(data, index, count);
-            CodePage = reader.ReadInt32LE();
+            var succes = false;
+            try
+            {
+                CodePage = reader.ReadInt32LE();
+                if (reader.ReadToEnd().Length > 0)
+                    throw GetBadFormatException(headerType, data, index, count);
+                succes = true;
+
+            }
+            catch (UnexpectedEndOfStreamException)
+            {
+                throw GetBadFormatException(headerType, data, index, count);
+            }
+            finally
+            {
+                if (!succes)
+                {
+                    CodePage = -1;
+                }
+            }
         }
 
         public Int32 CodePage { get; set; }

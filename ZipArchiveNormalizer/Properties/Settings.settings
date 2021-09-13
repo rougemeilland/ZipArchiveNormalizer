@@ -33,7 +33,7 @@
       <Value Profile="(Default)">ZipArchiveNormalizer</Value>
     </Setting>
     <Setting Name="NotedEntryCrc32List" Type="System.String" Scope="Application">
-      <Value Profile="(Default)">0E8080EB;E159561F</Value>
+      <Value Profile="(Default)">0E8080EB;E159561F;107307C4;EE6C61B2;6D54FFC0</Value>
     </Setting>
   </Settings>
 </SettingsFile>

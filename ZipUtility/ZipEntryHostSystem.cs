@@ -3,7 +3,7 @@
     public enum ZipEntryHostSystem
         : byte
     {
-        MS_DOS = 0,
+        FAT = 0,
         Amiga = 1,
         OpenVMS = 2,
         UNIX = 3,

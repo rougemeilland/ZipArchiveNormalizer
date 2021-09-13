@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using System.Text;
 using ZipUtility.Helper;
 
@@ -36,10 +35,12 @@ namespace ZipUtility.ZipExtraField
 
         public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
         {
+            UnicodeString = null;
+            Crc = 0;
+            var reader = new ByteArrayInputStream(data, index, count);
             var success = false;
             try
             {
-                var reader = new ByteArrayInputStream(data, index, count);
                 var version = reader.ReadByte();
                 if (version != SupportedVersion)
                     return;
@@ -47,7 +48,13 @@ namespace ZipUtility.ZipExtraField
                 UnicodeString = _utf8Encoding.GetString(reader.ReadToEnd());
                 if (string.IsNullOrEmpty(UnicodeString))
                     return;
+                if (reader.ReadToEnd().Length > 0)
+                    throw GetBadFormatException(headerType, data, index, count);
                 success = true;
+            }
+            catch (UnexpectedEndOfStreamException)
+            {
+                throw GetBadFormatException(headerType, data, index, count);
             }
             finally
             {
@@ -60,6 +67,7 @@ namespace ZipUtility.ZipExtraField
         }
 
         public UInt32 Crc { get; set; }
+        public int CodePage => _utf8Encoding.CodePage;
         protected abstract byte SupportedVersion { get; }
         protected string UnicodeString { get; set; }
     }

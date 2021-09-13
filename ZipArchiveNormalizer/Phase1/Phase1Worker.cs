@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using Utility;
 using Utility.FileWorker;
@@ -36,9 +35,10 @@ namespace ZipArchiveNormalizer.Phase1
         {
             try
             {
-                if (!sourceFile.IsCorrectZipFile())
+                var detail = "???";
+                if (sourceFile.CheckZipFile(s => detail = s) != ZipFileCheckResult.Ok)
                 {
-                    RaiseErrorReportedEvent(sourceFile, "アーカイブファイルが正しくないため無視します。");
+                    RaiseErrorReportedEvent(sourceFile, string.Format("処理できないアーカイブファイルであるため無視します。: {0}", detail));
                     RaiseBadFileFoundEvent(sourceFile);
                     return;
                 }
@@ -54,6 +54,13 @@ namespace ZipArchiveNormalizer.Phase1
                 entryTree.ProgressUpdated += progressUpdatedHander;
                 try
                 {
+                    if (entryTree.ContainsEntryIncompatibleWithUnicode())
+                    {
+                        RaiseErrorReportedEvent(sourceFile, "このアプリケーションでは扱えない名前またはコメントを持つエントリがアーカイブファイルに含まれているため、無視します。");
+                        RaiseBadFileFoundEvent(sourceFile);
+                        return;
+                    }
+
                     if (entryTree.ContainsAbsoluteEntryPathName())
                     {
                         RaiseErrorReportedEvent(sourceFile, "アーカイブファイルに絶対パスのエントリが含まれているため無視します。");
@@ -64,13 +71,6 @@ namespace ZipArchiveNormalizer.Phase1
                     if (entryTree.ContainsDuplicateName())
                     {
                         RaiseErrorReportedEvent(sourceFile, "アーカイブファイルに重複したエントリが含まれているため無視します。");
-                        RaiseBadFileFoundEvent(sourceFile);
-                        return;
-                    }
-
-                    if (entryTree.ContainsEncryptedEntry())
-                    {
-                        RaiseErrorReportedEvent(sourceFile, "アーカイブファイルに暗号化されたエントリが含まれているため無視します。");
                         RaiseBadFileFoundEvent(sourceFile);
                         return;
                     }

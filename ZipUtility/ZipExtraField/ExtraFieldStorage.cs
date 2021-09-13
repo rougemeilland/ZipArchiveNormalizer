@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using ZipUtility.Helper;
 using Utility;
+using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -205,10 +205,23 @@ namespace ZipUtility.ZipExtraField
             var reader = new ByteArrayInputStream(extraFieldsSource);
             while (!reader.IsEndOfStream())
             {
-                var extraFieldId = reader.ReadUInt16LE();
-                var extraFieldBodyLength = reader.ReadUInt16LE();
-                var extraFieldBody = reader.ReadBytes(extraFieldBodyLength);
-                _extraFields[extraFieldId] = new InternalExtraFieldItem(extraFieldId, _headerType, extraFieldBody);
+                try
+                {
+                    var extraFieldId = reader.ReadUInt16LE();
+                    var extraFieldBodyLength = reader.ReadUInt16LE();
+                    var extraFieldBody = reader.ReadBytes(extraFieldBodyLength);
+                    _extraFields[extraFieldId] = new InternalExtraFieldItem(extraFieldId, _headerType, extraFieldBody);
+                }
+                catch (UnexpectedEndOfStreamException ex)
+                {
+                    throw
+                        new BadZipFileFormatException(
+                            string.Format(
+                                "Can not parse extra fields: header='{0}', extra data='{1}'",
+                                _headerType,
+                                BitConverter.ToString(extraFieldsSource.ToArray())),
+                            ex);
+                }
             }
         }
     }

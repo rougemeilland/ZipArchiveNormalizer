@@ -9,7 +9,11 @@ namespace ZipUtility
 
         static StringExtensions()
         {
-            _zipStandardEncoding = Encoding.GetEncoding("IBM437");
+            _zipStandardEncoding =
+                Encoding.GetEncoding(
+                    "IBM437",
+                    new EncoderReplacementFallback("@"),
+                    new DecoderReplacementFallback("@"));
         }
 
         public static bool IsConvertableToMinimumCharacterSet(this string s)
@@ -18,6 +22,5 @@ namespace ZipUtility
                 s == null ||
                 Encoding.UTF8.GetBytes(s).SequenceEqual(_zipStandardEncoding.GetBytes(s));
         }
-
     }
 }

@@ -9,9 +9,10 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Utility</RootNamespace>
     <AssemblyName>Utility</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -50,7 +51,6 @@
     <Compile Include="CustomizableComparer.cs" />
     <Compile Include="DateTimeExtensions.cs" />
     <Compile Include="EnumExtensions.cs" />
-    <Compile Include="FileExtensions.cs" />
     <Compile Include="FileWorker\FileWorker.cs" />
     <Compile Include="FileWorker\FileWorkerConcurrencyMode.cs" />
     <Compile Include="FileWorker\IFileWorker.cs" />
@@ -68,7 +68,6 @@
     <Compile Include="LinqExtensions.cs" />
     <Compile Include="ProgressChangedEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="StreamExtensions.cs" />
     <Compile Include="TemporaryDirectory.cs" />
     <Compile Include="FilePathNameComparer.cs" />
     <Compile Include="FilePathNameComparerrOption.cs" />

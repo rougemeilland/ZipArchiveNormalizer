@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Utility;
 using ZipUtility.ZipExtraField;
 using ZipUtility.ZipFileHeader;
 
@@ -44,7 +45,7 @@ namespace ZipUtility
             return
                 Enumerable.Range(0, zipEntriesArray.Length)
                 .Select(index => new ZipArchiveEntry(zipEntriesArray[index], headers[index]))
-                .ToList();
+                .ToReadOnlyCollection();
         }
 
         public static Stream GetInputStream(this ZipFile zipFile, ZipArchiveEntry entry)
@@ -65,16 +66,21 @@ namespace ZipUtility
             newEntry.Comment = entry.Comment;
             newEntry.HostSystem = (int)entry.HostSystem;
             newEntry.ExternalFileAttributes = (int)entry.ExternalFileAttributes;
-            newEntry.Size = entry.Size; // これをセットしないと 出力先エントリに Zip64 拡張属性が勝手についてしまう
+            newEntry.Size = entry.Size;
 
             // mimetype ファイルの場合は圧縮しない
-            if (entry.FullName == "mimetype")
+            if (entry.FullName == "mimetype" || entry.IsDirectory || entry.Size == 0)
                 newEntry.CompressionMethod = CompressionMethod.Stored;
 
+
+#if DEBUG
+            if (entry.FullNameCanBeExpressedInUnicode == false || entry.CommentCanBeExpressedInUnicode)
+                throw new Exception();
+#endif
             // NameまたはCommentのどちらかがマルチバイトを含む場合は、文字コード系をUTF8に変更する。
             newEntry.IsUnicodeText =
-                !newEntry.Name.IsConvertableToMinimumCharacterSet() ||
-                !newEntry.Comment.IsConvertableToMinimumCharacterSet();
+                !entry.FullNameCanBeExpressedInStandardEncoding ||
+                !entry.CommentCanBeExpressedInStandardEncoding;
 
             // 更新日付の設定
             if (entry.LastWriteTimeUtc.HasValue)
@@ -83,16 +89,14 @@ namespace ZipUtility
             // extra data の設定の開始 (基本的に元の extra field を引き継ぐ)
             var newExtraData = new ExtraFieldStorage(entry.ExtraFields);
 
-            // Extended Timestamp extra field が存在しない、あるいは
             // Extended Timestamp extra field に最終更新日時が存在しない、あるいは
             // 最終アクセス日時が設定されているが Extended Timestamp extra field には最終アクセス日時が存在しない、あるいは
             // 作成日時が設定されているが Extended Timestamp extra field には作成日時存在しない場合は
             // Extended Timestamp extra field を追加する
             var extendedTimestampExtraField = newExtraData.GetData<ExtendedTimestampExtraField>();
-            if (extendedTimestampExtraField == null ||
-                (entry.LastWriteTimeUtc.HasValue && extendedTimestampExtraField.LastWriteTimeUtc == null) ||
-                (entry.LastAccessTimeUtc.HasValue && extendedTimestampExtraField.LastAccessTimeUtc == null) ||
-                (entry.CreationTimeUtc.HasValue && extendedTimestampExtraField.CreationTimeUtc == null))
+            if ((entry.LastWriteTimeUtc.HasValue && extendedTimestampExtraField?.LastWriteTimeUtc == null) ||
+                (entry.LastAccessTimeUtc.HasValue && extendedTimestampExtraField?.LastAccessTimeUtc == null) ||
+                (entry.CreationTimeUtc.HasValue && extendedTimestampExtraField?.CreationTimeUtc == null))
             {
                 newExtraData.Delete(ExtendedTimestampExtraField.ExtraFieldId);
                 newExtraData.AddEntry(new ExtendedTimestampExtraField
@@ -103,7 +107,7 @@ namespace ZipUtility
                 });
             }
 
-            // 最終アクセス日時と作成日時がともに設定されていて、かつ NTFS extra field が存在しない場合
+            // 最終更新日時がと最終アクセス日時、作成日時がすべて設定されていて、かつ NTFS extra field が存在しない場合
             // NTFS extra field を追加する
             if (entry.LastWriteTimeUtc.HasValue &&
                 entry.LastAccessTimeUtc.HasValue &&
@@ -117,6 +121,9 @@ namespace ZipUtility
                     CreationTimeUtc = entry.CreationTimeUtc.Value,
                 });
             }
+
+            // Xceed unicode extra field を削除する
+            newExtraData.Delete(XceedUnicodeExtraField.ExtraFieldId);
 
             // Code Page Extra Field (仮称) を削除する
             newExtraData.Delete(CodePageExtraField.ExtraFieldId);

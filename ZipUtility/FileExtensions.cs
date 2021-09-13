@@ -8,18 +8,45 @@ namespace ZipUtility
 {
     public static class FileExtensions
     {
-        public static bool IsCorrectZipFile(this FileInfo file)
+        public static ZipFileCheckResult CheckZipFile(this FileInfo file, Action<string> detailAction = null, Action progressAction = null)
         {
             try
             {
-                using (var zipFile = new ZipFile(file.FullName))
+                progressAction();
+                using (var zipInputStream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.RandomAccess))
                 {
-                    return zipFile.TestArchive(true);
+                    progressAction();
+                    foreach (var entry in zipInputStream.EnumerateZipArchiveEntry())
+                    {
+                        entry.CheckData(zipInputStream, progressAction != null ? count => progressAction() : (Action<int>)null);
+                        progressAction();
+                    }
                 }
+                return  ZipFileCheckResult.Ok;
             }
-            catch (Exception)
+            catch (EncryptedZipFileNotSupportedException ex)
             {
-                return false;
+                if (detailAction != null)
+                    detailAction(ex.Message);
+                return ZipFileCheckResult.Encrypted;
+            }
+            catch (CompressionMethodNotSupportedException ex)
+            {
+                if (detailAction != null)
+                    detailAction(ex.Message);
+                return ZipFileCheckResult.UnsupportedCompressionMethod;
+            }
+            catch (NotSupportedSpecificationException ex)
+            {
+                if (detailAction != null)
+                    detailAction(ex.Message);
+                return ZipFileCheckResult.UnsupportedFunction;
+            }
+            catch (BadZipFileFormatException ex)
+            {
+                if (detailAction != null)
+                    detailAction(ex.Message);
+                return ZipFileCheckResult.Corrupted;
             }
         }
 
@@ -49,7 +76,7 @@ namespace ZipUtility
 
         public static IEnumerable<ZipArchiveEntry> EnumerateZipArchiveEntry(this Stream zipInputStream)
         {
-            using (var zipFile = new ZipFile(zipInputStream))
+            using (var zipFile = new ZipFile(zipInputStream, true))
             {
                 return
                     zipFile.EnumerateZipEntry()

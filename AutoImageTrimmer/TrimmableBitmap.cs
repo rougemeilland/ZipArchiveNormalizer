@@ -113,12 +113,11 @@ namespace AutoImageTrimmer
             {
                 if (disposing)
                 {
-                }
-
-                if (_image != null)
-                {
-                    _image.Dispose();
-                    _image = null;
+                    if (_image != null)
+                    {
+                        _image.Dispose();
+                        _image = null;
+                    }
                 }
                 _isDisposed = true;
             }

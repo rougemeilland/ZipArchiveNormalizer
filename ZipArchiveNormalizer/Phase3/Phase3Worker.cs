@@ -1,14 +1,14 @@
 ﻿using ICSharpCode.SharpZipLib.Zip;
 using System;
-using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Utility;
 using Utility.FileWorker;
+using Utility.IO;
 using ZipUtility;
-
 
 namespace ZipArchiveNormalizer.Phase3
 {
@@ -368,7 +368,7 @@ namespace ZipArchiveNormalizer.Phase3
                         .Zip(archiveFile2.ZipEntries, (entry1, entry2) => new { entry1, entry2 })
                         .All(item =>
                             zipFile1.GetInputStream(item.entry1)
-                            .StreamBytesEqual(zipFile2.GetInputStream(item.entry2), progressNotification: () => UpdateProgress()));
+                            .StreamBytesEqual(zipFile2.GetInputStream(item.entry2), progressNotification: count => UpdateProgress()));
                 }
             }
             catch (Exception)

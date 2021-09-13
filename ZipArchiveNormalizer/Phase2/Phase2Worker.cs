@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using Utility;
 using Utility.FileWorker;
+using Utility.IO;
 
 namespace ZipArchiveNormalizer.Phase2
 {
@@ -147,7 +148,7 @@ namespace ZipArchiveNormalizer.Phase2
             {
                 SafetyCancellationCheck();
                 UpdateProgress();
-                if (fileInfo1.OpenRead().StreamBytesEqual(fileInfo2.OpenRead(), progressNotification: () => UpdateProgress()))
+                if (fileInfo1.OpenRead().StreamBytesEqual(fileInfo2.OpenRead(), progressNotification: count => UpdateProgress()))
                 {
                     // ファイルの内容が一致している場合
 

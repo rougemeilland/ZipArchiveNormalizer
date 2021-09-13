@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using Utility;
 using Utility.FileWorker;
+using Utility.IO;
 
 namespace ImageUtility
 {
@@ -80,7 +81,7 @@ namespace ImageUtility
                                     try
                                     {
                                         if (item.files[index].Length == item.files[index + 1].Length &&
-                                            item.files[index].OpenRead().StreamBytesEqual(item.files[index + 1].OpenRead(), progressNotification: () => UpdateProgress()))
+                                            item.files[index].OpenRead().StreamBytesEqual(item.files[index + 1].OpenRead(), progressNotification: count => UpdateProgress()))
                                         {
                                             try
                                             {

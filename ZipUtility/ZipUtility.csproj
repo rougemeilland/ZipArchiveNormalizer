@@ -46,14 +46,21 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BadZipFormatException.cs" />
+    <Compile Include="BadZipFileFormatException.cs" />
+    <Compile Include="CompressionMethodNotSupportedException.cs" />
+    <Compile Include="EncryptedZipFileNotSupportedException.cs" />
+    <Compile Include="EnumExtensions.cs" />
     <Compile Include="FileExtensions.cs" />
     <Compile Include="Helper\ByteArrayInputStream.cs" />
     <Compile Include="Helper\ByteArrayOutputStream.cs" />
+    <Compile Include="Helper\UnexpectedEndOfStreamException.cs" />
+    <Compile Include="NotSupportedSpecificationException.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StringExtensions.cs" />
     <Compile Include="ZipArchiveEntry.cs" />
     <Compile Include="ZipEntryCompressionMethod.cs" />
+    <Compile Include="ZipEntryCompressionMethodId.cs" />
+    <Compile Include="ZipEntryCompressionMethodIdExtensions.cs" />
     <Compile Include="ZipEntryHostSystem.cs" />
     <Compile Include="ZipEntryTextEncoding.cs" />
     <Compile Include="ZipExtraField\CodePageExtraField.cs" />
@@ -73,13 +80,15 @@
     <Compile Include="ZipExtraField\UnixExtraFieldType2.cs" />
     <Compile Include="ZipExtraField\UnixTimestampExtraField.cs" />
     <Compile Include="ZipExtraField\WindowsSecurityDescriptorExtraField.cs" />
+    <Compile Include="ZipExtraField\XceedUnicodeExtraField.cs" />
     <Compile Include="ZipExtraField\Zip64ExtendedInformationExtraField.cs" />
     <Compile Include="ZipExtraField\Zip64ExtendedInformationExtraFieldForCentraHeader.cs" />
     <Compile Include="ZipExtraField\Zip64ExtendedInformationExtraFieldForLocalHeader.cs" />
     <Compile Include="ZipExtraField\ZipEntryHeaderType.cs" />
+    <Compile Include="ZipFileCheckResult.cs" />
     <Compile Include="ZipFileExtensions.cs" />
-    <Compile Include="ZipFileHeader\ZipEntryDataDescriptor.cs" />
     <Compile Include="ZipFileHeader\IZip64ExtendedInformationExtraFieldValueSource.cs" />
+    <Compile Include="ZipFileHeader\ZipEntryDataDescriptor.cs" />
     <Compile Include="ZipFileHeader\StreamExtensions.cs" />
     <Compile Include="ZipFileHeader\ZipEntryCentralDirectoryHeader.cs" />
     <Compile Include="ZipFileHeader\ZipEntryHeader.cs" />
@@ -92,13 +101,22 @@
     <Compile Include="ZipFileHeader\ZipFileZip64EndOfCentralDirectoryRecord.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Utility.IO\Utility.IO.csproj">
+      <Project>{1b07b24e-48af-4a55-8b16-9936b2946372}</Project>
+      <Name>Utility.IO</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Utility\Utility.csproj">
       <Project>{9d9afae8-0b42-4134-96cb-eeb614872d83}</Project>
       <Name>Utility</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\ZipUtility.Compression\ZipUtility.Compression.csproj">
+      <Project>{76b2ab24-3370-49c8-9de4-225ab14a429e}</Project>
+      <Name>ZipUtility.Compression</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

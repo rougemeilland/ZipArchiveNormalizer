@@ -118,7 +118,7 @@ namespace ZipArchiveNormalizer.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0E8080EB;E159561F")]
+        [global::System.Configuration.DefaultSettingValueAttribute("0E8080EB;E159561F;107307C4;EE6C61B2;6D54FFC0")]
         public string NotedEntryCrc32List {
             get {
                 return ((string)(this["NotedEntryCrc32List"]));

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 using System.Collections.Generic;
 using System.Collections;
 using System.IO;
@@ -161,6 +162,16 @@ namespace Utility
             return !s.IsAnyOf(s1, s2, s3, s4, stringComparison);
         }
 
+        public static bool IsNoneOf(this string s, string s1, string s2, string s3, string s4, string s5, StringComparison stringComparison = StringComparison.Ordinal)
+        {
+            return !s.IsAnyOf(s1, s2, s3, s4, s5, stringComparison);
+        }
+
+        public static bool IsNoneOf(this string s, string s1, string s2, string s3, string s4, string s5, string s6, StringComparison stringComparison = StringComparison.Ordinal)
+        {
+            return !s.IsAnyOf(s1, s2, s3, s4, s5, s6, stringComparison);
+        }
+
         public static bool IsAnyOf(this string s, string s1, string s2, StringComparison stringComparison = StringComparison.Ordinal)
         {
             return
@@ -185,6 +196,27 @@ namespace Utility
                 string.Equals(s, s4, stringComparison);
         }
 
+        public static bool IsAnyOf(this string s, string s1, string s2, string s3, string s4, string s5, StringComparison stringComparison = StringComparison.Ordinal)
+        {
+            return
+                string.Equals(s, s1, stringComparison) ||
+                string.Equals(s, s2, stringComparison) ||
+                string.Equals(s, s3, stringComparison) ||
+                string.Equals(s, s4, stringComparison) ||
+                string.Equals(s, s5, stringComparison);
+        }
+
+        public static bool IsAnyOf(this string s, string s1, string s2, string s3, string s4, string s5, string s6, StringComparison stringComparison = StringComparison.Ordinal)
+        {
+            return
+                string.Equals(s, s1, stringComparison) ||
+                string.Equals(s, s2, stringComparison) ||
+                string.Equals(s, s3, stringComparison) ||
+                string.Equals(s, s4, stringComparison) ||
+                string.Equals(s, s5, stringComparison) ||
+                string.Equals(s, s6, stringComparison);
+        }
+
         public static IEnumerable<char> GetSequence(this string s)
         {
             return new StringEnumerable(s, 0, s.Length);
@@ -198,6 +230,16 @@ namespace Utility
         public static IEnumerable<char> GetSequence(this string s, int offset, int count)
         {
             return new StringEnumerable(s, offset, count);
+        }
+
+        public static string GetString(this Encoding encoding, IReadOnlyArray<byte> bytes)
+        {
+            return encoding.GetString(bytes.ToArray());
+        }
+
+        public static IReadOnlyArray<byte> GetReadOnlyBytes(this Encoding encoding, string s)
+        {
+            return encoding.GetBytes(s).AsReadOnly();
         }
 
         private static FileInfo TryParseAsFilePath(string path)

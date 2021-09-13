@@ -11,7 +11,7 @@ namespace ZipUtility.ZipExtraField
     {
         private ZipEntryHeaderType _headerType;
         private byte[] _buffer;
-        private IZip64ExtendedInformationExtraFieldValueSource _source;
+        private IZip64ExtendedInformationExtraFieldValueSource _headerSource;
         private Int64? _internalSize;
         private Int64? _internalPackedSize;
         private Int64? _internalRelatiiveHeaderOffset;
@@ -22,7 +22,7 @@ namespace ZipUtility.ZipExtraField
         {
             _headerType = headerType;
             _buffer = null;
-            _source = null;
+            _headerSource = null;
             _internalSize = null;
             _internalPackedSize = null;
             _internalRelatiiveHeaderOffset = null;
@@ -35,7 +35,9 @@ namespace ZipUtility.ZipExtraField
         {
             if (headerType != _headerType)
                 return null;
-            BuildInternalBuffer(_headerType);
+            if (RequiredZip64Zip64ExtendedInformationExtraField == false)
+                return null;
+            BuildInternalBuffer();
             return _buffer;
         }
 
@@ -43,17 +45,17 @@ namespace ZipUtility.ZipExtraField
         {
             _buffer = data.GetSequence(index, count).ToArray();
             if (headerType == _headerType)
-                ParseInternalBuffer(_headerType);
+                ParseInternalBuffer();
         }
 
         internal IZip64ExtendedInformationExtraFieldValueSource ZipHeaderSource
         {
-            get => _source;
+            get => _headerSource;
 
             set
             {
-                _source = value;
-                ParseInternalBuffer(_headerType);
+                _headerSource = value;
+                ParseInternalBuffer();
             }
         }
 
@@ -67,35 +69,35 @@ namespace ZipUtility.ZipExtraField
         {
             get
             {
-                if (_source == null)
-                    throw new InvalidOperationException("Source is not set");
-                if (_source.Size == UInt32.MaxValue)
+                if (_headerSource == null)
+                    throw new InvalidOperationException("HeaderSource is not set in Zip64 extra field.");
+                if (_headerSource.Size == UInt32.MaxValue)
                 {
-                    if (!_internalSize.HasValue)
+                    if (_internalSize == null)
                         throw new InvalidOperationException();
                     return _internalSize.Value;
                 }
                 else
                 {
-                    if (_internalSize.HasValue || !_source.Size.HasValue)
+                    if (_internalSize.HasValue)
                         throw new InvalidOperationException();
-                    return _source.Size.Value;
+                    return _headerSource.Size;
                 }
             }
 
             set
             {
-                if (_source == null)
-                    throw new InvalidOperationException("Source is not set");
+                if (_headerSource == null)
+                    throw new InvalidOperationException("HeaderSource is not set in Zip64 extra field.");
                 if (value < UInt32.MaxValue)
                 {
                     _internalSize = null;
-                    _source.Size = (UInt32)value;
+                    _headerSource.Size = (UInt32)value;
                 }
                 else
                 {
                     _internalSize = value;
-                    _source.Size = UInt32.MaxValue;
+                    _headerSource.Size = UInt32.MaxValue;
                 }
             }
         }
@@ -104,35 +106,35 @@ namespace ZipUtility.ZipExtraField
         {
             get
             {
-                if (_source == null)
-                    throw new InvalidOperationException("Source is not set");
-                if (_source.PackedSize == UInt32.MaxValue)
+                if (_headerSource == null)
+                    throw new InvalidOperationException("HeaderSource is not set in Zip64 extra field.");
+                if (_headerSource.PackedSize == UInt32.MaxValue)
                 {
-                    if (!_internalPackedSize.HasValue)
+                    if (_internalPackedSize == null)
                         throw new InvalidOperationException();
                     return _internalPackedSize.Value;
                 }
                 else
                 {
-                    if (_internalPackedSize.HasValue || !_source.PackedSize.HasValue)
+                    if (_internalPackedSize.HasValue)
                         throw new InvalidOperationException();
-                    return _source.PackedSize.Value;
+                    return _headerSource.PackedSize;
                 }
             }
 
             set
             {
-                if (_source == null)
-                    throw new InvalidOperationException("Source is not set");
+                if (_headerSource == null)
+                    throw new InvalidOperationException("HeaderSource is not set in Zip64 extra field.");
                 if (value < UInt32.MaxValue)
                 {
                     _internalPackedSize = null;
-                    _source.PackedSize = (UInt32)value;
+                    _headerSource.PackedSize = (UInt32)value;
                 }
                 else
                 {
                     _internalPackedSize = value;
-                    _source.PackedSize = UInt32.MaxValue;
+                    _headerSource.PackedSize = UInt32.MaxValue;
                 }
             }
         }
@@ -142,20 +144,20 @@ namespace ZipUtility.ZipExtraField
             get
             {
                 if (_headerType != ZipEntryHeaderType.CentralDirectoryHeader)
-                    throw new InvalidOperationException();
-                if (_source == null)
-                    throw new InvalidOperationException("Source is not set");
-                if (_source.RelativeHeaderOffset == UInt32.MaxValue)
+                    throw new InvalidOperationException("RelativeHeaderOffset is only accessible in the central directory header.");
+                if (_headerSource == null)
+                    throw new InvalidOperationException("HeaderSource is not set in Zip64 extra field.");
+                if (_headerSource.RelativeHeaderOffset == UInt32.MaxValue)
                 {
-                    if (!_internalRelatiiveHeaderOffset.HasValue)
+                    if (_internalRelatiiveHeaderOffset == null)
                         throw new InvalidOperationException();
                     return _internalRelatiiveHeaderOffset.Value;
                 }
                 else
                 {
-                    if (_internalRelatiiveHeaderOffset.HasValue || !_source.RelativeHeaderOffset.HasValue)
+                    if (_internalRelatiiveHeaderOffset.HasValue)
                         throw new InvalidOperationException();
-                    return _source.RelativeHeaderOffset.Value;
+                    return _headerSource.RelativeHeaderOffset;
                 }
             }
 
@@ -163,17 +165,17 @@ namespace ZipUtility.ZipExtraField
             {
                 if (_headerType != ZipEntryHeaderType.CentralDirectoryHeader)
                     throw new InvalidOperationException();
-                if (_source == null)
-                    throw new InvalidOperationException("Source is not set");
+                if (_headerSource == null)
+                    throw new InvalidOperationException("HeaderSource is not set in Zip64 extra field.");
                 if (value < UInt32.MaxValue)
                 {
                     _internalRelatiiveHeaderOffset = null;
-                    _source.RelativeHeaderOffset = (UInt32)value;
+                    _headerSource.RelativeHeaderOffset = (UInt32)value;
                 }
                 else
                 {
                     _internalRelatiiveHeaderOffset = value;
-                    _source.RelativeHeaderOffset = UInt32.MaxValue;
+                    _headerSource.RelativeHeaderOffset = UInt32.MaxValue;
                 }
             }
         }
@@ -183,95 +185,88 @@ namespace ZipUtility.ZipExtraField
             get
             {
                 if (_headerType != ZipEntryHeaderType.CentralDirectoryHeader)
-                    throw new InvalidOperationException();
-                if (_source == null)
-                    throw new InvalidOperationException("Source is not set");
-                if (_source.DiskStartNumber == UInt16.MaxValue)
+                    throw new InvalidOperationException("DiskStartNumber is only accessible in the central directory header.");
+                if (_headerSource == null)
+                    throw new InvalidOperationException("HeaderSource is not set in Zip64 extra field.");
+                if (_headerSource.DiskStartNumber == UInt16.MaxValue)
                 {
-                    if (!_inernalDiskStartNumber.HasValue)
+                    if (_inernalDiskStartNumber == null)
                         throw new InvalidOperationException();
                     return _inernalDiskStartNumber.Value;
                 }
                 else
                 {
-                    if (_inernalDiskStartNumber.HasValue || !_source.DiskStartNumber.HasValue)
+                    if (_inernalDiskStartNumber.HasValue)
                         throw new InvalidOperationException();
-                    return _source.DiskStartNumber.Value;
+                    return _headerSource.DiskStartNumber;
                 }
             }
 
             set
             {
                 if (_headerType != ZipEntryHeaderType.CentralDirectoryHeader)
-                    throw new InvalidOperationException();
-                if (_source == null)
-                    throw new InvalidOperationException("Source is not set");
+                    throw new InvalidOperationException("DiskStartNumber is only accessible in the central directory header.");
+                if (_headerSource == null)
+                    throw new InvalidOperationException("HeaderSource is not set in Zip64 extra field.");
                 if (value < UInt16.MaxValue)
                 {
                     _inernalDiskStartNumber = null;
-                    _source.DiskStartNumber = (UInt16)value;
+                    _headerSource.DiskStartNumber = (UInt16)value;
                 }
                 else
                 {
                     _inernalDiskStartNumber = value;
-                    _source.DiskStartNumber = UInt16.MaxValue;
+                    _headerSource.DiskStartNumber = UInt16.MaxValue;
                 }
             }
         }
 
-        private void ParseInternalBuffer(ZipEntryHeaderType headerType)
+        protected abstract void GetData(ByteArrayOutputStream writer);
+
+        protected abstract void SetData(ByteArrayInputStream reader, UInt16 totalCount);
+
+        private void BuildInternalBuffer()
         {
-            if (_source != null && _buffer != null)
-            {
-                var reader = new ByteArrayInputStream(_buffer);
-
-                if (_source.Size.HasValue)
-                    InternalSize = _source.Size == UInt32.MaxValue ? reader.ReadInt64LE() : _source.Size.Value;
-                else
-                    _internalSize = null;
-
-                if (_source.PackedSize.HasValue)
-                    InternalPackedSize = _source.PackedSize == UInt32.MaxValue ? reader.ReadInt64LE() : _source.PackedSize.Value;
-                else
-                    _internalPackedSize = null;
-
-                if (headerType == ZipEntryHeaderType.CentralDirectoryHeader)
-                {
-
-                    if (_source.RelativeHeaderOffset.HasValue)
-                        InternalRelativeHeaderOffset = _source.RelativeHeaderOffset == UInt32.MaxValue ? reader.ReadInt64LE() : _source.RelativeHeaderOffset.Value;
-                    else
-                        _internalRelatiiveHeaderOffset = null;
-
-                    if (_source.DiskStartNumber.HasValue)
-                        InternalDiskStartNumber = _source.DiskStartNumber == UInt16.MaxValue ? reader.ReadUInt32LE() : _source.DiskStartNumber.Value;
-                    else
-                        _inernalDiskStartNumber = null;
-                }
-            }
-        }
-
-        private void BuildInternalBuffer(ZipEntryHeaderType headerType)
-        {
-            if (_source == null)
-            {
-                _buffer = null;
-                return;
-            }
+            if (_headerSource == null)
+                throw new InvalidOperationException("HeaderSource is not set in Zip64 extra field.");
             var writer = new ByteArrayOutputStream();
-            if (_source.Size.HasValue && _source.Size.Value == UInt32.MaxValue && _internalSize.HasValue)
-                writer.WriteInt64LE(_internalSize.Value);
-            if (_source.PackedSize.HasValue && _source.PackedSize.Value == UInt32.MaxValue && _internalPackedSize.HasValue)
-                writer.WriteInt64LE(_internalPackedSize.Value);
-            if (headerType == ZipEntryHeaderType.CentralDirectoryHeader)
-            {
-                if (_source.RelativeHeaderOffset.HasValue && _source.RelativeHeaderOffset.Value == UInt32.MaxValue && _internalRelatiiveHeaderOffset.HasValue)
-                    writer.WriteInt64LE(_internalRelatiiveHeaderOffset.Value);
-                if (_source.DiskStartNumber.HasValue && _source.DiskStartNumber.Value == UInt16.MaxValue && _inernalDiskStartNumber.HasValue)
-                    writer.WriteUInt32LE(_inernalDiskStartNumber.Value);
-            }
+            GetData(writer);
             var newBuffer = writer.ToByteSequence().ToArray();
             _buffer = newBuffer.Length > 0 ? newBuffer : null;
+        }
+
+        private void ParseInternalBuffer()
+        {
+            if (_headerSource != null && _buffer != null)
+            {
+                _internalSize = null;
+                _internalPackedSize = null;
+                _internalRelatiiveHeaderOffset = null;
+                _inernalDiskStartNumber = null;
+                var reader = new ByteArrayInputStream(_buffer);
+                var success = false;
+                try
+                {
+                    SetData(reader, (UInt16)_buffer.Length);
+                    if (reader.ReadToEnd().Length > 0)
+                        throw GetBadFormatException(_headerType, _buffer, 0, _buffer.Length);
+                    success = true;
+                }
+                catch (UnexpectedEndOfStreamException)
+                {
+                    throw GetBadFormatException(_headerType, _buffer, 0, _buffer.Length);
+                }
+                finally
+                {
+                    if (!success)
+                    {
+                        _internalSize = null;
+                        _internalPackedSize = null;
+                        _internalRelatiiveHeaderOffset = null;
+                        _inernalDiskStartNumber = null;
+                    }
+                }
+            }
         }
     }
 }

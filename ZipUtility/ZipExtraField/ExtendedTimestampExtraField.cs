@@ -1,4 +1,5 @@
-﻿using ZipUtility.Helper;
+﻿using System;
+using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -43,15 +44,35 @@ namespace ZipUtility.ZipExtraField
             LastAccessTimeUtc = null;
             CreationTimeUtc = null;
             var reader = new ByteArrayInputStream(data, index, count);
-            var flag = reader.ReadByte();
-            if ((flag & 0x01) != 0)
-                LastWriteTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
-            if (headerType == ZipEntryHeaderType.LocalFileHeader)
+            var success = false;
+            try
             {
-                if ((flag & 0x02) != 0)
-                    LastAccessTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
-                if ((flag & 0x04) != 0)
-                    CreationTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
+                var flag = reader.ReadByte();
+                if ((flag & 0x01) != 0)
+                    LastWriteTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
+                if (headerType == ZipEntryHeaderType.LocalFileHeader)
+                {
+                    if ((flag & 0x02) != 0)
+                        LastAccessTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
+                    if ((flag & 0x04) != 0)
+                        CreationTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
+                }
+                if (reader.ReadToEnd().Length > 0)
+                    throw GetBadFormatException(headerType, data, index, count);
+                success = true;
+            }
+            catch (UnexpectedEndOfStreamException)
+            {
+                throw GetBadFormatException(headerType, data, index, count);
+            }
+            finally
+            {
+                if (!success)
+                {
+                    LastWriteTimeUtc = null;
+                    LastAccessTimeUtc = null;
+                    CreationTimeUtc = null;
+                }
             }
         }
     }

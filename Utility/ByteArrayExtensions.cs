@@ -308,12 +308,15 @@ namespace Utility
             return true;
         }
 
-        public static Int16 ToInt16(this IReadOnlyArray<byte> value, int startIndex)
+        public static Int16 ToInt16LE(this IReadOnlyArray<byte> value, int startIndex)
         {
 #if DEBUG
             if (sizeof(Int16) != 2)
                 throw new Exception();
 #endif
+            if (startIndex + sizeof(Int16) > value.Length)
+                throw new IndexOutOfRangeException();
+
             return
                 BitConverter.ToInt16(new[]
                 {
@@ -322,12 +325,15 @@ namespace Utility
                 }, 0);
         }
 
-        public static UInt16 ToUInt16(this IReadOnlyArray<byte> value, int startIndex)
+        public static UInt16 ToUInt16LE(this IReadOnlyArray<byte> value, int startIndex)
         {
 #if DEBUG
             if (sizeof(UInt16) != 2)
                 throw new Exception();
 #endif
+            if (startIndex + sizeof(UInt16) > value.Length)
+                throw new IndexOutOfRangeException();
+
             return
                 BitConverter.ToUInt16(new[]
                 {
@@ -336,12 +342,15 @@ namespace Utility
                 }, 0);
         }
 
-        public static Int32 ToInt32(this IReadOnlyArray<byte> value, int startIndex)
+        public static Int32 ToInt32LE(this IReadOnlyArray<byte> value, int startIndex)
         {
 #if DEBUG
             if (sizeof(Int32) != 4)
                 throw new Exception();
 #endif
+            if (startIndex + sizeof(Int32) > value.Length)
+                throw new IndexOutOfRangeException();
+
             return
                 BitConverter.ToInt32(new[]
                 {
@@ -352,12 +361,15 @@ namespace Utility
                 }, 0);
         }
 
-        public static UInt32 ToUInt32(this IReadOnlyArray<byte> value, int startIndex)
+        public static UInt32 ToUInt32LE(this IReadOnlyArray<byte> value, int startIndex)
         {
 #if DEBUG
             if (sizeof(UInt32) != 4)
                 throw new Exception();
 #endif
+            if (startIndex + sizeof(UInt32) > value.Length)
+                throw new IndexOutOfRangeException();
+
             return
                 BitConverter.ToUInt32(new[]
                 {
@@ -368,12 +380,15 @@ namespace Utility
                 }, 0);
         }
 
-        public static Int64 ToInt64(this IReadOnlyArray<byte> value, int startIndex)
+        public static Int64 ToInt64LE(this IReadOnlyArray<byte> value, int startIndex)
         {
 #if DEBUG
             if (sizeof(Int64) != 8)
                 throw new Exception();
 #endif
+            if (startIndex + sizeof(Int64) > value.Length)
+                throw new IndexOutOfRangeException();
+
             return
                 BitConverter.ToInt64(new[]
                 {
@@ -388,12 +403,16 @@ namespace Utility
                 }, 0);
         }
 
-        public static UInt64 ToUInt64(this IReadOnlyArray<byte> value, int startIndex)
+        public static UInt64 ToUInt64LE(this IReadOnlyArray<byte> value, int startIndex)
         {
 #if DEBUG
             if (sizeof(UInt64) != 8)
                 throw new Exception();
 #endif
+
+            if (startIndex + sizeof(UInt64) > value.Length)
+                throw new IndexOutOfRangeException();
+
             return
                 BitConverter.ToUInt64(new[]
                 {
@@ -408,12 +427,15 @@ namespace Utility
                 }, 0);
         }
 
-        public static float ToSingle(this IReadOnlyArray<byte> value, int startIndex)
+        public static float ToSingleLE(this IReadOnlyArray<byte> value, int startIndex)
         {
 #if DEBUG
             if (sizeof(float) != 4)
                 throw new Exception();
 #endif
+            if (startIndex + sizeof(float) > value.Length)
+                throw new IndexOutOfRangeException();
+
             return
                 BitConverter.ToSingle(new[]
                 {
@@ -424,12 +446,15 @@ namespace Utility
                 }, 0);
         }
 
-        public static double ToDouble(this IReadOnlyArray<byte> value, int startIndex)
+        public static double ToDoubleLE(this IReadOnlyArray<byte> value, int startIndex)
         {
 #if DEBUG
             if (sizeof(double) != 8)
                 throw new Exception();
 #endif
+            if (startIndex + sizeof(double) > value.Length)
+                throw new IndexOutOfRangeException();
+
             return
                 BitConverter.ToDouble(new[]
                 {
@@ -457,6 +482,56 @@ namespace Utility
         public static string ToString(this IReadOnlyArray<byte> value, int startIndex, int length)
         {
             return BitConverter.ToString(value.Skip(startIndex).Take(length).ToArray());
+        }
+
+        public static byte[] ToByteArray(this byte value)
+        {
+            return new[] { value };
+        }
+
+        public static byte[] ToByteArray(this sbyte value)
+        {
+            return new[] { (byte)value };
+        }
+
+        public static byte[] ToByteArrayLE(this Int16 value)
+        {
+            return BitConverter.GetBytes(value);
+        }
+
+        public static byte[] ToByteArrayLE(this UInt16 value)
+        {
+            return BitConverter.GetBytes(value);
+        }
+
+        public static byte[] ToByteArrayLE(this Int32 value)
+        {
+            return BitConverter.GetBytes(value);
+        }
+
+        public static byte[] ToByteArrayLE(this UInt32 value)
+        {
+            return BitConverter.GetBytes(value);
+        }
+
+        public static byte[] ToByteArrayLE(this Int64 value)
+        {
+            return BitConverter.GetBytes(value);
+        }
+
+        public static byte[] ToByteArrayLE(this UInt64 value)
+        {
+            return BitConverter.GetBytes(value);
+        }
+
+        public static byte[] ToByteArrayLE(this Single value)
+        {
+            return BitConverter.GetBytes(value);
+        }
+
+        public static byte[] ToByteArrayLE(this Double value)
+        {
+            return BitConverter.GetBytes(value);
         }
 
         public static Encoding GuessWhichEncoding(this byte[] bytes)

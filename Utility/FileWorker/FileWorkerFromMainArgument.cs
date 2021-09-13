@@ -67,7 +67,7 @@ namespace Utility.FileWorker
             var sourceFileItems = GetWorkingSource(sourceFiles);
             SetToSourceFiles(sourceFileItems.SelectMany(sourceFileItem => sourceFileItem.FileItems).Select(fileItem => fileItem.SourceFile));
             SafetyCancellationCheck();
-            var totalCount = sourceFileItems.Sum(item => item.FileItems.Count);
+            var totalCount = sourceFileItems.Sum(item => item.FileItems.Sum(fileItem => fileItem.SourceFile.Length));
             long countOfDone = 0;
             UpdateProgress(totalCount, countOfDone);
 
@@ -262,8 +262,9 @@ namespace Utility.FileWorker
                 .ToList();
         }
 
-        private void ExecuteAction(FileInfo sourceFile, int index, IFileWorkerActionDirectoryParameter directoryParameter, IFileWorkerActionFileParameter fileParameter, int totalCount, ref long countOfDone)
+        private void ExecuteAction(FileInfo sourceFile, int index, IFileWorkerActionDirectoryParameter directoryParameter, IFileWorkerActionFileParameter fileParameter, long totalCount, ref long countOfDone)
         {
+            var sourceFileSize = sourceFile.Length;
             SafetyCancellationCheck();
             try
             {
@@ -282,7 +283,7 @@ namespace Utility.FileWorker
             }
             finally
             {
-                UpdateProgress(totalCount, Interlocked.Increment(ref countOfDone));
+                UpdateProgress(totalCount, Interlocked.Add(ref countOfDone, sourceFileSize));
             }
         }
 

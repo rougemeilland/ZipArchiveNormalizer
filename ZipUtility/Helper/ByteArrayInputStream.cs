@@ -29,7 +29,7 @@ namespace ZipUtility.Helper
         public ByteArrayInputStream(IReadOnlyArray<byte> source, int offset, int count)
         {
             if (source == null)
-                throw new ArgumentNullException();
+                throw new UnexpectedEndOfStreamException();
             _source = source;
             _index = offset;
             _length = offset + count;
@@ -38,7 +38,7 @@ namespace ZipUtility.Helper
         public byte ReadByte()
         {
             if (_index + 1 > _length)
-                throw new IndexOutOfRangeException();
+                throw new UnexpectedEndOfStreamException();
             var value = _source[_index];
             ++_index;
             return value;
@@ -47,7 +47,7 @@ namespace ZipUtility.Helper
         public byte[] ReadBytes(UInt16 count)
         {
             if (_index + count > _length)
-                throw new IndexOutOfRangeException();
+                throw new UnexpectedEndOfStreamException();
             var buffer = new byte[count];
             if (count > 0)
             {
@@ -60,8 +60,8 @@ namespace ZipUtility.Helper
         public UInt16 ReadUInt16LE()
         {
             if (_index + 2 > _length)
-                throw new IndexOutOfRangeException();
-            var value = _source.ToUInt16(_index);
+                throw new UnexpectedEndOfStreamException();
+            var value = _source.ToUInt16LE(_index);
             _index += 2;
             return value;
         }
@@ -69,8 +69,8 @@ namespace ZipUtility.Helper
         public UInt32 ReadUInt32LE()
         {
             if (_index + 4 > _length)
-                throw new IndexOutOfRangeException();
-            var value = _source.ToUInt32(_index);
+                throw new UnexpectedEndOfStreamException();
+            var value = _source.ToUInt32LE(_index);
             _index += 4;
             return value;
         }
@@ -78,8 +78,8 @@ namespace ZipUtility.Helper
         public Int32 ReadInt32LE()
         {
             if (_index + 4 > _length)
-                throw new IndexOutOfRangeException();
-            var value = _source.ToInt32(_index);
+                throw new UnexpectedEndOfStreamException();
+            var value = _source.ToInt32LE(_index);
             _index += 4;
             return value;
         }
@@ -87,8 +87,8 @@ namespace ZipUtility.Helper
         public UInt64 ReadUInt64LE()
         {
             if (_index + 8 > _length)
-                throw new IndexOutOfRangeException();
-            var value = _source.ToUInt64(_index);
+                throw new UnexpectedEndOfStreamException();
+            var value = _source.ToUInt64LE(_index);
             _index += 8;
             return value;
         }
@@ -96,8 +96,8 @@ namespace ZipUtility.Helper
         public Int64 ReadInt64LE()
         {
             if (_index + 8 > _length)
-                throw new IndexOutOfRangeException();
-            var value = _source.ToInt64(_index);
+                throw new UnexpectedEndOfStreamException();
+            var value = _source.ToInt64LE(_index);
             _index += 8;
             return value;
         }
@@ -105,7 +105,7 @@ namespace ZipUtility.Helper
         public byte[] ReadToEnd()
         {
             if (_index > _length)
-                throw new IndexOutOfRangeException();
+                throw new UnexpectedEndOfStreamException();
             var value = new byte[_length - _index];
             _source.CopyTo(_index, value, 0, value.Length);
             _index += value.Length;

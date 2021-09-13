@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using Utility;
+using Utility.IO;
 using ZipUtility;
 using ZipUtility.ZipExtraField;
 
@@ -17,19 +18,19 @@ namespace ZipArchiveNormalizer.Phase1
     {
         private class EntryTreeWork
         {
-            public EntryTreeWork(ZipArchiveEntry entry, IEnumerable<string> nodeNames)
+            public EntryTreeWork(ZipArchiveEntry entry, IEnumerable<string> entryPathElements)
             {
 #if DEBUG
-                if (nodeNames.None())
+                if (entryPathElements.None())
                     throw new Exception();
 #endif
                 Entry = entry;
-                NodeNames = nodeNames.ToArray();
-                Key = new EntryKey(NodeNames[0], NodeNames.Length > 1);
+                EntryPathElements = entryPathElements.ToReadOnlyCollection();
+                Key = new EntryKey(EntryPathElements.First(), EntryPathElements.IsSingle() == false);
             }
 
             public ZipArchiveEntry Entry { get; }
-            public string[] NodeNames { get; }
+            public IReadOnlyCollection<string> EntryPathElements { get; }
             public EntryKey Key { get; }
         }
 
@@ -192,7 +193,7 @@ namespace ZipArchiveNormalizer.Phase1
                     return 1;
                 else
                 {
-                    var xName = _encoding.GetString(x.FullNameBytes.ToArray());
+                    var xName = _encoding.GetString(x.FullNameBytes);
                     if (_ignoreFileExtension)
                     {
                         var match = _entryFullNameExtensionPattern.Match(xName);
@@ -201,7 +202,7 @@ namespace ZipArchiveNormalizer.Phase1
                         xName = match.Groups["entryfullnamewithoutextension"].Value;
                     }
 
-                    var yName = _encoding.GetString(y.FullNameBytes.ToArray());
+                    var yName = _encoding.GetString(y.FullNameBytes);
                     if (_ignoreFileExtension)
                     {
                         var match = _entryFullNameExtensionPattern.Match(yName);
@@ -309,7 +310,7 @@ namespace ZipArchiveNormalizer.Phase1
                         type.GetInterface(extraFieldInterfaceName) != null)
                     .Select(type => item.assembly.CreateInstance(type.FullName) as IExtraField)
                     .Select(extrafield => extrafield.ExtraFieldId))
-                .ToList();
+                .ToReadOnlyCollection();
         }
 
         private EntryTree(FileInfo sourceArchiveFile, ArchiveType archiveType, IEnumerable<ZipArchiveEntry> sourceEntries, IEnumerable<EntryTreeNode> rootEntries)
@@ -324,8 +325,7 @@ namespace ZipArchiveNormalizer.Phase1
         {
             var entries =
                 archiveFile.EnumerateZipArchiveEntry()
-                .Where(entry => entry.IsFile)
-                .ToList();
+                .ToReadOnlyCollection();
 
             var archiveType = archiveFile.GetArchiveType(() => entries, entry => entry.FullName);
             if (archiveType == ArchiveType.Unknown)
@@ -337,7 +337,17 @@ namespace ZipArchiveNormalizer.Phase1
                     entries,
                     BuildTree(
                        entries
-                       .Select(entry => new EntryTreeWork(entry, entry.FullName.Split('\\', '/')))));
+                       .Select(entry =>
+                       {
+                           var entryNameElements = entry.FullName.Split('\\', '/');
+                           if (entry.IsDirectory)
+                           {
+                               if (entryNameElements[entryNameElements.Length - 1] == "")
+                                   entryNameElements = entryNameElements.Take(entryNameElements.Length - 1).ToArray();
+                               entryNameElements = entryNameElements.Concat(new[] { (string)null }).ToArray();
+                           }
+                           return new EntryTreeWork(entry, entryNameElements.ToReadOnlyCollection());
+                       })));
         }
 
         public bool Normalize()
@@ -392,7 +402,7 @@ namespace ZipArchiveNormalizer.Phase1
                         RaiseInformationReportedEvent("mimetype エントリを先頭に移動します。");
                         needToUpdate = true;
                     }
-                    if (!needToUpdate && foundMimeTypeEntry.CompressionMethod != ZipEntryCompressionMethod.Stored)
+                    if (!needToUpdate && foundMimeTypeEntry.CompressionMethod != ZipEntryCompressionMethodId.Stored)
                     {
                         RaiseInformationReportedEvent("mimetype エントリを非圧縮に変更します。");
                         needToUpdate = true;
@@ -448,6 +458,7 @@ namespace ZipArchiveNormalizer.Phase1
             if (!needToUpdate)
             {
                 if (EnumerateEntry()
+                    .Where(entry => entry.SourceEntry != null)
                     .NotAll(entry => string.Equals(entry.SourceEntry.FullName, entry.NewEntryFullName, StringComparison.OrdinalIgnoreCase)))
                 {
                     RaiseInformationReportedEvent(string.Format("エントリのパス名または順序が変更されているのでアーカイブを変更します。"));
@@ -458,7 +469,7 @@ namespace ZipArchiveNormalizer.Phase1
             if (!needToUpdate)
             {
                 ModifiedEntry previousEntry = null;
-                foreach (var currentEntry in EnumerateEntry())
+                foreach (var currentEntry in EnumerateEntry().Where(entry => entry.SourceEntry != null))
                 {
                     if (previousEntry != null &&
                         previousEntry.SourceEntry.Offset > currentEntry.SourceEntry.Offset)
@@ -474,21 +485,22 @@ namespace ZipArchiveNormalizer.Phase1
             {
                 var entries =
                     EnumerateEntry()
-                        .Select(entry => new
-                        {
-                            sourceEntryFullNanme = entry.SourceEntry.FullName,
-                            encoding = entry.SourceEntry.EntryTextEncoding,
-                            destinationEntryFullName = entry.NewEntryFullName,
-                            destinationEntryComment = entry.SourceEntry.Comment,
-                        })
-                        .Select(item => new
-                        {
-                            item.sourceEntryFullNanme,
-                            item.encoding,
-                            isConvertableToMinimumCharacterSet =
-                                item.destinationEntryFullName.IsConvertableToMinimumCharacterSet() &&
-                                item.destinationEntryComment.IsConvertableToMinimumCharacterSet(),
-                        });
+                    .Where(entry => entry.SourceEntry != null)
+                    .Select(entry => new
+                    {
+                        sourceEntryFullNanme = entry.SourceEntry.FullName,
+                        encoding = entry.SourceEntry.EntryTextEncoding,
+                        destinationEntryFullName = entry.NewEntryFullName,
+                        destinationEntryComment = entry.SourceEntry.Comment,
+                    })
+                    .Select(item => new
+                    {
+                        item.sourceEntryFullNanme,
+                        item.encoding,
+                        isConvertableToMinimumCharacterSet =
+                            item.destinationEntryFullName.IsConvertableToMinimumCharacterSet() &&
+                            item.destinationEntryComment.IsConvertableToMinimumCharacterSet(),
+                    });
                 foreach (var entry in entries)
                 {
                     if (entry.encoding == ZipEntryTextEncoding.LocalEncoding && entry.isConvertableToMinimumCharacterSet == false)
@@ -520,11 +532,12 @@ namespace ZipArchiveNormalizer.Phase1
             {
                 var foundCompressableEntry =
                     EnumerateEntry()
-                    .Where(entry =>
+                    .FirstOrDefault(entry =>
+                        entry.SourceEntry != null &&
+                        entry.SourceEntry.IsFile &&
                         !string.Equals(entry.NewEntryFullName, "mimetype", StringComparison.Ordinal) &&
                         entry.SourceEntry.Size > 0 &&
-                        entry.SourceEntry.CompressionMethod == ZipEntryCompressionMethod.Stored)
-                    .FirstOrDefault();
+                        entry.SourceEntry.CompressionMethod == ZipEntryCompressionMethodId.Stored);
                 if (foundCompressableEntry != null)
                 {
                     RaiseInformationReportedEvent(string.Format("エントリの圧縮を試みます。: \"{0}\"", foundCompressableEntry.NewEntryFullName));
@@ -534,7 +547,7 @@ namespace ZipArchiveNormalizer.Phase1
 
             if (!needToUpdate)
             {
-                foreach (var entry in EnumerateEntry())
+                foreach (var entry in EnumerateEntry().Where(entry => entry.SourceEntry != null))
                 {
                     var extendedTimestampExtraField = entry.SourceEntry.ExtraFields.GetData<ExtendedTimestampExtraField>();
                     if (extendedTimestampExtraField == null ||
@@ -574,6 +587,7 @@ namespace ZipArchiveNormalizer.Phase1
             var foundNotedEntry =
                 EnumerateEntry()
                 .Where(entry =>
+                    entry.SourceEntry != null &&
                     entry.SourceEntry.IsFile &&
                     (_notedEntryFileNamePattern.IsMatch(Path.GetFileName(entry.NewEntryFullName)) || _notedEntryCrcs.ContainsKey(entry.SourceEntry.Crc)))
                 .FirstOrDefault();
@@ -588,6 +602,15 @@ namespace ZipArchiveNormalizer.Phase1
             return needToUpdate;
         }
 
+        public bool ContainsEntryIncompatibleWithUnicode()
+        {
+            return
+                _sourceEntries
+                .Any(entry =>
+                    !entry.FullNameCanBeExpressedInUnicode ||
+                    !entry.CommentCanBeExpressedInUnicode);
+        }
+
         public bool ContainsAbsoluteEntryPathName()
         {
             return
@@ -598,11 +621,6 @@ namespace ZipArchiveNormalizer.Phase1
         public bool ContainsDuplicateName()
         {
             return ContainsDuplicateName(_rootEntries);
-        }
-
-        public bool ContainsEncryptedEntry()
-        {
-            return _sourceEntries.Any(entry => entry.IsEncrypted);
         }
 
         public bool IsEmpty => _rootEntries.None();
@@ -673,18 +691,20 @@ namespace ZipArchiveNormalizer.Phase1
         {
             return
                 source
-                    .Where(item => item.Entry.IsFile == true)
                     .GroupBy(item => item.Key)
                     .SelectMany(g =>
                     {
                         if (g.Key.ExistsChild)
                         {
+                            var directoryEntry = g.FirstOrDefault(item => item.EntryPathElements.Skip(1).First() == null && item.Entry.IsDirectory);
+                            var otherEntries = directoryEntry != null ? g.Where(item => item.Entry.Index != directoryEntry.Entry.Index) : g.AsEnumerable();
                             return
                                 new[]
                                 {
                                     new EntryTreeNode(
                                         g.Key.Name,
-                                        BuildTree(g.Select(item => new EntryTreeWork(item.Entry, item.NodeNames.Skip(1)))), null)
+                                        BuildTree(otherEntries.Select(item => new EntryTreeWork(item.Entry, item.EntryPathElements.Skip(1)))),
+                                        directoryEntry?.Entry)
                                 };
                         }
                         else

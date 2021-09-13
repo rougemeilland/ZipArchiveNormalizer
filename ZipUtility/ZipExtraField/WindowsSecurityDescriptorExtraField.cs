@@ -1,6 +1,5 @@
 ﻿using ICSharpCode.SharpZipLib.Zip;
 using System;
-using System.Linq;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -60,10 +59,15 @@ namespace ZipUtility.ZipExtraField
 
         public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
         {
+            _uncompressedSDSize = null;
+            _version = null;
+            _compressionType = null;
+            _crc = null;
+            CompressedSD = null;
+            var reader = new ByteArrayInputStream(data, index, count);
             var success = false;
             try
             {
-                var reader = new ByteArrayInputStream(data, index, count);
                 UncompressedSDSize = reader.ReadUInt32LE();
                 if (headerType == ZipEntryHeaderType.LocalFileHeader)
                 {
@@ -81,7 +85,13 @@ namespace ZipUtility.ZipExtraField
                     _crc = null;
                     CompressedSD = null;
                 }
+                if (reader.ReadToEnd().Length > 0)
+                    throw GetBadFormatException(headerType, data, index, count);
                 success = true;
+            }
+            catch (UnexpectedEndOfStreamException)
+            {
+                throw GetBadFormatException(headerType, data, index, count);
             }
             finally
             {

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -10,6 +9,10 @@ namespace ZipUtility.ZipExtraField
         public UnixExtraFieldType1()
             : base(ExtraFieldId)
         {
+            LastAccessTimeUtc = null;
+            LastWriteTimeUtc = null;
+            UserId = UInt16.MaxValue;
+            GroupId = UInt16.MaxValue;
         }
 
         public const ushort ExtraFieldId = 0x5855;
@@ -18,7 +21,6 @@ namespace ZipUtility.ZipExtraField
         {
             if (LastAccessTimeUtc == null || LastWriteTimeUtc == null)
                 return null;
-
             var writer = new ByteArrayOutputStream();
             writer.WriteInt32LE(ToUnixTimeStamp(LastAccessTimeUtc.Value));
             writer.WriteInt32LE(ToUnixTimeStamp(LastWriteTimeUtc.Value));
@@ -32,13 +34,38 @@ namespace ZipUtility.ZipExtraField
 
         public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
         {
+            LastAccessTimeUtc = null;
+            LastWriteTimeUtc = null;
+            UserId = UInt16.MaxValue;
+            GroupId = UInt16.MaxValue;
             var reader = new ByteArrayInputStream(data, index, count);
-            LastAccessTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
-            LastWriteTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
-            if (headerType == ZipEntryHeaderType.LocalFileHeader)
+            var success = false;
+            try
             {
-                UserId = reader.ReadUInt16LE();
-                GroupId = reader.ReadUInt16LE();
+                LastAccessTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
+                LastWriteTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
+                if (headerType == ZipEntryHeaderType.LocalFileHeader)
+                {
+                    UserId = reader.ReadUInt16LE();
+                    GroupId = reader.ReadUInt16LE();
+                }
+                if (reader.ReadToEnd().Length > 0)
+                    throw GetBadFormatException(headerType, data, index, count);
+                success = true;
+            }
+            catch (UnexpectedEndOfStreamException)
+            {
+                throw GetBadFormatException(headerType, data, index, count);
+            }
+            finally
+            {
+                if (!success)
+                {
+                    LastAccessTimeUtc = null;
+                    LastWriteTimeUtc = null;
+                    UserId = UInt16.MaxValue;
+                    GroupId = UInt16.MaxValue;
+                }
             }
         }
 

@@ -16,6 +16,11 @@ namespace Utility
             _directoryPath = directoryPath;
         }
 
+        ~TemporaryDirectory()
+        {
+            Dispose(disposing: false);
+        }
+
         public string FullName => _directoryPath;
 
         public static TemporaryDirectory Create()
@@ -43,6 +48,8 @@ namespace Utility
                 if (disposing)
                 {
                 }
+
+                // ファイルはアンマネージリソース扱い
                 if (_directoryPath != null)
                 {
                     Directory.Delete(_directoryPath, true);

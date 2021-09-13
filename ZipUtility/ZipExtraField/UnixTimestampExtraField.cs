@@ -20,8 +20,10 @@ namespace ZipUtility.ZipExtraField
         public override abstract byte[] GetData(ZipEntryHeaderType headerType);
         public override abstract void SetData(ZipEntryHeaderType headerType, byte[] data, int offset, int count);
 
-        protected static DateTime FromUnixTimeStamp(Int32 timeStamp)
+        protected static DateTime? FromUnixTimeStamp(Int32 timeStamp)
         {
+            if (timeStamp == 0)
+                return null;
             var dateTime = _baseTime.AddSeconds(timeStamp);
 #if DEBUG
             if (dateTime.Kind != DateTimeKind.Utc)
