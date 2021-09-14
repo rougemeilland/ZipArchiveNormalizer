@@ -82,10 +82,5 @@
       <Name>ZipUtility</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup>
-    <Content Include="TestData.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -5,17 +5,17 @@ using System.Threading;
 
 namespace Utility.IO
 {
-    public class FIFOBuffer
-        : IFIFOReadable, IFIFOWritable
+    public class FifoBuffer
+        : IFifoReadable, IFifoWritable
     {
         private class InputStream
             : Stream
         {
             private bool _isDisposed;
-            private IFIFOReadable _reader;
+            private IFifoReadable _reader;
             private long _totalCount;
 
-            public InputStream(IFIFOReadable reader)
+            public InputStream(IFifoReadable reader)
             {
                 _isDisposed = false;
                 _reader = reader;
@@ -80,12 +80,12 @@ namespace Utility.IO
             : Stream
         {
             private bool _isDisposed;
-            private IFIFOWritable _writer;
+            private IFifoWritable _writer;
             private bool _synchronouslyWriting;
             private long _totalCount;
             private CancellationTokenSource _cts;
 
-            public OutputStream(IFIFOWritable writer, bool synchronouslyWriting)
+            public OutputStream(IFifoWritable writer, bool synchronouslyWriting)
             {
                 _isDisposed = false;
                 _writer = writer;
@@ -164,12 +164,12 @@ namespace Utility.IO
 
         }
 
-        private class FIFOQueue
+        private class FifoQueue
         {
             private int _currentCount;
             private LinkedList<byte[]> _queue;
 
-            public FIFOQueue(int maximumBufferSize)
+            public FifoQueue(int maximumBufferSize)
             {
                 MaximumCount = maximumBufferSize;
                 _currentCount = 0;
@@ -247,7 +247,7 @@ namespace Utility.IO
 
         private const int _maximumBufferSize = 81920;
         private bool _isDisposed;
-        private FIFOQueue _queue;
+        private FifoQueue _queue;
         private bool _isOpenedReader;
         private bool _isOpenedByWriter;
         private bool _isClosedByReader;
@@ -259,10 +259,10 @@ namespace Utility.IO
         private long _totalReadCount;
         private long _expectedReadCount;
 
-        public FIFOBuffer(int maximumBufferSize = _maximumBufferSize)
+        public FifoBuffer(int maximumBufferSize = _maximumBufferSize)
         {
             _isDisposed = false;
-            _queue = new FIFOQueue(maximumBufferSize);
+            _queue = new FifoQueue(maximumBufferSize);
             _isOpenedReader = false;
             _isOpenedByWriter = false;
             _isClosedByReader = false;
@@ -530,12 +530,12 @@ namespace Utility.IO
             GC.SuppressFinalize(this);
         }
 
-        int IFIFOReadable.Read(byte[] buffer, int offset, int count)
+        int IFifoReadable.Read(byte[] buffer, int offset, int count)
         {
             return InternalRead(buffer, offset, count);
         }
 
-        void IFIFOReadable.SetReadCount(long count)
+        void IFifoReadable.SetReadCount(long count)
         {
             lock (this)
             {
@@ -544,7 +544,7 @@ namespace Utility.IO
             }
         }
 
-        void IFIFOReadable.Close()
+        void IFifoReadable.Close()
         {
             try
             {
@@ -560,7 +560,7 @@ namespace Utility.IO
             }
         }
 
-        void IFIFOWritable.Write(byte[] buffer, int offset, int count)
+        void IFifoWritable.Write(byte[] buffer, int offset, int count)
         {
             var totalCount = 0;
             while (totalCount < count)
@@ -570,7 +570,7 @@ namespace Utility.IO
             }
         }
 
-        void IFIFOWritable.WaitForReadCount(long count, CancellationToken token)
+        void IFifoWritable.WaitForReadCount(long count, CancellationToken token)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
@@ -614,7 +614,7 @@ namespace Utility.IO
             }
         }
 
-        void IFIFOWritable.Close()
+        void IFifoWritable.Close()
         {
             try
             {

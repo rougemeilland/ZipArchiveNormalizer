@@ -22,7 +22,7 @@ namespace ZipUtility.Compression.BZIP2.DataStream
                 throw new ArgumentException();
 
             _isDisposed = false;
-            _baseStream = new Bzip2.BZip2InputStream(new PartialInputStream(baseStream, offset, packedSize, leaveOpen), false);
+            _baseStream = new Bzip2.BZip2InputStream(new BufferedInputStream(new PartialInputStream(baseStream, offset, packedSize, leaveOpen)), false);
             _size = size;
             _totalCount = 0;
         }

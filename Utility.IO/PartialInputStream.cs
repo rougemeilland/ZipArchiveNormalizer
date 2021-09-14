@@ -85,8 +85,10 @@ namespace Utility.IO
             }
         }
 
-        public override long Length => throw new NotSupportedException();
+        // CanSeek == false であるにもかかわらず Position を参照するアプリケーションが存在するため、 get だけは実装する。(LzmaとかLZmaとかLzmaとか。)
         public override long Position { get => _totalCount; set => throw new NotSupportedException(); }
+
+        public override long Length => throw new NotSupportedException();
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
     }

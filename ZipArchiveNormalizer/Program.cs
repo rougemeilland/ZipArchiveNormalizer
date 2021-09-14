@@ -13,6 +13,7 @@ namespace ZipArchiveNormalizer
                 worker.Execute(args);
             }
             Console.WriteLine("Enterを押してください。");
+            Console.Beep();
             Console.ReadLine();
         }
     }

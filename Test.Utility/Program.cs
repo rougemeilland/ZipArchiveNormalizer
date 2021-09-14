@@ -135,6 +135,7 @@ namespace Test.Utility
                     }
                 });
             Console.Write("完了しました。                                ");
+            Console.Beep();
             Console.ReadLine();
         }
 

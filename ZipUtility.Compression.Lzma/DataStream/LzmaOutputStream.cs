@@ -44,9 +44,9 @@ namespace ZipUtility.Compression.Lzma.DataStream
                 throw new ArgumentException();
 
             _isDisposed = false;
-            _baseStream = new PartialOutputStream(baseStream, offset, null, leaveOpen);
+            _baseStream = new BufferedOutputStream(new PartialOutputStream(baseStream, offset, null, leaveOpen));
             _size = size;
-            var fifo = new FIFOBuffer();
+            var fifo = new FifoBuffer();
             _inputStream = fifo.GetInputStream();
             _outputStream = fifo.GetOutputStream(false);
             _cancellationTokenSource = new CancellationTokenSource();

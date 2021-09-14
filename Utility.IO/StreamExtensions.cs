@@ -407,12 +407,12 @@ namespace Utility.IO
             }
         }
 
-        public static void CopyTo(this Stream source, Stream destination, Action progressNotification)
+        public static void CopyTo(this Stream source, Stream destination, Action<int> progressNotification)
         {
             source.CopyTo(destination, 81920, progressNotification);
         }
 
-        public static void CopyTo(this Stream source, Stream destination, int bufferSize, Action progressNotification)
+        public static void CopyTo(this Stream source, Stream destination, int bufferSize, Action<int> progressNotification)
         {
             if (source == null)
                 throw new ArgumentNullException();
@@ -435,12 +435,23 @@ namespace Utility.IO
                 {
                     try
                     {
-                        progressNotification();
+                        progressNotification(bufferSize);
                     }
                     catch (Exception)
                     {
                     }
                     progressCount -= bufferSize;
+                }
+            }
+            destination.Flush();
+            if (progressCount > 0)
+            {
+                try
+                {
+                    progressNotification(progressCount);
+                }
+                catch (Exception)
+                {
                 }
             }
         }

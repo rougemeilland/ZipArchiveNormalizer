@@ -236,6 +236,7 @@ namespace Support.CharacteristicZipFilesCollecter
             {
                 new Worker(canceller).Execute(args);
             }
+            Console.Beep();
             Console.ReadLine();
         }
     }

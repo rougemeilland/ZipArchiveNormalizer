@@ -347,6 +347,12 @@ namespace Utility
                     value => selecter(value).GetHashCode());
         }
 
+        public static void ForEach<ELEMENT_T>(this IEnumerable<ELEMENT_T> source, Action<ELEMENT_T> action)
+        {
+            foreach (var element in source)
+                action(element);
+        }
+
         private static void QuickSort<ELEMENT_T, KEY_T>(this ELEMENT_T[] source, Func<ELEMENT_T, KEY_T> keySekecter, int startIndex, int endIndex)
             where KEY_T : IComparable<KEY_T>
         {

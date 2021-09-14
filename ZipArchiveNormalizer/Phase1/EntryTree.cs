@@ -655,7 +655,7 @@ namespace ZipArchiveNormalizer.Phase1
                         newZipArchiveOutputStream.PutNextEntry(newEntry);
                         using (var sourceZipArchiveInputStream = sourceZipFile.GetInputStream(modifiedEntry.SourceEntry))
                         {
-                            sourceZipArchiveInputStream.CopyTo(newZipArchiveOutputStream, () => RaiseProgressUpdatedEvent());
+                            sourceZipArchiveInputStream.CopyTo(newZipArchiveOutputStream, count => RaiseProgressUpdatedEvent());
                         }
                     }
                     catch (Exception)

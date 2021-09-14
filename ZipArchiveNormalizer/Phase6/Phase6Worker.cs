@@ -274,7 +274,7 @@ namespace ZipArchiveNormalizer.Phase6
                 using (var imageInputStream = zipFile.GetInputStream(imageEntry))
                 using (var localImageFileStream = imageLocalFile.Create())
                 {
-                    imageInputStream.CopyTo(localImageFileStream, () => UpdateProgress());
+                    imageInputStream.CopyTo(localImageFileStream, count => UpdateProgress());
                     return true;
                 }
             }

@@ -29,9 +29,9 @@ namespace ZipUtility.Compression.Lzma.DataStream
                 throw new ArgumentException();
 
             _isDisposed = false;
-            _baseStream = new PartialInputStream(baseStream, offset, packedSize, leaveOpen);
+            _baseStream = new BufferedInputStream(new PartialInputStream(baseStream, offset, packedSize, leaveOpen));
             _size = size;
-            var fifo = new FIFOBuffer();
+            var fifo = new FifoBuffer();
             _inputStream = fifo.GetInputStream();
             _outputStream = fifo.GetOutputStream(false);
             _totalCount = 0;

@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Text;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 
@@ -13,6 +15,61 @@ namespace Utility.IO
         {
             _lockObject = new object();
             _simpleFileNamePattern = new Regex(@"^(?<path>.*?)(\s*\([0-9]+\))+$", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        }
+
+        public static byte[] ReadAllBytes(this FileInfo file)
+        {
+            return File.ReadAllBytes(file.FullName);
+        }
+
+        public static string[] ReadAllLines(this FileInfo file)
+        {
+            return File.ReadAllLines(file.FullName);
+        }
+
+        public static IEnumerable<string> ReadLines(this FileInfo file)
+        {
+            return File.ReadLines(file.FullName);
+        }
+
+        public static void WriteAllBytes(this FileInfo file, byte[] data)
+        {
+            File.WriteAllBytes(file.FullName, data);
+        }
+
+        public static void WriteAllBytes(this FileInfo file, IReadOnlyArray<byte> data)
+        {
+            File.WriteAllBytes(file.FullName, data.ToArray());
+        }
+
+        public static void WriteAllText(this FileInfo file, string text)
+        {
+            File.WriteAllText(file.FullName, text);
+        }
+
+        public static void WriteAllText(this FileInfo file, string text, Encoding encoding)
+        {
+            File.WriteAllText(file.FullName, text, encoding);
+        }
+
+        public static void WriteAllText(this FileInfo file, string[] lines)
+        {
+            File.WriteAllLines(file.FullName, lines);
+        }
+
+        public static void WriteAllText(this FileInfo file, IEnumerable<string> lines)
+        {
+            File.WriteAllLines(file.FullName, lines);
+        }
+
+        public static void WriteAllText(this FileInfo file, string[] lines, Encoding encoding)
+        {
+            File.WriteAllLines(file.FullName, lines, encoding);
+        }
+
+        public static void WriteAllText(this FileInfo file, IEnumerable<string> lines, Encoding encoding)
+        {
+            File.WriteAllLines(file.FullName, lines, encoding);
         }
 
         public static FileInfo RenameFile(this FileInfo sourceFile, string newFileName)

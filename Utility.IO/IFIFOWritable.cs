@@ -2,7 +2,7 @@
 
 namespace Utility.IO
 {
-    interface IFIFOWritable
+    interface IFifoWritable
     {
         void Write(byte[] buffer, int offset, int count);
         void WaitForReadCount(long count, CancellationToken token);

@@ -20,7 +20,7 @@ namespace ZipUtility.Compression.BZIP2.DataStream
                 throw new ArgumentException();
 
             _isDisposed = false;
-            _baseStream = new Bzip2.BZip2OutputStream(new PartialOutputStream(baseStream, offset, null, leaveOpen), true, level);
+            _baseStream = new Bzip2.BZip2OutputStream(new BufferedOutputStream(new PartialOutputStream(baseStream, offset, null, leaveOpen)), true, level);
             _size = size;
             _totalCount = 0;
         }
@@ -51,7 +51,9 @@ namespace ZipUtility.Compression.BZIP2.DataStream
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
-            _baseStream.Flush();
+
+            // Bzip2.BZip2OutputStream.Flush は例外を返すため、呼び出さない。
+            //_baseStream.Flush();
         }
 
         protected override void Dispose(bool disposing)

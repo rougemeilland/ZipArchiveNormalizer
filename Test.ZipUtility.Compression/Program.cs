@@ -1,13 +1,9 @@
 ﻿using System;
 using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using Utility.IO;
-using Utility;
 using ZipUtility;
-using ZipUtility.Compression;
 
-namespace Experiment
+namespace Test.ZipUtility.Compression
 {
     class Program
     {
@@ -34,7 +30,7 @@ namespace Experiment
                     {
                         using (var outputStream = compressionMethod.GetOutputStream(ms, 0, size, true))
                         {
-                            inputStream.CopyTo(outputStream);
+                            inputStream.CopyTo(outputStream, count => Console.Write("."));
                         }
                     }
                     var packedSize = ms.Position;
@@ -43,12 +39,13 @@ namespace Experiment
                     {
                         using (var inputStream2 = compressionMethod.GetInputStream(ms, 0, packedSize, size, true))
                         {
-                            if (!inputStream1.StreamBytesEqual(inputStream2))
+                            if (!inputStream1.StreamBytesEqual(inputStream2, true, count => Console.Write(".")))
                                 throw new Exception();
                         }
                     }
                 }
             }
+            Console.WriteLine();
             Console.WriteLine("OK");
             Console.Beep();
             Console.ReadLine();
