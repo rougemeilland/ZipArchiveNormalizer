@@ -11,14 +11,14 @@ namespace Test.ZipUtility.Compression
         {
             var compressionMethods = new[]
             {
-                ZipEntryCompressionMethod.BZIP2,
+                ZipEntryCompressionMethod.Stored,
                 ZipEntryCompressionMethod.DeflateWithFast,
                 ZipEntryCompressionMethod.DeflateWithMaximum,
                 ZipEntryCompressionMethod.DeflateWithNormal,
                 ZipEntryCompressionMethod.DeflateWithSuperFast,
+                ZipEntryCompressionMethod.BZIP2,
                 ZipEntryCompressionMethod.LZMAWithEOS,
                 ZipEntryCompressionMethod.LZMAWithoutEOS,
-                ZipEntryCompressionMethod.Stored,
             };
             var testFile = new FileInfo(Path.Combine(Path.GetDirectoryName(typeof(Program).Assembly.FullName), "TestData.txt"));
             var size = testFile.Length;

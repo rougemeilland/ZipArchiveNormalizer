@@ -50,6 +50,8 @@
     <Compile Include="FileExtensions.cs" />
     <Compile Include="IFifoWritable.cs" />
     <Compile Include="IFifoReadable.cs" />
+    <Compile Include="InputStream.cs" />
+    <Compile Include="OutputStream.cs" />
     <Compile Include="PartialInputStream.cs" />
     <Compile Include="PartialOutputStream.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
