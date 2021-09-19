@@ -18,7 +18,7 @@ namespace Utility.IO
             if (baseStream == null)
                 throw new ArgumentNullException("baseStream");
             if (baseStream.CanWrite == false)
-                throw new ArgumentException("'baseStream' is not suppot 'Read'.", "baseStream");
+                throw new ArgumentException("'baseStream' is not suppot 'Write'.", "baseStream");
             if (offset.HasValue && offset.Value < 0)
                 throw new ArgumentException("'offset' must not be negative.", "offset");
             if (size.HasValue && size.Value < 0)
@@ -43,6 +43,8 @@ namespace Utility.IO
                 throw new Exception("'OutputStream.SetDestinationStream' has not been called yet.");
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
+            if (buffer == null)
+                throw new ArgumentNullException("buffer");
             if (offset < 0)
                 throw new ArgumentException("'offset' must not be negative.", "offset");
             if (count < 0)

@@ -36,6 +36,7 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Security" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -44,6 +45,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="SerializedBitArray.cs" />
+    <Compile Include="BitPackingDirection.cs" />
+    <Compile Include="ICloneable.cs" />
+    <Compile Include="MiscellaneousExtensions.cs" />
+    <Compile Include="RandomBytesSequence.cs" />
+    <Compile Include="RandomSequence.cs" />
+    <Compile Include="ReadOnlySerializedBitArray.cs" />
     <Compile Include="ByteArrayExtensions.cs" />
     <Compile Include="ConsoleWorker.cs" />
     <Compile Include="ConsoleBreakCancellale.cs" />

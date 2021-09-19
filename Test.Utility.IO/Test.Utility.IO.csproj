@@ -45,6 +45,11 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TestBitOutputStream.cs" />
+    <Compile Include="TestFifoBuffer.cs" />
+    <Compile Include="TestBitInputStream.cs" />
+    <Compile Include="TestBufferedInputStream.cs" />
+    <Compile Include="TestBufferedOutputStream.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

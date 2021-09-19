@@ -17,6 +17,16 @@ namespace Utility.IO
             _simpleFileNamePattern = new Regex(@"^(?<path>.*?)(\s*\([0-9]+\))+$", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
         }
 
+        public static FileInfo GetFile(this DirectoryInfo directory, string fileName)
+        {
+            return new FileInfo(Path.Combine(directory.FullName, fileName));
+        }
+
+        public static DirectoryInfo GetSubDirectory(this DirectoryInfo directory, string directoryName)
+        {
+            return new DirectoryInfo(Path.Combine(directory.FullName, directoryName));
+        }
+
         public static byte[] ReadAllBytes(this FileInfo file)
         {
             return File.ReadAllBytes(file.FullName);

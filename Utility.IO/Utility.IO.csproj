@@ -43,6 +43,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BitInputStream.cs" />
+    <Compile Include="BitOutputStream.cs" />
     <Compile Include="BufferedInputStream.cs" />
     <Compile Include="BufferedOutputStream.cs" />
     <Compile Include="BufferedStream.cs" />

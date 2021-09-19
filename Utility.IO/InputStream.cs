@@ -43,6 +43,8 @@ namespace Utility.IO
                 throw new Exception("'InputStream.SetSourceStream' has not been called yet.");
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
+            if (buffer == null)
+                throw new ArgumentNullException("buffer");
             if (offset < 0)
                 throw new ArgumentException("'offset' must not be negative.", "offset");
             if (count < 0)

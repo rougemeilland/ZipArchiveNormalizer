@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,41 +14,16 @@ namespace Experiment
     {
         static void Main(string[] args)
         {
-            var compressionMethods = new[]
+            var factor1 = 2.0D;
+            var factor2 = 96.0D;
+
+            for (var n = 1; n < 20; ++n)
             {
-                ZipEntryCompressionMethod.BZIP2,
-                ZipEntryCompressionMethod.DeflateWithFast,
-                ZipEntryCompressionMethod.DeflateWithMaximum,
-                ZipEntryCompressionMethod.DeflateWithNormal,
-                ZipEntryCompressionMethod.DeflateWithSuperFast,
-                ZipEntryCompressionMethod.LZMAWithEOS,
-                ZipEntryCompressionMethod.LZMAWithoutEOS,
-                ZipEntryCompressionMethod.Stored,
-            };
-            var testFile = new FileInfo(Path.Combine(Path.GetDirectoryName(typeof(Program).Assembly.FullName), "TestData.txt"));
-            var size = testFile.Length;
-            foreach (var compressionMethod in compressionMethods)
-            {
-                using (var ms = new MemoryStream())
-                {
-                    using (var inputStream = testFile.OpenRead())
-                    {
-                        using (var outputStream = compressionMethod.GetOutputStream(ms, 0, size, true))
-                        {
-                            inputStream.CopyTo(outputStream);
-                        }
-                    }
-                    var packedSize = ms.Position;
-                    ms.Seek(0, SeekOrigin.Begin);
-                    using (var inputStream1 = testFile.OpenRead())
-                    {
-                        using (var inputStream2 = compressionMethod.GetInputStream(ms, 0, packedSize, size, true))
-                        {
-                            if (!inputStream1.StreamBytesEqual(inputStream2))
-                                throw new Exception();
-                        }
-                    }
-                }
+                var x = Math.Log(factor2) * n / Math.Log(factor1);
+                var y = Math.Ceiling(x);
+                var percent = x * 100 / y;
+                if (y < 64.0)
+                    Console.WriteLine(string.Format("{0:d2}: x={1:F2}, bits={2:F0}, percentage={3:F0}", n, x, y, percent));
             }
             Console.WriteLine("OK");
             Console.Beep();

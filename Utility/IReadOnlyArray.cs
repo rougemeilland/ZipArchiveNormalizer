@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace Utility
 {
@@ -7,8 +6,8 @@ namespace Utility
         : IEnumerable<ELEMENT_T>
     {
         int Length { get; }
-        void CopyTo(Array destinationArray, int destinationOffset);
-        void CopyTo(int sourceIndex, Array destinationArray, int destinationOffset, int count);
+        void CopyTo(ELEMENT_T[] destinationArray, int destinationOffset);
+        void CopyTo(int sourceIndex, ELEMENT_T[] destinationArray, int destinationOffset, int count);
         ELEMENT_T this[int index] { get; }
         ELEMENT_T[] ToArray();
     }

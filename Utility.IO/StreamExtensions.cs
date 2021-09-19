@@ -9,6 +9,8 @@ namespace Utility.IO
 {
     public static class StreamExtensions
     {
+        private const int _DEFAULT_BUFFER_SIZE = 81920;
+
         private class ByteSequenceEnumerable
             : IEnumerable<byte>
         {
@@ -409,7 +411,7 @@ namespace Utility.IO
 
         public static void CopyTo(this Stream source, Stream destination, Action<int> progressNotification)
         {
-            source.CopyTo(destination, 81920, progressNotification);
+            source.CopyTo(destination, _DEFAULT_BUFFER_SIZE, progressNotification);
         }
 
         public static void CopyTo(this Stream source, Stream destination, int bufferSize, Action<int> progressNotification)
@@ -511,6 +513,51 @@ namespace Utility.IO
                 source.CopyTo(outputStream);
                 return outputStream.ToArray().AsReadOnly();
             }
+        }
+
+        public static void Write(this Stream stream, byte[] buffer)
+        {
+            if (stream == null)
+                throw new ArgumentNullException("stream");
+            if (buffer == null)
+                throw new ArgumentNullException("buffer");
+            stream.Write(buffer, 0, buffer.Length);
+        }
+
+        public static void Write(this Stream stream, IReadOnlyArray<byte> buffer)
+        {
+            if (stream == null)
+                throw new ArgumentNullException("stream");
+            if (buffer == null)
+                throw new ArgumentNullException("buffer");
+            stream.Write(buffer.ToArray(), 0, buffer.Length);
+        }
+
+        public static void Write(this Stream stream, IReadOnlyArray<byte> buffer, int offset, int count)
+        {
+            if (stream == null)
+                throw new ArgumentNullException("stream");
+            if (buffer == null)
+                throw new ArgumentNullException("buffer");
+            if (offset < 0)
+                throw new ArgumentException("'offset' must not be negative.", "offset");
+            if (count < 0)
+                throw new ArgumentException("'count' must not be negative.", "count");
+            if (offset + count > buffer.Length)
+                throw new IndexOutOfRangeException("'offset + count' is greater than 'buffer.Length'.");
+
+            stream.Write(buffer, offset, count);
+        }
+
+        public static void Write(this Stream stream, IEnumerable<byte> sequence)
+        {
+            if (stream == null)
+                throw new ArgumentNullException("stream");
+            if (sequence == null)
+                throw new ArgumentNullException("sequence");
+
+            foreach (var buffer in sequence.ToChunkOfArray(_DEFAULT_BUFFER_SIZE))
+                stream.Write(buffer, 0, buffer.Length);
         }
 
 #if DEBUG

@@ -1,12 +1,296 @@
 ﻿using System;
-using System.Linq;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Utility
 {
     public static class ByteArrayExtensions
     {
+        private class BitArraySequence
+            : IEnumerable<ReadOnlySerializedBitArray>
+        {
+            private class Enumerator
+                : IEnumerator<ReadOnlySerializedBitArray>
+            {
+                private bool _isDisposed;
+                private IEnumerable<IReadOnlyArray<byte>> _source;
+                private int _bitCount;
+                private BitPackingDirection _packingDirection;
+                private IEnumerator<IReadOnlyArray<byte>> _sourceEnumerator;
+                private ReadOnlySerializedBitArray _remain;
+                private ReadOnlySerializedBitArray _value;
+                private bool _isEndOfSourceSequence;
+                private bool _isEndOfSequence;
+
+                public Enumerator(IEnumerable<IReadOnlyArray<byte>> source, int bitCount, BitPackingDirection packingDirection)
+                {
+                    _isDisposed = false;
+                    _source = source;
+                    _bitCount = bitCount;
+                    _packingDirection = packingDirection;
+                    _sourceEnumerator = _source.GetEnumerator();
+                    _remain = null;
+                    _value = null;
+                    _isEndOfSourceSequence = false;
+                    _isEndOfSequence = false;
+                }
+
+                public ReadOnlySerializedBitArray Current
+                {
+                    get
+                    {
+                        if (_isDisposed)
+                            throw new ObjectDisposedException(GetType().FullName);
+                        if (_value == null)
+                            throw new InvalidOperationException();
+                        if (_isEndOfSequence)
+                            throw new InvalidOperationException();
+                        return _value;
+                    }
+                }
+
+                object IEnumerator.Current => Current;
+
+                public bool MoveNext()
+                {
+                    _value = null;
+                    if (_isEndOfSequence)
+                        return false;
+                    if (_remain == null)
+                    {
+                        if (_isEndOfSourceSequence || _sourceEnumerator.MoveNext() == false)
+                        {
+                            _isEndOfSourceSequence = true;
+                            _isEndOfSequence = true;
+                            return false;
+                        }
+                        _remain = ReadOnlySerializedBitArray.FromByteSequence(_sourceEnumerator.Current, _packingDirection);
+                    }
+                    while (_remain.Length < _bitCount)
+                    {
+                        if (_isEndOfSourceSequence || _sourceEnumerator.MoveNext() == false)
+                        {
+                            _isEndOfSourceSequence = true;
+                            break;
+                        }
+                        _remain = _remain.Concat(ReadOnlySerializedBitArray.FromByteSequence(_sourceEnumerator.Current, _packingDirection));
+                    }
+                    if (_remain.Length <= 0)
+                    {
+                        _isEndOfSequence = true;
+                        return false;
+                    }
+                    else if (_remain.Length >= _bitCount)
+                    {
+                        _value = _remain.Divide(_bitCount, out _remain);
+                        return true;
+                    }
+                    else
+                    {
+                        _value = _remain;
+                        _remain = ReadOnlySerializedBitArray.Empty;
+                        return true;
+                    }
+                }
+
+                public void Reset()
+                {
+                    if (_sourceEnumerator != null)
+                        _sourceEnumerator.Dispose();
+                    _sourceEnumerator = _source.GetEnumerator();
+                    _remain = null;
+                    _value = null;
+                    _isEndOfSourceSequence = false;
+                    _isEndOfSequence = false;
+                }
+
+                protected virtual void Dispose(bool disposing)
+                {
+                    if (!_isDisposed)
+                    {
+                        if (disposing)
+                        {
+                            if (_sourceEnumerator != null)
+                            {
+                                _sourceEnumerator.Dispose();
+                                _sourceEnumerator = null;
+                            }
+                        }
+                        _isDisposed = true;
+                    }
+                }
+
+                public void Dispose()
+                {
+                    Dispose(disposing: true);
+                    GC.SuppressFinalize(this);
+                }
+            }
+
+            private IEnumerable<IReadOnlyArray<byte>> _source;
+            private int _bitCount;
+            private BitPackingDirection _packingDirection;
+
+            public BitArraySequence(IEnumerable<IReadOnlyArray<byte>> source, int bitCount, BitPackingDirection packingDirection)
+            {
+                _source = source;
+                _bitCount = bitCount;
+                _packingDirection = packingDirection;
+            }
+
+            public IEnumerator<ReadOnlySerializedBitArray> GetEnumerator()
+            {
+                return new Enumerator(_source, _bitCount, _packingDirection);
+            }
+
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return GetEnumerator();
+            }
+        }
+
+        private class ByteSequence
+            : IEnumerable<byte>
+        {
+            private class Enumerator
+                : IEnumerator<byte>
+            {
+                private const int _bitCountOfByte = sizeof(byte) << 3;
+                private bool _isDisposed;
+                private IEnumerable<ReadOnlySerializedBitArray> _source;
+                private BitPackingDirection _packingDirection;
+                private IEnumerator<ReadOnlySerializedBitArray> _sourceEnumerator;
+                private ReadOnlySerializedBitArray _remain;
+                private byte? _value;
+                private bool _isEndOfSourceSequence;
+                private bool _isEndOfSequence;
+
+                public Enumerator(IEnumerable<ReadOnlySerializedBitArray> source, BitPackingDirection packingDirection)
+                {
+                    _isDisposed = false;
+                    _source = source;
+                    _packingDirection = packingDirection;
+                    _sourceEnumerator = _source.GetEnumerator();
+                    _remain = null;
+                    _value = null;
+                    _isEndOfSourceSequence = false;
+                    _isEndOfSequence = false;
+                }
+
+                public byte Current
+                {
+                    get
+                    {
+                        if (_isDisposed)
+                            throw new ObjectDisposedException(GetType().FullName);
+                        if (_isEndOfSequence)
+                            throw new InvalidOperationException();
+                        if (_value == null)
+                            throw new InvalidOperationException();
+                        return _value.Value;
+                    }
+                }
+
+                object IEnumerator.Current => Current;
+
+                public bool MoveNext()
+                {
+                    _value = null;
+                    if (_isEndOfSequence)
+                        return false;
+                    if (_remain == null)
+                    {
+                        if (_isEndOfSourceSequence || _sourceEnumerator.MoveNext() == false)
+                        {
+                            _isEndOfSourceSequence = true;
+                            _isEndOfSequence = true;
+                            return false;
+                        }
+                        _remain = _sourceEnumerator.Current;
+                    }
+                    while (_remain.Length < _bitCountOfByte)
+                    {
+                        if (_isEndOfSourceSequence || _sourceEnumerator.MoveNext() == false)
+                        {
+                            _isEndOfSourceSequence = true;
+                            break;
+                        }
+                        _remain = _remain.Concat(_sourceEnumerator.Current);
+                    }
+                    if (_remain.Length <= 0)
+                    {
+                        _isEndOfSequence = true;
+                        return false;
+                    }
+                    else if (_remain.Length >= _bitCountOfByte)
+                    {
+                        var bitArrayForValue = _remain.Divide(_bitCountOfByte, out _remain);
+                        _value = bitArrayForValue.ToByte(_packingDirection);
+                        return true;
+                    }
+                    else
+                    {
+                        _value = _remain.ToByte(_packingDirection);
+                        _remain = ReadOnlySerializedBitArray.Empty;
+                        return true;
+                    }
+                }
+
+                public void Reset()
+                {
+                    _sourceEnumerator?.Dispose();
+                    _sourceEnumerator = _source.GetEnumerator();
+                    _remain = null;
+                    _value = null;
+                    _isEndOfSourceSequence = false;
+                    _isEndOfSequence = false;
+                }
+
+                protected virtual void Dispose(bool disposing)
+                {
+                    if (!_isDisposed)
+                    {
+                        if (disposing)
+                        {
+                            if (_sourceEnumerator != null)
+                            {
+                                _sourceEnumerator.Dispose();
+                                _sourceEnumerator = null;
+                            }
+                        }
+                        _isDisposed = true;
+                    }
+                }
+
+                public void Dispose()
+                {
+                    Dispose(disposing: true);
+                    GC.SuppressFinalize(this);
+                }
+            }
+
+            private IEnumerable<ReadOnlySerializedBitArray> _source;
+            private BitPackingDirection _packingDirection;
+
+            public ByteSequence(IEnumerable<ReadOnlySerializedBitArray> source, BitPackingDirection packingDirection)
+            {
+                _source = source;
+                _packingDirection = packingDirection;
+            }
+
+            public IEnumerator<byte> GetEnumerator()
+            {
+                return new Enumerator(_source, _packingDirection);
+            }
+
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return GetEnumerator();
+            }
+        }
+
         private const byte _byteEscape = 0x1b;
         private const byte _byteAtMark = 0x40;
         private const byte _byteDollar = 0x24;
@@ -308,6 +592,26 @@ namespace Utility
             return true;
         }
 
+        public static IEnumerable<ReadOnlySerializedBitArray> GetBitArraySequence(this IEnumerable<byte> source, int bitCount, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
+        {
+            return source.Select(data => new[] { data }.AsReadOnly()).GetBitArraySequence(bitCount, packingDirection);
+        }
+
+        public static IEnumerable<ReadOnlySerializedBitArray> GetBitArraySequence(this IEnumerable<byte[]> source, int bitCount, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
+        {
+            return source.Select(bytes => bytes.AsReadOnly()).GetBitArraySequence(bitCount, packingDirection);
+        }
+
+        public static IEnumerable<ReadOnlySerializedBitArray> GetBitArraySequence(this IEnumerable<IReadOnlyArray<byte>> source, int bitCount, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
+        {
+            return new BitArraySequence(source, bitCount, packingDirection);
+        }
+
+        public static IEnumerable<byte> GetByteSequence(this IEnumerable<ReadOnlySerializedBitArray> source, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
+        {
+            return new ByteSequence(source, packingDirection);
+        }
+
         public static Int16 ToInt16LE(this IReadOnlyArray<byte> value, int startIndex)
         {
 #if DEBUG
@@ -582,27 +886,27 @@ namespace Utility
                 if (b1 == _byteEscape)
                 {
                     if (b2 == _byteDollar && b3 == _byteAtMark)
-                        return Encoding.GetEncoding(50220);//JIS_0208 1978
+                        return Encoding.GetEncoding("iso-2022-jp");//JIS_0208 1978
                     else if (b2 == _byteDollar && b3 == _byteB)
-                        return Encoding.GetEncoding(50220);//JIS_0208 1983
+                        return Encoding.GetEncoding("iso-2022-jp");//JIS_0208 1983
                     else if (b2 == _byteOpenParenthesis && b3.IsAnyOf(_byteB, _byteJ))
-                        return Encoding.GetEncoding(50220);//JIS_ASC
+                        return Encoding.GetEncoding("iso-2022-jp");//JIS_ASC
                     else if (b2 == _byteOpenParenthesis && b3 == _byteI)
-                        return Encoding.GetEncoding(50220);//JIS_KANA
+                        return Encoding.GetEncoding("iso-2022-jp");//JIS_KANA
                     if (i < len - 3)
                     {
                         var b4 = bytes[i + 3];
                         if (b2 == _byteDollar &&
                             b3 == _byteOpenParenthesis &&
                             b4 == _byteD)
-                            return Encoding.GetEncoding(50220);//JIS_0212
+                            return Encoding.GetEncoding("iso-2022-jp");//JIS_0212
                         if (i < len - 5 &&
                             b2 == _byteAmpersand &&
                             b3 == _byteAtMark &&
                             b4 == _byteEscape &&
                             bytes[i + 4] == _byteDollar &&
                             bytes[i + 5] == _byteB)
-                            return Encoding.GetEncoding(50220);//JIS_0208 1990
+                            return Encoding.GetEncoding("iso-2022-jp");//JIS_0208 1990
                     }
                 }
             }
@@ -671,9 +975,9 @@ namespace Utility
                 }
             }
             if (count_euc > count_shift_jis && count_euc > count_utf8)
-                return Encoding.GetEncoding(51932); // euc
+                return Encoding.GetEncoding("euc-jp"); // euc
             else if (count_shift_jis > count_euc && count_shift_jis > count_utf8)
-                return Encoding.GetEncoding(932);// shift_jis
+                return Encoding.GetEncoding("shift_jis");// shift_jis
             else if (count_utf8 > count_euc && count_utf8 > count_shift_jis)
                 return Encoding.UTF8; // utf8
             else
