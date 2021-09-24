@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace Utility
 {
@@ -7,8 +8,11 @@ namespace Utility
     {
         int Length { get; }
         void CopyTo(ELEMENT_T[] destinationArray, int destinationOffset);
-        void CopyTo(int sourceIndex, ELEMENT_T[] destinationArray, int destinationOffset, int count);
+        void CopyTo(int sourceOffset, ELEMENT_T[] destinationArray, int destinationOffset, int count);
         ELEMENT_T this[int index] { get; }
+        ELEMENT_T[] DuplicateAsWritableArray();
+
+        [Obsolete]
         ELEMENT_T[] ToArray();
     }
 }

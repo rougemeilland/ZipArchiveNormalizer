@@ -180,7 +180,7 @@ namespace ZipUtility.ZipFileHeader
                             {
                                 // 特にエンコーディングが定められておらず、しかもUNICODEにも変換できない文字が含まれている場合
                                 // .NETの文字列として扱おうとすると文字化けが発生するので、文字列として変換は行わない
-                                FullName = "#" + BitConverter.ToString(fullNameBytes.ToArray());
+                                FullName = "#" + fullNameBytes.ToFriendlyString();
                                 FullNameCanBeExpressedInUnicode = false;
                             }
                         }
@@ -207,7 +207,7 @@ namespace ZipUtility.ZipFileHeader
                             {
                                 // 特にエンコーディングが定められておらず、しかもUNICODEにも変換できない文字が含まれている場合
                                 // .NETの文字列として扱おうとすると文字化けが発生するので、文字列として変換は行わない
-                                Comment = "#" + BitConverter.ToString(fullNameBytes.ToArray());
+                                Comment = "#" + fullNameBytes.ToFriendlyString();
                                 CommentCanBeExpressedInUnicode = false;
                             }
                         }

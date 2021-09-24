@@ -49,7 +49,7 @@ namespace Utility.IO
 
         public static void WriteAllBytes(this FileInfo file, IReadOnlyArray<byte> data)
         {
-            File.WriteAllBytes(file.FullName, data.ToArray());
+            File.WriteAllBytes(file.FullName, data.GetRawArray());
         }
 
         public static void WriteAllText(this FileInfo file, string text)

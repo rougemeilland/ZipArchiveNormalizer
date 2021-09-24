@@ -1,4 +1,5 @@
 ﻿using System;
+using Utility;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -7,8 +8,8 @@ namespace ZipUtility.ZipExtraField
         : ExtraField
     {
         private const byte _supportedVersion = 1;
-        private byte[] _uid;
-        private byte[] _gid;
+        private IReadOnlyArray<byte> _uid;
+        private IReadOnlyArray<byte> _gid;
 
         public NewUnixExtraField()
             : base(ExtraFieldId)
@@ -20,7 +21,7 @@ namespace ZipUtility.ZipExtraField
 
         public const UInt16 ExtraFieldId = 0x7875;
 
-        public override byte[] GetData(ZipEntryHeaderType headerType)
+        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
         {
             if (!IsOk)
                 return null;
@@ -30,10 +31,10 @@ namespace ZipUtility.ZipExtraField
             writer.WriteBytes(UID);
             writer.WriteByte((byte)GID.Length);
             writer.WriteBytes(GID);
-            return writer.ToByteSequence().ToArray();
+            return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
         {
             _uid = null;
             _gid = null;
@@ -73,7 +74,7 @@ namespace ZipUtility.ZipExtraField
             _gid != null && _gid.Length <= byte.MaxValue;
 
         public byte Version { get; set; }
-        public byte[] UID { get => _uid; set => _uid = value == null && value.Length <= byte.MaxValue ? value : throw new ArgumentException("Null or too long values cannot be set in the UID."); }
-        public byte[] GID { get => _gid; set => _gid = value == null && value.Length <= byte.MaxValue ? value : throw new ArgumentException("Null or too long values cannot be set in the GID."); }
+        public IReadOnlyArray<byte> UID { get => _uid; set => _uid = value == null && value.Length <= byte.MaxValue ? value : throw new ArgumentException("Null or too long values cannot be set in the UID."); }
+        public IReadOnlyArray<byte> GID { get => _gid; set => _gid = value == null && value.Length <= byte.MaxValue ? value : throw new ArgumentException("Null or too long values cannot be set in the GID."); }
     }
 }

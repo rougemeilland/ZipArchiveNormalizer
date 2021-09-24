@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using Utility;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -22,7 +23,7 @@ namespace ZipUtility.ZipExtraField
             UnicodeString = null;
         }
 
-        public override byte[] GetData(ZipEntryHeaderType headerType)
+        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
         {
             if (UnicodeString == null)
                 return null;
@@ -30,10 +31,10 @@ namespace ZipUtility.ZipExtraField
             writer.WriteByte(SupportedVersion);
             writer.WriteUInt32LE(Crc);
             writer.WriteBytes(_utf8Encoding.GetBytes(UnicodeString));
-            return writer.ToByteSequence().ToArray();
+            return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
         {
             UnicodeString = null;
             Crc = 0;

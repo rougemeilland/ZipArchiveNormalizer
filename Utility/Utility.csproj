@@ -45,13 +45,18 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="SerializedBitArray.cs" />
+    <Compile Include="Base64EncodingType.cs" />
+    <Compile Include="BitQueue.cs" />
     <Compile Include="BitPackingDirection.cs" />
+    <Compile Include="CrcCalculationMethod.cs" />
     <Compile Include="ICloneable.cs" />
+    <Compile Include="IReadOnlyArrayInternalObject.cs" />
+    <Compile Include="IInternalBitArray.cs" />
+    <Compile Include="InternalBitQueue.cs" />
     <Compile Include="MiscellaneousExtensions.cs" />
     <Compile Include="RandomBytesSequence.cs" />
     <Compile Include="RandomSequence.cs" />
-    <Compile Include="ReadOnlySerializedBitArray.cs" />
+    <Compile Include="TinyBitArray.cs" />
     <Compile Include="ByteArrayExtensions.cs" />
     <Compile Include="ConsoleWorker.cs" />
     <Compile Include="ConsoleBreakCancellale.cs" />
@@ -71,7 +76,6 @@
     <Compile Include="IReadOnlyArray.cs" />
     <Compile Include="FileMessageReportedEventArgs.cs" />
     <Compile Include="StringExtensions.cs" />
-    <Compile Include="Crc32Algorithm.cs" />
     <Compile Include="FileWorker\FileWorkerFromMainArgument.cs" />
     <Compile Include="LinqExtensions.cs" />
     <Compile Include="ProgressChangedEventArgs.cs" />
@@ -79,6 +83,7 @@
     <Compile Include="TemporaryDirectory.cs" />
     <Compile Include="FilePathNameComparer.cs" />
     <Compile Include="FilePathNameComparerrOption.cs" />
+    <Compile Include="ValueHolder.cs" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

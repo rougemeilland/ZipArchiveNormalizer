@@ -1,4 +1,5 @@
 ﻿using System;
+using Utility;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -16,7 +17,7 @@ namespace ZipUtility.ZipExtraField
 
         public const ushort ExtraFieldId = 10;
 
-        public override byte[] GetData(ZipEntryHeaderType headerType)
+        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
         {
             var ok = false;
             var writer = new ByteArrayOutputStream();
@@ -33,10 +34,10 @@ namespace ZipUtility.ZipExtraField
             }
             if (!ok)
                 return null;
-            return writer.ToByteSequence().ToArray();
+            return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
         {
             LastWriteTimeUtc = null;
             LastAccessTimeUtc = null;
@@ -80,7 +81,7 @@ namespace ZipUtility.ZipExtraField
             }
         }
 
-        private byte[] GetDataForSubTag0001()
+        private IReadOnlyArray<byte> GetDataForSubTag0001()
         {
             // 最終更新日時/最終アクセス日時/作成日時のいずれかが未設定の場合は、この拡張フィールドは無効とする。
             if (LastWriteTimeUtc == null ||
@@ -93,10 +94,10 @@ namespace ZipUtility.ZipExtraField
             writer.WriteUInt64LE((UInt64)LastWriteTimeUtc.Value.ToFileTimeUtc());
             writer.WriteUInt64LE((UInt64)LastAccessTimeUtc.Value.ToFileTimeUtc());
             writer.WriteUInt64LE((UInt64)CreationTimeUtc.Value.ToFileTimeUtc());
-            return writer.ToByteSequence().ToArray();
+            return writer.ToByteArray();
         }
 
-        private void SetDataForSubTag0001(byte[] data)
+        private void SetDataForSubTag0001(IReadOnlyArray<byte> data)
         {
             var reader = new ByteArrayInputStream(data, 0, data.Length);
             LastWriteTimeUtc = DateTime.FromFileTimeUtc((Int64)reader.ReadUInt64LE());

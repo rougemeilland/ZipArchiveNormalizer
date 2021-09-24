@@ -135,7 +135,7 @@ namespace ZipUtility
             newExtraData.Delete(UnicodeCommentExtraField.ExtraFieldId);
 
             // 編集した extra field を保存先に格納する
-            newEntry.ExtraData = newExtraData.ToByteSequence().ToArray();
+            newEntry.ExtraData = newExtraData.ToByteArray().DuplicateAsWritableArray();
 
             return newEntry;
         }

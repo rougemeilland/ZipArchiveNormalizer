@@ -1,4 +1,5 @@
 ﻿using System;
+using Utility;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -17,8 +18,8 @@ namespace ZipUtility.ZipExtraField
         {
         }
 
-        public override abstract byte[] GetData(ZipEntryHeaderType headerType);
-        public override abstract void SetData(ZipEntryHeaderType headerType, byte[] data, int offset, int count);
+        public override abstract IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType);
+        public override abstract void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int offset, int count);
 
         protected static DateTime? FromUnixTimeStamp(Int32 timeStamp)
         {

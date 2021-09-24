@@ -530,7 +530,7 @@ namespace Utility.IO
                 throw new ArgumentNullException("stream");
             if (buffer == null)
                 throw new ArgumentNullException("buffer");
-            stream.Write(buffer.ToArray(), 0, buffer.Length);
+            stream.Write(buffer.GetRawArray(), 0, buffer.Length);
         }
 
         public static void Write(this Stream stream, IReadOnlyArray<byte> buffer, int offset, int count)

@@ -18,7 +18,7 @@ namespace Test.Utility.IO
         private static void Test(BitPackingDirection packingDirection)
         {
             var _testFile = new FileInfo(Path.Combine(Path.GetDirectoryName(typeof(TestBitInputStream).Assembly.Location), "testData.txt"));
-            var buffer1 = new SerializedBitArray();
+            var buffer1 = new BitQueue();
             using (var bitInputStream = new BitInputStream(new BufferedInputStream(_testFile.OpenRead(), false), packingDirection, false))
             {
                 var bitCounts = new[] { 1, 3, 5, 7, 11 };
@@ -28,7 +28,7 @@ namespace Test.Utility.IO
                     var bitArray = bitInputStream.Read(bitCounts[count]);
                     if (bitArray == null)
                         break;
-                    buffer1.Append(bitArray);
+                    buffer1.Enqueue(bitArray);
                     count = (count + 1) % bitCounts.Length;
                 }
             }

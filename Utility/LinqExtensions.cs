@@ -78,7 +78,7 @@ namespace Utility
         }
 
         private class ReadOnlyArrayWrapper<ELEMENT_T>
-            : IReadOnlyArray<ELEMENT_T>
+            : IReadOnlyArray<ELEMENT_T>, IReadOnlyArrayInternalObject<ELEMENT_T>
         {
             private ELEMENT_T[] _internalArray;
 
@@ -88,17 +88,17 @@ namespace Utility
             }
 
             public ELEMENT_T this[int index] => _internalArray[index];
-
             public int Length => _internalArray.Length;
 
-            public void CopyTo(ELEMENT_T[] array, int index) => _internalArray.CopyTo(array, index);
+            public void CopyTo(ELEMENT_T[] destinationArray, int destinationOffset) =>
+                _internalArray.CopyTo(destinationArray, destinationOffset);
 
-            public void CopyTo(int sourceIndex, ELEMENT_T[] destinationArray, int destinationOffset, int count) =>
-                Array.Copy(_internalArray, sourceIndex, destinationArray, destinationOffset, count);
+            public void CopyTo(int sourceOffset, ELEMENT_T[] destinationArray, int destinationOffset, int count) =>
+                Array.Copy(_internalArray, sourceOffset, destinationArray, destinationOffset, count);
 
             public IEnumerator<ELEMENT_T> GetEnumerator() => _internalArray.Cast<ELEMENT_T>().GetEnumerator();
 
-            public ELEMENT_T[] ToArray()
+            public ELEMENT_T[] DuplicateAsWritableArray()
             {
                 var destinationArray = new ELEMENT_T[_internalArray.Length];
                 Array.Copy(_internalArray, destinationArray, destinationArray.Length);
@@ -106,6 +106,10 @@ namespace Utility
             }
 
             IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+            ELEMENT_T[] IReadOnlyArrayInternalObject<ELEMENT_T>.InternalArray => _internalArray;
+
+            [Obsolete]
+            ELEMENT_T[] IReadOnlyArray<ELEMENT_T>.ToArray() => throw new NotSupportedException();
         }
 
         private class ReadOnlyCollectionWrapper<ELEMENT_T>
@@ -350,6 +354,28 @@ namespace Utility
             if (buffer == null)
                 throw new ArgumentNullException("buffer");
             return new ArrayEnumerable<ELEMENT_T>(buffer.AsReadOnly(), 0, buffer.Length);
+        }
+
+        /// <summary>
+        /// 与えられた<see cref="IReadOnlyArray{ELEMENT_T}"/>オブジェクトの内部表現の配列を取得します。
+        /// </summary>
+        /// <typeparam name="ELEMENT_T">配列の要素の型です。</typeparam>
+        /// <param name="array">配列の内部表現を取得する対象の<see cref="IReadOnlyArray{ELEMENT_T}"/>オブジェクトです。</param>
+        /// <returns>
+        /// <paramref name="array"/>で与えられたオブジェクトの内部表現の配列です。
+        /// </returns>
+        /// <remarks>
+        /// このメソッドは、与えられた配列を変更しないにも関わらず<see cref="IReadOnlyArray{ELEMENT_T}"/>をサポートしないメソッドとの
+        /// 互換性を確保するために用意されています。(例: <see cref="System.IO.Stream.Write(byte[], int, int)"/>など)
+        /// このメソッドで取得した配列のサイズおよび内容は決して変更しないでください。
+        /// また、このメソッドで取得した配列のサイズまたは内容が変更されない保証がない場合には、このメソッドを決して使用しないでください。
+        /// </remarks>
+        public static ELEMENT_T[] GetRawArray<ELEMENT_T>(this IReadOnlyArray<ELEMENT_T> array)
+        {
+            if (array == null)
+                throw new ArgumentNullException("array");
+            var o = array as IReadOnlyArrayInternalObject<ELEMENT_T>;
+            return o?.InternalArray ?? array.DuplicateAsWritableArray();
         }
 
         public static IEnumerable<ELEMENT_T> GetSequence<ELEMENT_T>(this ELEMENT_T[] buffer, int offset)

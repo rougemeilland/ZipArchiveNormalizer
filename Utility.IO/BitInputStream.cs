@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Utility.IO
@@ -7,9 +8,8 @@ namespace Utility.IO
         : IDisposable
     {
         private bool _isDisosed;
-        private Stream _baseStream;
-        private bool _leaveOpen;
-        private SerializedBitArray _buffer;
+        private IEnumerator<byte> _sourceSequenceEnumerator;
+        private BitQueue _bitQueue;
         private bool _isEndOfBaseStream;
         private bool _isEndOfStream;
 
@@ -25,40 +25,42 @@ namespace Utility.IO
             if (baseStream.CanRead == false)
                 throw new ArgumentException("'baseStream' is not suppot 'Read'.", "baseStream");
 
-            _isDisosed = false;
-            _baseStream = baseStream;
-            PackingDirection = packingDirection;
-            _leaveOpen = leaveOpen;
-            _buffer = new SerializedBitArray();
-            _isEndOfBaseStream = false;
-            _isEndOfStream = false;
+            Initialize(baseStream.GetByteSequence(leaveOpen), packingDirection);
         }
 
-        public BitPackingDirection PackingDirection { get; }
+        public BitInputStream(IEnumerable<byte> sourceSequence, BitPackingDirection packingDirection)
+        {
+            if (sourceSequence == null)
+                throw new ArgumentNullException("sourceSequence");
 
-        public ReadOnlySerializedBitArray Read(int count)
+            Initialize(sourceSequence, packingDirection);
+        }
+
+        public BitPackingDirection PackingDirection { get; private set; }
+
+        public TinyBitArray Read(int count)
         {
             if (count < 0)
                 throw new ArgumentException();
             if (_isEndOfStream)
                 return null;
 
-            while (_isEndOfBaseStream == false && _buffer.Length < count)
+            count = count.Minimum(BitQueue.RecommendedMaxCount - 8);
+            while (_isEndOfBaseStream == false && _bitQueue.Count < count)
             {
-                var data = _baseStream.ReadByte();
-                if (data < 0)
+                if (_sourceSequenceEnumerator.MoveNext() == false)
                 {
                     _isEndOfBaseStream = true;
                     break;
                 }
-                _buffer.Append((Byte)data, packingDirection: PackingDirection);
+                _bitQueue.Enqueue(_sourceSequenceEnumerator.Current, packingDirection: PackingDirection);
             }
-            if (_buffer.Length <= 0)
+            if (_bitQueue.Count <= 0)
             {
                 _isEndOfStream = true;
                 return null;
             }
-            return _buffer.Divide(count.Minimum(_buffer.Length), out _buffer).AsReadOnly();
+            return _bitQueue.DequeueBitArray(count.Minimum(_bitQueue.Count));
         }
 
         public void Dispose()
@@ -73,15 +75,24 @@ namespace Utility.IO
             {
                 if (disposing)
                 {
-                    if (_baseStream != null)
+                    if (_sourceSequenceEnumerator != null)
                     {
-                        if (_leaveOpen == false)
-                            _baseStream.Dispose();
-                        _baseStream = null;
+                        _sourceSequenceEnumerator.Dispose();
+                        _sourceSequenceEnumerator = null;
                     }
                 }
                 _isDisosed = true;
             }
+        }
+
+        private void Initialize(IEnumerable<byte> sourceSequence, BitPackingDirection packingDirection)
+        {
+            _isDisosed = false;
+            PackingDirection = packingDirection;
+            _sourceSequenceEnumerator = sourceSequence.GetEnumerator();
+            _bitQueue = new BitQueue();
+            _isEndOfBaseStream = false;
+            _isEndOfStream = false;
         }
     }
 }

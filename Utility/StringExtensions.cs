@@ -234,7 +234,7 @@ namespace Utility
 
         public static string GetString(this Encoding encoding, IReadOnlyArray<byte> bytes)
         {
-            return encoding.GetString(bytes.ToArray());
+            return encoding.GetString(bytes.GetRawArray());
         }
 
         public static IReadOnlyArray<byte> GetReadOnlyBytes(this Encoding encoding, string s)

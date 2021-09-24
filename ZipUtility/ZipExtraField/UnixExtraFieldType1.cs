@@ -1,4 +1,5 @@
 ﻿using System;
+using Utility;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -17,7 +18,7 @@ namespace ZipUtility.ZipExtraField
 
         public const ushort ExtraFieldId = 0x5855;
 
-        public override byte[] GetData(ZipEntryHeaderType headerType)
+        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
         {
             if (LastAccessTimeUtc == null || LastWriteTimeUtc == null)
                 return null;
@@ -29,10 +30,10 @@ namespace ZipUtility.ZipExtraField
                 writer.WriteUInt16LE(UserId);
                 writer.WriteUInt16LE(GroupId);
             }
-            return writer.ToByteSequence().ToArray();
+            return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
         {
             LastAccessTimeUtc = null;
             LastWriteTimeUtc = null;

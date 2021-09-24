@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
 
 namespace Utility.IO
 {
@@ -10,7 +9,7 @@ namespace Utility.IO
         private bool _isDisosed;
         private Stream _baseStream;
         private bool _leaveOpen;
-        private SerializedBitArray _buffer;
+        private BitQueue _bitQueue;
 
 
         public BitOutputStream(Stream baseStream, bool leaveOpen = false)
@@ -29,20 +28,25 @@ namespace Utility.IO
             _baseStream = baseStream;
             PackingDirection = packingDirection;
             _leaveOpen = leaveOpen;
-            _buffer = new SerializedBitArray();
+            _bitQueue = new BitQueue();
         }
 
         public BitPackingDirection PackingDirection { get; }
 
 
-        public void Write(ReadOnlySerializedBitArray bitArray)
+        public void Write(TinyBitArray bitArray)
         {
             if (bitArray == null)
                 throw new ArgumentNullException("bitArray");
 
-            _buffer.Append(bitArray);
-            if (_buffer.Length > 8)
-                _baseStream.Write(_buffer.Divide(_buffer.Length / 8 * 8, out _buffer).ToByteArray(PackingDirection));
+            while (bitArray.Length > 0)
+            {
+                var bitCount = (BitQueue.RecommendedMaxCount - _bitQueue.Count).Minimum(bitArray.Length);
+                var data = bitArray.Divide(bitCount, out bitArray);
+                _bitQueue.Enqueue(data);
+                while (_bitQueue.Count >= 8)
+                    _baseStream.Write(new[] { _bitQueue.DequeueByte(PackingDirection) }, 0, 1);
+            }
         }
 
         public void Dispose()
@@ -60,17 +64,17 @@ namespace Utility.IO
                     if (_baseStream != null)
                     {
 #if DEBUG
-                        if (_buffer.Length.IsAnyOf(0, 7) == false)
+                        if (_bitQueue.Count.IsAnyOf(0, 7) == false)
                             throw new Exception();
 #endif
-                        if (_buffer.Length > 0)
+                        if (_bitQueue.Count > 0)
                         {
-                            _buffer.Append(Enumerable.Repeat(false, 8 - _buffer.Length));
+                            _bitQueue.Enqueue((Byte)0, 8 - _bitQueue.Count);
 #if DEBUG
-                            if (_buffer.Length != 8)
+                            if (_bitQueue.Count != 8)
                                 throw new Exception();
 #endif
-                            _baseStream.Write(_buffer.ToByteArray(PackingDirection));
+                            _baseStream.Write(new[] { _bitQueue.DequeueByte(PackingDirection) }, 0, 1);
                         }
                         if (_leaveOpen == false)
                             _baseStream.Dispose();

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Text;
+using Utility;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -25,7 +26,7 @@ namespace ZipUtility.ZipExtraField
 
         public const ushort ExtraFieldId = 0x554e;
 
-        public override byte[] GetData(ZipEntryHeaderType headerType)
+        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
         {
             if (string.IsNullOrEmpty(FullName) && string.IsNullOrEmpty(Comment))
                 return null;
@@ -35,10 +36,10 @@ namespace ZipUtility.ZipExtraField
             writer.WriteUInt16LE((UInt16)(Comment?.Length ?? 0));
             writer.WriteBytes(_unicodeEncoding.GetBytes(FullName ?? ""));
             writer.WriteBytes(_unicodeEncoding.GetBytes(Comment ?? ""));
-            return writer.ToByteSequence().ToArray();
+            return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
         {
             FullName = null;
             Comment = null;

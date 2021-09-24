@@ -1,4 +1,5 @@
 ﻿using System;
+using Utility;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -16,16 +17,16 @@ namespace ZipUtility.ZipExtraField
 
         public const UInt16 ExtraFieldId = 0xe57a;
 
-        public override byte[] GetData(ZipEntryHeaderType headerType)
+        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
         {
             if (CodePage < 0)
                 return null;
             var writer = new ByteArrayOutputStream();
             writer.WriteInt32LE(CodePage);
-            return writer.ToByteSequence().ToArray();
+            return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
         {
             CodePage = -1;
             var reader = new ByteArrayInputStream(data, index, count);

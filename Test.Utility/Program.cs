@@ -1,4 +1,5 @@
 ﻿using System;
+using Utility;
 
 namespace Test.Utility
 {
@@ -6,14 +7,19 @@ namespace Test.Utility
     {
         static void Main(string[] args)
         {
+#if false
+            foreach (var lineText in CrcTableMaker.GetCrc32Table())
+                Console.WriteLine(lineText);
+            foreach (var lineText in CrcTableMaker.GetRadix64Table())
+                Console.WriteLine(lineText);
+#endif
             TestFilePathNameComparer.Test();
             TestChunk.Test();
-            TestReadOnlySerializedBitArray.Test();
-            TestSerializedBitArray.Test();
-
-
-
-            Console.WriteLine("完了しました。                                ");
+            TestTinyBitArray.Test();
+            TestBitQueue.Test();
+            TestBase64.Test();
+            Console.WriteLine();
+            Console.WriteLine("完了しました。");
             Console.Beep();
             Console.ReadLine();
         }

@@ -1,4 +1,5 @@
 ﻿using System;
+using Utility;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -27,7 +28,7 @@ namespace ZipUtility.ZipExtraField
         /// このメソッドは、拡張フィールドのコレクションに拡張フィールドを追加しようとしたときに呼び出される。
         /// このメソッドを実装の際、もし何らかの理由でコレクションに拡張フィールドを追加してほしくない場合は null を返してもよい。
         /// </remarks>
-        byte[] GetData(ZipEntryHeaderType headerType);
+        IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType);
 
         /// <summary>
         /// バイト配列から拡張フィールドを解析するメソッド。
@@ -49,6 +50,6 @@ namespace ZipUtility.ZipExtraField
         /// data で与えられたバイト配列のうち、参照が許可されているのはインデックスが offset 以上、かつ offset + count 未満である。
         /// それ以外の場所を参照した場合の動作は未定義である。
         /// </remarks>
-        void SetData(ZipEntryHeaderType headerType, byte[] data, int offset, int count);
+        void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int offset, int count);
     }
 }

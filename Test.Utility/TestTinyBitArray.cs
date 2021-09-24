@@ -5,83 +5,33 @@ using Utility;
 
 namespace Test.Utility
 {
-    static class TestReadOnlySerializedBitArray
+    static class TestTinyBitArray
     {
         public static void Test()
         {
-            TestEmpty();
-            TestFromBooleanSequence();
-            TestFromByteSequence();
-            TestToByteArray();
-            TestFromInteger();
-            TestToInteger();
+            TestFrom();
+            TestTo();
             TestConcat();
             TestDivide();
             TestGetBitArraySequence();
             TestGetByteSequence();
         }
 
-        private static void TestEmpty()
+        private static void TestFrom()
         {
-            if (!(ReadOnlySerializedBitArray.Empty.ToString("R") == ""))
-                Console.Write("TestReadOnlySerializedBitArray.Empty: 処理結果が一致しません。: pattern = 1");
-        }
-
-        private static void TestFromBooleanSequence()
-        {
-            new bool?[] { true, false, null }
-                .SelectMany(v1 => new bool?[] { true, false, null }, (v1, v2) => new[] { v1, v2 })
-                .SelectMany(list => new bool?[] { true, false, null }, (list, v) => list.Concat(new[] { v }).ToList())
-                .Select(list => list.Where(v => v != null).Select(v => v.Value))
-                .Select(list => new { parameter = list.ToArray(), desired = string.Concat(list.Select(v => v ? "1" : "0")) })
-                .GroupBy(item => item.desired)
-                .Select(g => new { desired = g.Key, parameter = g.First().parameter })
-                .ForEach(item =>
+            new [] { false, true }
+                .Select(value => new
                 {
-                    var actual1 = ReadOnlySerializedBitArray.FromBooleanSequence(item.parameter).ToString("R");
-                    var actual2 = ReadOnlySerializedBitArray.FromBooleanSequence(item.parameter.ToList()).ToString("R");
-                    if (string.Equals(actual1, item.desired, StringComparison.Ordinal) == false)
-                        Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestFromBooleanSequence: 処理結果が一致しません。: sequence={{{0}}}, actual={1}, desired={2}", string.Join(", ", item.parameter), actual1, item.desired));
-                    if (string.Equals(actual2, item.desired, StringComparison.Ordinal) == false)
-                        Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestFromBooleanSequence: 処理結果が一致しません。: sequence={{{0}}}, actual={1}, desired={2}", string.Join(", ", item.parameter), actual2, item.desired));
-                });
-        }
-
-        private static void TestFromByteSequence()
-        {
-            new byte?[] { 0, 1, 2, 3, 6, 0x80, 0x40, 0xc0, 0x60, 0xff, null }
-                .SelectMany(v1 => new byte?[] { 0, 1, 2, 3, 6, 0x80, 0x40, 0xc0, 0x60, 0xff, null }, (v1, v2) => new[] { v1, v2 })
-                .SelectMany(list => new byte?[] { 0, 1, 2, 3, 6, 0x80, 0x40, 0xc0, 0x60, 0xff, null }, (list, v) => list.Concat(new[] { v }).ToArray())
-                .Select(list => list.Where(v => v != null).Select(v => v.Value).ToArray())
-                .Select(list => new { list, text = string.Join(",", list) })
-                .GroupBy(list => list.text)
-                .Select(g => g.First().list)
-                .SelectMany(list => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (list, direction) => new { list, direction })
-                .Select(item => new
-                {
-                    item.list,
-                    item.direction,
-                    desired =
-                        string.Concat(
-                            item.list
-                            .Select(v =>
-                                item.direction == BitPackingDirection.MsbToLsb
-                                ? Convert.ToString(v, 2).PadLeft(8, '0')
-                                : new string(Convert.ToString(v, 2).PadLeft(8, '0').ToCharArray().Reverse().ToArray())))
+                    value,
+                    desired = value ? "1" : "0",
                 })
                 .ForEach(item =>
                 {
-                    var actual1 = ReadOnlySerializedBitArray.FromByteSequence(item.list, item.direction).ToString("R");
-                    var actual2 = ReadOnlySerializedBitArray.FromByteSequence(item.list.ToList(), item.direction).ToString("R");
-                    if (string.Equals(actual1, item.desired, StringComparison.Ordinal) == false)
-                        Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestFromByteSequence: 処理結果が一致しません。: sequence={{{0}}}, direction={1}, actual={2}, desired={3}", string.Join(", ", item.list.Select(v => string.Format("0x{0:x2}", v))), item.direction, actual1, item.desired));
-                    if (string.Equals(actual2, item.desired, StringComparison.Ordinal) == false)
-                        Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestFromByteSequence: 処理結果が一致しません。: sequence={{{0}}}, direction={1}, actual={2}, desired={3}", string.Join(", ", item.list.Select(v => string.Format("0x{0:x2}", v))), item.direction, actual2, item.desired));
+                    var actual = TinyBitArray.FromBoolean(item.value).ToString("R");
+                    if (string.Equals(actual, item.desired, StringComparison.Ordinal) == false)
+                        Console.WriteLine(string.Format("TestTinyBitArray.TestFrom.FromBoolean: 処理結果が一致しません。: value={0}, actual={1}, desired={2}", item.value, actual, item.desired));
                 });
-        }
 
-        private static void TestFromInteger()
-        {
             new byte[] { 0, 1, 2, 3, 6, 0x80, 0x40, 0xc0, 0x60, 0xff }
                 .SelectMany(value => Enumerable.Range(1, 7), (value, count) => new { value, count })
                 .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { item.value, item.count, direction })
@@ -97,9 +47,9 @@ namespace Test.Utility
                 })
                 .ForEach(item =>
                 {
-                    var actual = ReadOnlySerializedBitArray.FromByte(item.value, item.count, item.direction).ToString("R");
+                    var actual = TinyBitArray.FromByte(item.value, item.count, item.direction).ToString("R");
                     if (string.Equals(actual, item.desired, StringComparison.Ordinal) == false)
-                        Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestFromInteger.FromByte: 処理結果が一致しません。: value=0x{0:x2}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
+                        Console.WriteLine(string.Format("TestTinyBitArray.TestFrom.FromByte: 処理結果が一致しません。: value=0x{0:x2}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
                 });
 
             new UInt16[] { 0, 1, 2, 3, 6, 0x8000, 0x4000, 0xc000, 0x6000, 0xffff }
@@ -117,9 +67,9 @@ namespace Test.Utility
                 })
                 .ForEach(item =>
                 {
-                    var actual = ReadOnlySerializedBitArray.FromUInt16(item.value, item.count, item.direction).ToString("R");
+                    var actual = TinyBitArray.FromUInt16(item.value, item.count, item.direction).ToString("R");
                     if (string.Equals(actual, item.desired, StringComparison.Ordinal) == false)
-                        Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestFromInteger.FromUint16: 処理結果が一致しません。: value=0x{0:x4}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
+                        Console.WriteLine(string.Format("TestTinyBitArray.TestFrom.FromUint16: 処理結果が一致しません。: value=0x{0:x4}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
                 });
 
             new UInt32[] { 0, 1, 2, 3, 6, 0x80000000, 0x40000000, 0xc0000000, 0x60000000, 0xffffffff }
@@ -137,9 +87,9 @@ namespace Test.Utility
                 })
                 .ForEach(item =>
                 {
-                    var actual = ReadOnlySerializedBitArray.FromUInt32(item.value, item.count, item.direction).ToString("R");
+                    var actual = TinyBitArray.FromUInt32(item.value, item.count, item.direction).ToString("R");
                     if (string.Equals(actual, item.desired, StringComparison.Ordinal) == false)
-                        Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestFromInteger.FromUInt32: 処理結果が一致しません。: value=0x{0:x8}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
+                        Console.WriteLine(string.Format("TestTinyBitArray.TestFrom.FromUInt32: 処理結果が一致しません。: value=0x{0:x8}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
                 });
 
             new UInt64[] { 0, 1, 2, 3, 6, 0x8000000000000000, 0x4000000000000000, 0xc000000000000000, 0x6000000000000000, 0xffffffffffffffff }
@@ -157,62 +107,33 @@ namespace Test.Utility
                 })
                 .ForEach(item =>
                 {
-                    var actual = ReadOnlySerializedBitArray.FromUInt64(item.value, item.count, item.direction).ToString("R");
+                    var actual = TinyBitArray.FromUInt64(item.value, item.count, item.direction).ToString("R");
                     if (string.Equals(actual, item.desired, StringComparison.Ordinal) == false)
-                        Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestFromInteger.FromUInt64: 処理結果が一致しません。: value=0x{0:x16}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
+                        Console.WriteLine(string.Format("TestTinyBitArray.TestFrom.FromUInt64: 処理結果が一致しません。: value=0x{0:x16}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
                 });
         }
 
-        private static void TestToByteArray()
+        private static void TestTo()
         {
-            var lockObject = new object();
-
-            BitPatternDataSource
-                .QuickDistinct(StringComparer.Ordinal)
-                .SelectMany(bitPattern => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (bitPattern, direction) => new { bitPattern, direction })
-                .Select(item => new
+            new [] { false, true }
+                .Select(value => new
                 {
-                    bitArray = SerializedBitArray.Parse(item.bitPattern),
-                    direction = item.direction,
-                    desired =
-                        item.bitPattern
-                        .ToChunkOfArray(8)
-                        .Select(array => item.direction == BitPackingDirection.MsbToLsb ? array : array.Reverse().ToArray())
-                        .Select(array => Convert.ToByte(new string(array), 2)),
+                    bitArray = TinyBitArray.FromBoolean(value),
+                    desired = value,
                 })
-                .AsParallel()
-                .WithDegreeOfParallelism(Environment.ProcessorCount)
-                .ForAll(item =>
+                .ForEach(item =>
                 {
-                    var actual = item.bitArray.ToByteArray(item.direction);
-                    if (!actual.SequenceEqual(item.desired))
-                    {
-                        lock (lockObject)
-                        {
-                            Console.WriteLine(
-                                string.Format(
-                                    "TestReadOnlySerializedBitArray.TestToByteArray.ToByteArray: 処理結果が一致しません。: bitArray={0}, direction={1}, actual={{{2}}}, desired={{{3}}}",
-                                    item.bitArray,
-                                    item.direction,
-                                    string.Join(
-                                        ", ",
-                                        actual.Select(value => string.Format("0x{0:x2}", value))),
-                                    string.Join(
-                                        ", ",
-                                        item.desired.Select(value => string.Format("0x{0:x2}", value)))));
-                        }
-                    }
+                    var actual = item.bitArray.ToBoolean();
+                    if (actual != item.desired)
+                        Console.WriteLine(string.Format("TestTinyBitArray.TestToInteger.ToBoolean: 処理結果が一致しません。: bitArray={0}, actual={1}, desired={2}", item.bitArray, actual, item.desired));
                 });
-        }
 
-        private static void TestToInteger()
-        {
             new Byte[] { 0, 1, 2, 3, 6, 0x80, 0x40, 0xc0, 0x60, 0xff }
                 .SelectMany(value => Enumerable.Range(1, 7), (value, count) => new { value, count })
                 .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { item.value, item.count, direction })
                 .Select(item => new
                 {
-                    bitArray = ReadOnlySerializedBitArray.FromByte(item.value, item.count, item.direction),
+                    bitArray = TinyBitArray.FromByte(item.value, item.count, item.direction),
                     item.direction,
                     desired = (Byte)(item.value & ((1 << item.count) - 1)),
                 })
@@ -220,7 +141,7 @@ namespace Test.Utility
                 {
                     var actual = item.bitArray.ToByte(item.direction);
                     if (actual != item.desired)
-                        Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestToInteger.ToByte: 処理結果が一致しません。: bitArray={0}, direction={1}, actual={2:x2}, desired={3:x2}", item.bitArray, item.direction, actual, item.desired));
+                        Console.WriteLine(string.Format("TestTinyBitArray.TestToInteger.ToByte: 処理結果が一致しません。: bitArray={0}, direction={1}, actual=0x{2:x2}, desired=0x{3:x2}", item.bitArray, item.direction, actual, item.desired));
                 });
 
             new UInt16[] { 0, 1, 2, 3, 6, 0x8000, 0x4000, 0xc000, 0x6000, 0xffff }
@@ -228,7 +149,7 @@ namespace Test.Utility
                 .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { item.value, item.count, direction })
                 .Select(item => new
                 {
-                    bitArray = ReadOnlySerializedBitArray.FromUInt16(item.value, item.count, item.direction),
+                    bitArray = TinyBitArray.FromUInt16(item.value, item.count, item.direction),
                     item.direction,
                     desired = (UInt16)(item.value & ((1 << item.count) - 1)),
                 })
@@ -236,7 +157,7 @@ namespace Test.Utility
                 {
                     var actual = item.bitArray.ToUInt16(item.direction);
                     if (actual != item.desired)
-                        Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestToInteger.ToUint16: 処理結果が一致しません。: bitArray={0}, direction={1}, actual={2:x4}, desired={3:x4}", item.bitArray, item.direction, actual, item.desired));
+                        Console.WriteLine(string.Format("TestTinyBitArray.TestToInteger.ToUint16: 処理結果が一致しません。: bitArray={0}, direction={1}, actual=0x{2:x4}, desired=0x{3:x4}", item.bitArray, item.direction, actual, item.desired));
                 });
 
             new UInt32[] { 0, 1, 2, 3, 6, 0x80000000, 0x40000000, 0xc0000000, 0x60000000, 0xffffffff }
@@ -244,7 +165,7 @@ namespace Test.Utility
                 .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { item.value, item.count, direction })
                 .Select(item => new
                 {
-                    bitArray = ReadOnlySerializedBitArray.FromUInt32(item.value, item.count, item.direction),
+                    bitArray = TinyBitArray.FromUInt32(item.value, item.count, item.direction),
                     item.direction,
                     desired = item.value & ((1U << item.count) - 1),
                 })
@@ -252,7 +173,7 @@ namespace Test.Utility
                 {
                     var actual = item.bitArray.ToUInt32(item.direction);
                     if (actual != item.desired)
-                        Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestToInteger.ToUInt32: 処理結果が一致しません。: bitArray={0}, direction={1}, actual={2:x8}, desired={3:x8}", item.bitArray, item.direction, actual, item.desired));
+                        Console.WriteLine(string.Format("TestTinyBitArray.TestToInteger.ToUInt32: 処理結果が一致しません。: bitArray={0}, direction={1}, actual=0x{2:x8}, desired=0x{3:x8}", item.bitArray, item.direction, actual, item.desired));
                 });
 
             new UInt64[] { 0, 1, 2, 3, 6, 0x8000000000000000, 0x4000000000000000, 0xc000000000000000, 0x6000000000000000, 0xffffffffffffffff }
@@ -260,7 +181,7 @@ namespace Test.Utility
                 .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { item.value, item.count, direction })
                 .Select(item => new
                 {
-                    bitArray = ReadOnlySerializedBitArray.FromUInt64(item.value, item.count, item.direction),
+                    bitArray = TinyBitArray.FromUInt64(item.value, item.count, item.direction),
                     item.direction,
                     desired = item.value & ((1UL << item.count) - 1),
                 })
@@ -268,7 +189,7 @@ namespace Test.Utility
                 {
                     var actual = item.bitArray.ToUInt64(item.direction);
                     if (actual != item.desired)
-                        Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestToInteger.ToUInt64: 処理結果が一致しません。: bitArray={0}, direction={1}, actual={2:x16}, desired={3:x16}", item.bitArray, item.direction, actual, item.desired));
+                        Console.WriteLine(string.Format("TestTinyBitArray.TestToInteger.ToUInt64: 処理結果が一致しません。: bitArray={0}, direction={1}, actual=0x{2:x16}, desired=0x{3:x16}", item.bitArray, item.direction, actual, item.desired));
                 });
         }
 
@@ -278,85 +199,23 @@ namespace Test.Utility
 
             BitPatternDataSource
                 .QuickDistinct(StringComparer.Ordinal)
-                .SelectMany(bitPattern1 => BitPatternDataSource.QuickDistinct(StringComparer.Ordinal), (bitPattern1, bitPattern2) => new { bitPattern1, bitPattern2 })
+                .SelectMany(bitPattern1 => new[] { false, true }, (bitPattern, value) => new { bitPattern, value })
                 .Select(item => new
                 {
-                    bitArray = ReadOnlySerializedBitArray.Parse(item.bitPattern1),
-                    sequence = item.bitPattern2.ToCharArray().Select(c => c == '1'),
-                    desired = item.bitPattern1 + item.bitPattern2,
+                    bitArray = new TinyBitArray(item.bitPattern),
+                    value = item.value,
+                    desired = item.bitPattern + (item.value ? "1" : "0"),
                 })
                 .AsParallel()
                 .WithDegreeOfParallelism(Environment.ProcessorCount)
                 .ForAll(item =>
                 {
-                    var actual1 = item.bitArray.Concat(item.sequence).ToString("R");
-                    var actual2 = item.bitArray.Concat(item.sequence.ToArray()).ToString("R");
-                    var actual3 = item.bitArray.Concat(item.sequence.ToArray().AsReadOnly()).ToString("R");
-                    if (!string.Equals(actual1, item.desired, StringComparison.Ordinal))
+                    var actual = item.bitArray.Concat(item.value).ToString("R");
+                    if (!string.Equals(actual, item.desired, StringComparison.Ordinal))
                     {
                         lock (lockObject)
                         {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestConcat.Concat(IEnumerable<bool>): 処理結果が一致しません。: bitArray={0}, sequence={{{1}}}, actual={2}, desired={3}", item.bitArray, string.Join(",", item.sequence.Select(b => b ? "1" : "0")), actual1, item.desired));
-                        }
-                    }
-                    if (!string.Equals(actual2, item.desired, StringComparison.Ordinal))
-                    {
-                        lock (lockObject)
-                        {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestConcat.Concat(bool[]): 処理結果が一致しません。: bitArray={0}, sequence={{{1}}}, actual={2}, desired={3}", item.bitArray, string.Join(",", item.sequence.Select(b => b ? "1" : "0")), actual2, item.desired));
-                        }
-                    }
-                    if (!string.Equals(actual3, item.desired, StringComparison.Ordinal))
-                    {
-                        lock (lockObject)
-                        {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestConcat.Concat(IReadOnlyArray<bool>): 処理結果が一致しません。: bitArray={0}, sequence={{{1}}} actual={2}, desired={3}", item.bitArray, string.Join(",", item.sequence.Select(b => b ? "1" : "0")), actual3, item.desired));
-                        }
-                    }
-                });
-
-            BitPatternDataSource
-                .QuickDistinct(StringComparer.Ordinal)
-                .SelectMany(bitPattern1 => BitPatternDataSource.Where(s => s.Length % 8 == 0).QuickDistinct(StringComparer.Ordinal), (bitPattern1, bitPattern2) => new { bitPattern1, bitPattern2 = bitPattern2.ToChunkOfArray(8).Select(array => new string(array)) })
-                .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { item.bitPattern1, item.bitPattern2, direction })
-                .Select(item => new
-                {
-                    bitArray = ReadOnlySerializedBitArray.Parse(item.bitPattern1),
-                    sequence =
-                        item.bitPattern2
-                        .Select(pattern =>
-                                item.direction == BitPackingDirection.MsbToLsb
-                                ? Convert.ToByte(pattern, 2)
-                                : Convert.ToByte(new string(pattern.Reverse().ToArray()), 2)),
-                    item.direction,
-                    desired = item.bitPattern1 + string.Concat(item.bitPattern2),
-                })
-                .AsParallel()
-                .WithDegreeOfParallelism(Environment.ProcessorCount)
-                .ForAll(item =>
-                {
-                    var actual1 = item.bitArray.Concat(item.sequence, item.direction).ToString("R");
-                    var actual2 = item.bitArray.Concat(item.sequence.ToArray(), item.direction).ToString("R");
-                    var actual3 = item.bitArray.Concat(item.sequence.ToArray().AsReadOnly(), item.direction).ToString("R");
-                    if (!string.Equals(actual1, item.desired, StringComparison.Ordinal))
-                    {
-                        lock (lockObject)
-                        {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestConcat.Concat(IEnumerable<byte>): 処理結果が一致しません。: bitArray={0}, sequence={{{1}}}, direction={2}, actual={3}, desired={4}", item.bitArray, item.sequence.Select(b => string.Format("0x{0:x2}", b)), item.direction, actual1, item.desired));
-                        }
-                    }
-                    if (!string.Equals(actual2, item.desired, StringComparison.Ordinal))
-                    {
-                        lock (lockObject)
-                        {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestConcat.Concat(byte[]): 処理結果が一致しません。: bitArray={0}, sequence={{{1}}}, direction={2}, actual={3}, desired={4}", item.bitArray, item.sequence.Select(b => string.Format("0x{0:x2}", b)), item.direction, actual2, item.desired));
-                        }
-                    }
-                    if (!string.Equals(actual3, item.desired, StringComparison.Ordinal))
-                    {
-                        lock (lockObject)
-                        {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestConcat.Concat(IReadOnlyArray<byte>): 処理結果が一致しません。: bitArray={0}, sequence={{{1}}}, direction={2}, actual={3}, desired={4}", item.bitArray, item.sequence.Select(b => string.Format("0x{0:x2}", b)), item.direction, actual3, item.desired));
+                            Console.WriteLine(string.Format("TestTinyBitArray.TestConcat.Concat(bool): 処理結果が一致しません。: bitArray={0}, value={1}, actual={2}, desired={3}", item.bitArray, item.value, actual, item.desired));
                         }
                     }
                 });
@@ -368,7 +227,7 @@ namespace Test.Utility
                 .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { item.bitPattern1, item.bitPattern2, item.count, direction })
                 .Select(item => new
                 {
-                    bitArray = ReadOnlySerializedBitArray.Parse(item.bitPattern1),
+                    bitArray = new TinyBitArray(item.bitPattern1),
                     value = Convert.ToByte(item.bitPattern2, 2),
                     count = item.count,
                     item.direction,
@@ -386,7 +245,7 @@ namespace Test.Utility
                     {
                         lock (lockObject)
                         {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestConcat.Concat(byte): 処理結果が一致しません。: bitArray={0}, value=0x{1:x2}, count={2}, direction={3}, actual={4}, desired={5}", item.bitArray, item.value, item.count, item.direction, actual, item.desired));
+                            Console.WriteLine(string.Format("TestTinyBitArray.TestConcat.Concat(byte): 処理結果が一致しません。: bitArray={0}, value=0x{1:x2}, count={2}, direction={3}, actual={4}, desired={5}", item.bitArray, item.value, item.count, item.direction, actual, item.desired));
                         }
                     }
                 });
@@ -398,7 +257,7 @@ namespace Test.Utility
                 .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { item.bitPattern1, item.bitPattern2, item.count, direction })
                 .Select(item => new
                 {
-                    bitArray = ReadOnlySerializedBitArray.Parse(item.bitPattern1),
+                    bitArray = new TinyBitArray(item.bitPattern1),
                     value = Convert.ToUInt16(item.bitPattern2, 2),
                     count = item.count,
                     item.direction,
@@ -416,7 +275,7 @@ namespace Test.Utility
                     {
                         lock (lockObject)
                         {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestConcat.Concat(UInt16): 処理結果が一致しません。: bitArray={0}, value=0x{1:x4}, count={2}, direction={3}, actual={4}, desired={5}", item.bitArray, item.value, item.count, item.direction, actual, item.desired));
+                            Console.WriteLine(string.Format("TestTinyBitArray.TestConcat.Concat(UInt16): 処理結果が一致しません。: bitArray={0}, value=0x{1:x4}, count={2}, direction={3}, actual={4}, desired={5}", item.bitArray, item.value, item.count, item.direction, actual, item.desired));
                         }
                     }
                 });
@@ -428,7 +287,7 @@ namespace Test.Utility
                 .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { item.bitPattern1, item.bitPattern2, item.count, direction })
                 .Select(item => new
                 {
-                    bitArray = ReadOnlySerializedBitArray.Parse(item.bitPattern1),
+                    bitArray = new TinyBitArray(item.bitPattern1),
                     value = Convert.ToUInt32(item.bitPattern2, 2),
                     count = item.count,
                     item.direction,
@@ -446,7 +305,7 @@ namespace Test.Utility
                     {
                         lock (lockObject)
                         {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestConcat.Concat(UInt32): 処理結果が一致しません。: bitArray={0}, value=0x{1:x8}, count={2}, direction={3}, actual={4}, desired={5}", item.bitArray, item.value, item.count, item.direction, actual, item.desired));
+                            Console.WriteLine(string.Format("TestTinyBitArray.TestConcat.Concat(UInt32): 処理結果が一致しません。: bitArray={0}, value=0x{1:x8}, count={2}, direction={3}, actual={4}, desired={5}", item.bitArray, item.value, item.count, item.direction, actual, item.desired));
                         }
                     }
                 });
@@ -458,7 +317,7 @@ namespace Test.Utility
                 .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { item.bitPattern1, item.bitPattern2, item.count, direction })
                 .Select(item => new
                 {
-                    bitArray = ReadOnlySerializedBitArray.Parse(item.bitPattern1),
+                    bitArray = new TinyBitArray(item.bitPattern1),
                     value = Convert.ToUInt64(item.bitPattern2, 2),
                     count = item.count,
                     item.direction,
@@ -476,7 +335,7 @@ namespace Test.Utility
                     {
                         lock (lockObject)
                         {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestConcat.Concat(UInt64): 処理結果が一致しません。: bitArray={0}, value=0x{1:x16}, count={2}, direction={3}, actual={4}, desired={5}", item.bitArray, item.value, item.count, item.direction, actual, item.desired));
+                            Console.WriteLine(string.Format("TestTinyBitArray.TestConcat.Concat(UInt64): 処理結果が一致しません。: bitArray={0}, value=0x{1:x16}, count={2}, direction={3}, actual={4}, desired={5}", item.bitArray, item.value, item.count, item.direction, actual, item.desired));
                         }
                     }
                 });
@@ -486,8 +345,8 @@ namespace Test.Utility
                 .SelectMany(bitPattern1 => BitPatternDataSource.QuickDistinct(StringComparer.Ordinal), (bitPattern1, bitPattern2) => new { bitPattern1, bitPattern2 })
                 .Select(item => new
                 {
-                    bitArray1 = ReadOnlySerializedBitArray.Parse(item.bitPattern1),
-                    bitArray2 = ReadOnlySerializedBitArray.Parse(item.bitPattern2),
+                    bitArray1 = new TinyBitArray(item.bitPattern1),
+                    bitArray2 = new TinyBitArray(item.bitPattern2),
                     desired = item.bitPattern1 + item.bitPattern2,
                 })
                 .AsParallel()
@@ -499,7 +358,7 @@ namespace Test.Utility
                     {
                         lock (lockObject)
                         {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestConcat.Concat(ReadOnlybitArray): 処理結果が一致しません。: bitArray1={0}, bitArray2={1}, actual={2}, desired={3}", item.bitArray1, item.bitArray2, actual1, item.desired));
+                            Console.WriteLine(string.Format("TestTinyBitArray.TestConcat.Concat(TinyBitArray): 処理結果が一致しません。: bitArray1={0}, bitArray2={1}, actual={2}, desired={3}", item.bitArray1, item.bitArray2, actual1, item.desired));
                         }
                     }
                 });
@@ -514,7 +373,8 @@ namespace Test.Utility
                 .SelectMany(bitPattern => BitCountDataSource.Where(count => count.IsBetween(0, bitPattern.Length)), (bitPattern, count) => new { bitPattern, count })
                 .Select(item => new
                 {
-                    bitArray = ReadOnlySerializedBitArray.Parse(item.bitPattern),
+                    item.bitPattern,
+                    bitArray = new TinyBitArray(item.bitPattern),
                     count = item.count,
                     desired1 = item.bitPattern.Substring(0, item.count),
                     desired2 = item.bitPattern.Substring(item.count),
@@ -523,14 +383,14 @@ namespace Test.Utility
                 .WithDegreeOfParallelism(Environment.ProcessorCount)
                 .ForAll(item =>
                 {
-                    ReadOnlySerializedBitArray remain;
+                    TinyBitArray remain;
                     var actual1 = item.bitArray.Divide(item.count, out remain).ToString("R");
                     var actual2 = remain.ToString("R");
                     if (!string.Equals(actual1, item.desired1, StringComparison.Ordinal) || !string.Equals(actual2, item.desired2, StringComparison.Ordinal))
                     {
                         lock (lockObject)
                         {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestConcat.Divide: 処理結果が一致しません。: bitArray={0}, count={1}, actual1={2}, actual2={3}, desired1={4}, desired2={5}", item.bitArray, item.count, actual1, actual2, item.desired1, item.desired2));
+                            Console.WriteLine(string.Format("TestTinyBitArray.TestDivide.Divide: 処理結果が一致しません。: bitArray={0}, count={1}, actual1={2}, actual2={3}, desired1={4}, desired2={5}", item.bitArray, item.count, actual1, actual2, item.desired1, item.desired2));
                         }
                     }
                 });
@@ -572,7 +432,7 @@ namespace Test.Utility
                     {
                         lock (lockObject)
                         {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestGetBitArraySequence.GetBitArraySequence<IEnumerable<byte>>: 処理結果が一致しません。: bitArray={0}, bitCount={1}, direction={2}, actual={3}, desired={4}", BitConverter.ToString(item.byteArray.ToArray()), item.bitCount, item.direction, actual, item.desired));
+                            Console.WriteLine(string.Format("TestTinyBitArray.TestGetBitArraySequence.GetBitArraySequence<IEnumerable<byte>>: 処理結果が一致しません。: bitArray={0}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.byteArray.ToArray().ToFriendlyString(), item.bitCount, item.direction, actual, item.desired));
                         }
                     }
                 });
@@ -610,7 +470,7 @@ namespace Test.Utility
                     {
                         lock (lockObject)
                         {
-                            Console.WriteLine(string.Format("TestReadOnlySerializedBitArray.TestGetBitArraySequence.GetBitArraySequence<IEnumerable<byte[]>>: 処理結果が一致しません。: bitArray={{{0}}}, bitCount={1}, direction={2}, actual={3}, desired={4}", string.Join(", ", item.byteArray.Select(array => BitConverter.ToString(array))), item.bitCount, item.direction, actual, item.desired));
+                            Console.WriteLine(string.Format("TestTinyBitArray.TestGetBitArraySequence.GetBitArraySequence<IEnumerable<byte[]>>: 処理結果が一致しません。: bitArray={{{0}}}, bitCount={1}, direction={2}, actual={3}, desired={4}", string.Join(", ", item.byteArray.Select(array => array.ToFriendlyString())), item.bitCount, item.direction, actual, item.desired));
                         }
                     }
                 });
@@ -627,7 +487,7 @@ namespace Test.Utility
                 .SelectMany(bitPatterns => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (bitPatterns, direction) => new { bitPatterns, direction })
                 .Select(item => new
                 {
-                    bitArrays = item.bitPatterns.Split('-').Select(bitPattern => ReadOnlySerializedBitArray.Parse(bitPattern)),
+                    bitArrays = item.bitPatterns.Split('-').Select(bitPattern => new TinyBitArray(bitPattern)),
                     item.direction,
                     desired =
                         item.bitPatterns
@@ -651,7 +511,7 @@ namespace Test.Utility
                         {
                             Console.WriteLine(
                                 string.Format(
-                                    "TestReadOnlySerializedBitArray.TestGetByteSequence.GetByteSequence: 処理結果が一致しません。: bitArray={{{0}}}, direction={1}, actual={{{2}}}, desired={{{3}}}",
+                                    "TestTinyBitArray.TestGetByteSequence.GetByteSequence: 処理結果が一致しません。: bitArray={{{0}}}, direction={1}, actual={{{2}}}, desired={{{3}}}",
                                     string.Join(", ", item.bitArrays),
                                     item.direction,
                                     string.Join(", ", actual.Select(value => string.Format("0x{0:x2}", value)),

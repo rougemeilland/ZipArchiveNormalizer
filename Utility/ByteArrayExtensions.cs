@@ -8,36 +8,52 @@ namespace Utility
 {
     public static class ByteArrayExtensions
     {
-        private class BitArraySequence
-            : IEnumerable<ReadOnlySerializedBitArray>
+        private class CommonCrc32
+            : CrcCalculationMethod<UInt32>
+        {
+            protected override UInt32 InitialValue => 0xffffffffU;
+            protected override UInt32 Update(UInt32 crc, byte data) => _crcTableOfCommonCrc32[(crc ^ data) & 0xff] ^ (crc >> 8);
+            protected override UInt32 Finalize(UInt32 crc) => ~crc;
+        }
+
+        private class Crc24ForRadix64
+            : CrcCalculationMethod<UInt32>
+        {
+            protected override UInt32 InitialValue => 0x00b704ceU;
+            protected override UInt32 Update(UInt32 crc, byte data) => _crcTableOfCrc24ForRadix64[((crc >> 16) ^ data) & 0xff] ^ (crc << 8);
+            protected override UInt32 Finalize(UInt32 crc) => crc & 0xffffffU;
+        }
+
+        private class BitArraySequenceFromByteSequence
+            : IEnumerable<TinyBitArray>
         {
             private class Enumerator
-                : IEnumerator<ReadOnlySerializedBitArray>
+                : IEnumerator<TinyBitArray>
             {
                 private bool _isDisposed;
-                private IEnumerable<IReadOnlyArray<byte>> _source;
+                private IEnumerable<byte> _source;
                 private int _bitCount;
                 private BitPackingDirection _packingDirection;
-                private IEnumerator<IReadOnlyArray<byte>> _sourceEnumerator;
-                private ReadOnlySerializedBitArray _remain;
-                private ReadOnlySerializedBitArray _value;
+                private IEnumerator<byte> _sourceEnumerator;
+                private BitQueue _bitQueue;
+                private TinyBitArray _value;
                 private bool _isEndOfSourceSequence;
                 private bool _isEndOfSequence;
 
-                public Enumerator(IEnumerable<IReadOnlyArray<byte>> source, int bitCount, BitPackingDirection packingDirection)
+                public Enumerator(IEnumerable<byte> source, int bitCount, BitPackingDirection packingDirection)
                 {
                     _isDisposed = false;
                     _source = source;
                     _bitCount = bitCount;
                     _packingDirection = packingDirection;
                     _sourceEnumerator = _source.GetEnumerator();
-                    _remain = null;
+                    _bitQueue = new BitQueue();
                     _value = null;
                     _isEndOfSourceSequence = false;
                     _isEndOfSequence = false;
                 }
 
-                public ReadOnlySerializedBitArray Current
+                public TinyBitArray Current
                 {
                     get
                     {
@@ -58,39 +74,23 @@ namespace Utility
                     _value = null;
                     if (_isEndOfSequence)
                         return false;
-                    if (_remain == null)
-                    {
-                        if (_isEndOfSourceSequence || _sourceEnumerator.MoveNext() == false)
-                        {
-                            _isEndOfSourceSequence = true;
-                            _isEndOfSequence = true;
-                            return false;
-                        }
-                        _remain = ReadOnlySerializedBitArray.FromByteSequence(_sourceEnumerator.Current, _packingDirection);
-                    }
-                    while (_remain.Length < _bitCount)
+                    while (_bitQueue.Count < _bitCount)
                     {
                         if (_isEndOfSourceSequence || _sourceEnumerator.MoveNext() == false)
                         {
                             _isEndOfSourceSequence = true;
                             break;
                         }
-                        _remain = _remain.Concat(ReadOnlySerializedBitArray.FromByteSequence(_sourceEnumerator.Current, _packingDirection));
+                        _bitQueue.Enqueue(_sourceEnumerator.Current, packingDirection: _packingDirection);
                     }
-                    if (_remain.Length <= 0)
+                    if (_bitQueue.Count <= 0)
                     {
                         _isEndOfSequence = true;
                         return false;
                     }
-                    else if (_remain.Length >= _bitCount)
-                    {
-                        _value = _remain.Divide(_bitCount, out _remain);
-                        return true;
-                    }
                     else
                     {
-                        _value = _remain;
-                        _remain = ReadOnlySerializedBitArray.Empty;
+                        _value = _bitQueue.DequeueBitArray(_bitCount.Minimum(_bitQueue.Count));
                         return true;
                     }
                 }
@@ -100,7 +100,7 @@ namespace Utility
                     if (_sourceEnumerator != null)
                         _sourceEnumerator.Dispose();
                     _sourceEnumerator = _source.GetEnumerator();
-                    _remain = null;
+                    _bitQueue = new BitQueue();
                     _value = null;
                     _isEndOfSourceSequence = false;
                     _isEndOfSequence = false;
@@ -129,18 +129,22 @@ namespace Utility
                 }
             }
 
-            private IEnumerable<IReadOnlyArray<byte>> _source;
+            private IEnumerable<byte> _source;
             private int _bitCount;
             private BitPackingDirection _packingDirection;
 
-            public BitArraySequence(IEnumerable<IReadOnlyArray<byte>> source, int bitCount, BitPackingDirection packingDirection)
+            public BitArraySequenceFromByteSequence(IEnumerable<byte> source, int bitCount, BitPackingDirection packingDirection)
             {
+                if (source == null)
+                    throw new ArgumentNullException();
+                if (bitCount < 1)
+                    throw new ArgumentException();
                 _source = source;
                 _bitCount = bitCount;
                 _packingDirection = packingDirection;
             }
 
-            public IEnumerator<ReadOnlySerializedBitArray> GetEnumerator()
+            public IEnumerator<TinyBitArray> GetEnumerator()
             {
                 return new Enumerator(_source, _bitCount, _packingDirection);
             }
@@ -151,43 +155,42 @@ namespace Utility
             }
         }
 
-        private class ByteSequence
-            : IEnumerable<byte>
+        private class ByteSequenceFromBitArraySequence
+            : IEnumerable<Byte>
         {
             private class Enumerator
-                : IEnumerator<byte>
+                : IEnumerator<Byte>
             {
-                private const int _bitCountOfByte = sizeof(byte) << 3;
                 private bool _isDisposed;
-                private IEnumerable<ReadOnlySerializedBitArray> _source;
+                private IEnumerable<TinyBitArray> _source;
                 private BitPackingDirection _packingDirection;
-                private IEnumerator<ReadOnlySerializedBitArray> _sourceEnumerator;
-                private ReadOnlySerializedBitArray _remain;
+                private IEnumerator<TinyBitArray> _sourceEnumerator;
+                private BitQueue _bitQueue;
                 private byte? _value;
                 private bool _isEndOfSourceSequence;
                 private bool _isEndOfSequence;
 
-                public Enumerator(IEnumerable<ReadOnlySerializedBitArray> source, BitPackingDirection packingDirection)
+                public Enumerator(IEnumerable<TinyBitArray> source, BitPackingDirection packingDirection)
                 {
                     _isDisposed = false;
                     _source = source;
                     _packingDirection = packingDirection;
                     _sourceEnumerator = _source.GetEnumerator();
-                    _remain = null;
+                    _bitQueue = new BitQueue();
                     _value = null;
                     _isEndOfSourceSequence = false;
                     _isEndOfSequence = false;
                 }
 
-                public byte Current
+                public Byte Current
                 {
                     get
                     {
                         if (_isDisposed)
                             throw new ObjectDisposedException(GetType().FullName);
-                        if (_isEndOfSequence)
-                            throw new InvalidOperationException();
                         if (_value == null)
+                            throw new InvalidOperationException();
+                        if (_isEndOfSequence)
                             throw new InvalidOperationException();
                         return _value.Value;
                     }
@@ -200,49 +203,33 @@ namespace Utility
                     _value = null;
                     if (_isEndOfSequence)
                         return false;
-                    if (_remain == null)
-                    {
-                        if (_isEndOfSourceSequence || _sourceEnumerator.MoveNext() == false)
-                        {
-                            _isEndOfSourceSequence = true;
-                            _isEndOfSequence = true;
-                            return false;
-                        }
-                        _remain = _sourceEnumerator.Current;
-                    }
-                    while (_remain.Length < _bitCountOfByte)
+                    while (_bitQueue.Count < 8)
                     {
                         if (_isEndOfSourceSequence || _sourceEnumerator.MoveNext() == false)
                         {
                             _isEndOfSourceSequence = true;
                             break;
                         }
-                        _remain = _remain.Concat(_sourceEnumerator.Current);
+                        _bitQueue.Enqueue(_sourceEnumerator.Current);
                     }
-                    if (_remain.Length <= 0)
+                    if (_bitQueue.Count <= 0)
                     {
                         _isEndOfSequence = true;
                         return false;
                     }
-                    else if (_remain.Length >= _bitCountOfByte)
-                    {
-                        var bitArrayForValue = _remain.Divide(_bitCountOfByte, out _remain);
-                        _value = bitArrayForValue.ToByte(_packingDirection);
-                        return true;
-                    }
                     else
                     {
-                        _value = _remain.ToByte(_packingDirection);
-                        _remain = ReadOnlySerializedBitArray.Empty;
+                        _value = _bitQueue.DequeueByte(_packingDirection);
                         return true;
                     }
                 }
 
                 public void Reset()
                 {
-                    _sourceEnumerator?.Dispose();
+                    if (_sourceEnumerator != null)
+                        _sourceEnumerator.Dispose();
                     _sourceEnumerator = _source.GetEnumerator();
-                    _remain = null;
+                    _bitQueue = new BitQueue();
                     _value = null;
                     _isEndOfSourceSequence = false;
                     _isEndOfSequence = false;
@@ -271,16 +258,18 @@ namespace Utility
                 }
             }
 
-            private IEnumerable<ReadOnlySerializedBitArray> _source;
+            private IEnumerable<TinyBitArray> _source;
             private BitPackingDirection _packingDirection;
 
-            public ByteSequence(IEnumerable<ReadOnlySerializedBitArray> source, BitPackingDirection packingDirection)
+            public ByteSequenceFromBitArraySequence(IEnumerable<TinyBitArray> source, BitPackingDirection packingDirection)
             {
+                if (source == null)
+                    throw new ArgumentNullException();
                 _source = source;
                 _packingDirection = packingDirection;
             }
 
-            public IEnumerator<byte> GetEnumerator()
+            public IEnumerator<Byte> GetEnumerator()
             {
                 return new Enumerator(_source, _packingDirection);
             }
@@ -300,15 +289,14 @@ namespace Utility
         private const byte _byteD = 0x44;
         private const byte _byteJ = 0x4a;
         private const byte _byteI = 0x49;
-        private static UInt32[] _crcTable1;
-#if false
-        private static UInt32[] _crcTable2;
-#endif
+        private static UInt32[] _crcTableOfCommonCrc32;
+        private static UInt32[] _crcTableOfCrc24ForRadix64;
+        private static CrcCalculationMethod<UInt32> _commonCrc32;
+        private static CrcCalculationMethod<UInt32> _crc24ForRadix64;
 
         static ByteArrayExtensions()
         {
-#if true
-            _crcTable1 = new UInt32[]
+            _crcTableOfCommonCrc32 = new UInt32[]
             {
                 0x00000000, 0x77073096, 0xee0e612c, 0x990951ba,
                 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
@@ -375,151 +363,171 @@ namespace Utility
                 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
                 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
             };
-#else
-            _crcTable1 = new UInt32[256];
-            for (var i = 0; i < 256; i++)
+
+            _crcTableOfCrc24ForRadix64 = new UInt32[]
             {
-                var c = (UInt32)i;
-                for (int j = 0; j < 8; j++)
-                    c = (c & 1) != 0 ? (0xEDB88320U ^ (c >> 1)) : (c >> 1);
-                _crcTable1[i] = c;
-            }
-            for (int i = 0; i < _crcTable1.Length; i++)
-            {
-                if (i % 4 != 3)
-                    Console.Write("0x{0:x8}, ", _crcTable1[i]);
-                else
-                    Console.Write("0x{0:x8},\n", _crcTable1[i]);
-            }
-#endif
-#if false
-#if true
-            _crcTable2 = new UInt32[]
-            {
-                0x00000000, 0x04c11db7, 0x09823b6e, 0x0d4326d9,
-                0x130476dc, 0x17c56b6b, 0x1a864db2, 0x1e475005,
-                0x2608edb8, 0x22c9f00f, 0x2f8ad6d6, 0x2b4bcb61,
-                0x350c9b64, 0x31cd86d3, 0x3c8ea00a, 0x384fbdbd,
-                0x4c11db70, 0x48d0c6c7, 0x4593e01e, 0x4152fda9,
-                0x5f15adac, 0x5bd4b01b, 0x569796c2, 0x52568b75,
-                0x6a1936c8, 0x6ed82b7f, 0x639b0da6, 0x675a1011,
-                0x791d4014, 0x7ddc5da3, 0x709f7b7a, 0x745e66cd,
-                0x9823b6e0, 0x9ce2ab57, 0x91a18d8e, 0x95609039,
-                0x8b27c03c, 0x8fe6dd8b, 0x82a5fb52, 0x8664e6e5,
-                0xbe2b5b58, 0xbaea46ef, 0xb7a96036, 0xb3687d81,
-                0xad2f2d84, 0xa9ee3033, 0xa4ad16ea, 0xa06c0b5d,
-                0xd4326d90, 0xd0f37027, 0xddb056fe, 0xd9714b49,
-                0xc7361b4c, 0xc3f706fb, 0xceb42022, 0xca753d95,
-                0xf23a8028, 0xf6fb9d9f, 0xfbb8bb46, 0xff79a6f1,
-                0xe13ef6f4, 0xe5ffeb43, 0xe8bccd9a, 0xec7dd02d,
-                0x34867077, 0x30476dc0, 0x3d044b19, 0x39c556ae,
-                0x278206ab, 0x23431b1c, 0x2e003dc5, 0x2ac12072,
-                0x128e9dcf, 0x164f8078, 0x1b0ca6a1, 0x1fcdbb16,
-                0x018aeb13, 0x054bf6a4, 0x0808d07d, 0x0cc9cdca,
-                0x7897ab07, 0x7c56b6b0, 0x71159069, 0x75d48dde,
-                0x6b93dddb, 0x6f52c06c, 0x6211e6b5, 0x66d0fb02,
-                0x5e9f46bf, 0x5a5e5b08, 0x571d7dd1, 0x53dc6066,
-                0x4d9b3063, 0x495a2dd4, 0x44190b0d, 0x40d816ba,
-                0xaca5c697, 0xa864db20, 0xa527fdf9, 0xa1e6e04e,
-                0xbfa1b04b, 0xbb60adfc, 0xb6238b25, 0xb2e29692,
-                0x8aad2b2f, 0x8e6c3698, 0x832f1041, 0x87ee0df6,
-                0x99a95df3, 0x9d684044, 0x902b669d, 0x94ea7b2a,
-                0xe0b41de7, 0xe4750050, 0xe9362689, 0xedf73b3e,
-                0xf3b06b3b, 0xf771768c, 0xfa325055, 0xfef34de2,
-                0xc6bcf05f, 0xc27dede8, 0xcf3ecb31, 0xcbffd686,
-                0xd5b88683, 0xd1799b34, 0xdc3abded, 0xd8fba05a,
-                0x690ce0ee, 0x6dcdfd59, 0x608edb80, 0x644fc637,
-                0x7a089632, 0x7ec98b85, 0x738aad5c, 0x774bb0eb,
-                0x4f040d56, 0x4bc510e1, 0x46863638, 0x42472b8f,
-                0x5c007b8a, 0x58c1663d, 0x558240e4, 0x51435d53,
-                0x251d3b9e, 0x21dc2629, 0x2c9f00f0, 0x285e1d47,
-                0x36194d42, 0x32d850f5, 0x3f9b762c, 0x3b5a6b9b,
-                0x0315d626, 0x07d4cb91, 0x0a97ed48, 0x0e56f0ff,
-                0x1011a0fa, 0x14d0bd4d, 0x19939b94, 0x1d528623,
-                0xf12f560e, 0xf5ee4bb9, 0xf8ad6d60, 0xfc6c70d7,
-                0xe22b20d2, 0xe6ea3d65, 0xeba91bbc, 0xef68060b,
-                0xd727bbb6, 0xd3e6a601, 0xdea580d8, 0xda649d6f,
-                0xc423cd6a, 0xc0e2d0dd, 0xcda1f604, 0xc960ebb3,
-                0xbd3e8d7e, 0xb9ff90c9, 0xb4bcb610, 0xb07daba7,
-                0xae3afba2, 0xaafbe615, 0xa7b8c0cc, 0xa379dd7b,
-                0x9b3660c6, 0x9ff77d71, 0x92b45ba8, 0x9675461f,
-                0x8832161a, 0x8cf30bad, 0x81b02d74, 0x857130c3,
-                0x5d8a9099, 0x594b8d2e, 0x5408abf7, 0x50c9b640,
-                0x4e8ee645, 0x4a4ffbf2, 0x470cdd2b, 0x43cdc09c,
-                0x7b827d21, 0x7f436096, 0x7200464f, 0x76c15bf8,
-                0x68860bfd, 0x6c47164a, 0x61043093, 0x65c52d24,
-                0x119b4be9, 0x155a565e, 0x18197087, 0x1cd86d30,
-                0x029f3d35, 0x065e2082, 0x0b1d065b, 0x0fdc1bec,
-                0x3793a651, 0x3352bbe6, 0x3e119d3f, 0x3ad08088,
-                0x2497d08d, 0x2056cd3a, 0x2d15ebe3, 0x29d4f654,
-                0xc5a92679, 0xc1683bce, 0xcc2b1d17, 0xc8ea00a0,
-                0xd6ad50a5, 0xd26c4d12, 0xdf2f6bcb, 0xdbee767c,
-                0xe3a1cbc1, 0xe760d676, 0xea23f0af, 0xeee2ed18,
-                0xf0a5bd1d, 0xf464a0aa, 0xf9278673, 0xfde69bc4,
-                0x89b8fd09, 0x8d79e0be, 0x803ac667, 0x84fbdbd0,
-                0x9abc8bd5, 0x9e7d9662, 0x933eb0bb, 0x97ffad0c,
-                0xafb010b1, 0xab710d06, 0xa6322bdf, 0xa2f33668,
-                0xbcb4666d, 0xb8757bda, 0xb5365d03, 0xb1f740b4,
+                0x00000000, 0x00864cfb, 0x008ad50d, 0x000c99f6,
+                0x0093e6e1, 0x0015aa1a, 0x001933ec, 0x009f7f17,
+                0x00a18139, 0x0027cdc2, 0x002b5434, 0x00ad18cf,
+                0x003267d8, 0x00b42b23, 0x00b8b2d5, 0x003efe2e,
+                0x00c54e89, 0x00430272, 0x004f9b84, 0x00c9d77f,
+                0x0056a868, 0x00d0e493, 0x00dc7d65, 0x005a319e,
+                0x0064cfb0, 0x00e2834b, 0x00ee1abd, 0x00685646,
+                0x00f72951, 0x007165aa, 0x007dfc5c, 0x00fbb0a7,
+                0x000cd1e9, 0x008a9d12, 0x008604e4, 0x0000481f,
+                0x009f3708, 0x00197bf3, 0x0015e205, 0x0093aefe,
+                0x00ad50d0, 0x002b1c2b, 0x002785dd, 0x00a1c926,
+                0x003eb631, 0x00b8faca, 0x00b4633c, 0x00322fc7,
+                0x00c99f60, 0x004fd39b, 0x00434a6d, 0x00c50696,
+                0x005a7981, 0x00dc357a, 0x00d0ac8c, 0x0056e077,
+                0x00681e59, 0x00ee52a2, 0x00e2cb54, 0x006487af,
+                0x00fbf8b8, 0x007db443, 0x00712db5, 0x00f7614e,
+                0x0019a3d2, 0x009fef29, 0x009376df, 0x00153a24,
+                0x008a4533, 0x000c09c8, 0x0000903e, 0x0086dcc5,
+                0x00b822eb, 0x003e6e10, 0x0032f7e6, 0x00b4bb1d,
+                0x002bc40a, 0x00ad88f1, 0x00a11107, 0x00275dfc,
+                0x00dced5b, 0x005aa1a0, 0x00563856, 0x00d074ad,
+                0x004f0bba, 0x00c94741, 0x00c5deb7, 0x0043924c,
+                0x007d6c62, 0x00fb2099, 0x00f7b96f, 0x0071f594,
+                0x00ee8a83, 0x0068c678, 0x00645f8e, 0x00e21375,
+                0x0015723b, 0x00933ec0, 0x009fa736, 0x0019ebcd,
+                0x008694da, 0x0000d821, 0x000c41d7, 0x008a0d2c,
+                0x00b4f302, 0x0032bff9, 0x003e260f, 0x00b86af4,
+                0x002715e3, 0x00a15918, 0x00adc0ee, 0x002b8c15,
+                0x00d03cb2, 0x00567049, 0x005ae9bf, 0x00dca544,
+                0x0043da53, 0x00c596a8, 0x00c90f5e, 0x004f43a5,
+                0x0071bd8b, 0x00f7f170, 0x00fb6886, 0x007d247d,
+                0x00e25b6a, 0x00641791, 0x00688e67, 0x00eec29c,
+                0x003347a4, 0x00b50b5f, 0x00b992a9, 0x003fde52,
+                0x00a0a145, 0x0026edbe, 0x002a7448, 0x00ac38b3,
+                0x0092c69d, 0x00148a66, 0x00181390, 0x009e5f6b,
+                0x0001207c, 0x00876c87, 0x008bf571, 0x000db98a,
+                0x00f6092d, 0x007045d6, 0x007cdc20, 0x00fa90db,
+                0x0065efcc, 0x00e3a337, 0x00ef3ac1, 0x0069763a,
+                0x00578814, 0x00d1c4ef, 0x00dd5d19, 0x005b11e2,
+                0x00c46ef5, 0x0042220e, 0x004ebbf8, 0x00c8f703,
+                0x003f964d, 0x00b9dab6, 0x00b54340, 0x00330fbb,
+                0x00ac70ac, 0x002a3c57, 0x0026a5a1, 0x00a0e95a,
+                0x009e1774, 0x00185b8f, 0x0014c279, 0x00928e82,
+                0x000df195, 0x008bbd6e, 0x00872498, 0x00016863,
+                0x00fad8c4, 0x007c943f, 0x00700dc9, 0x00f64132,
+                0x00693e25, 0x00ef72de, 0x00e3eb28, 0x0065a7d3,
+                0x005b59fd, 0x00dd1506, 0x00d18cf0, 0x0057c00b,
+                0x00c8bf1c, 0x004ef3e7, 0x00426a11, 0x00c426ea,
+                0x002ae476, 0x00aca88d, 0x00a0317b, 0x00267d80,
+                0x00b90297, 0x003f4e6c, 0x0033d79a, 0x00b59b61,
+                0x008b654f, 0x000d29b4, 0x0001b042, 0x0087fcb9,
+                0x001883ae, 0x009ecf55, 0x009256a3, 0x00141a58,
+                0x00efaaff, 0x0069e604, 0x00657ff2, 0x00e33309,
+                0x007c4c1e, 0x00fa00e5, 0x00f69913, 0x0070d5e8,
+                0x004e2bc6, 0x00c8673d, 0x00c4fecb, 0x0042b230,
+                0x00ddcd27, 0x005b81dc, 0x0057182a, 0x00d154d1,
+                0x0026359f, 0x00a07964, 0x00ace092, 0x002aac69,
+                0x00b5d37e, 0x00339f85, 0x003f0673, 0x00b94a88,
+                0x0087b4a6, 0x0001f85d, 0x000d61ab, 0x008b2d50,
+                0x00145247, 0x00921ebc, 0x009e874a, 0x0018cbb1,
+                0x00e37b16, 0x006537ed, 0x0069ae1b, 0x00efe2e0,
+                0x00709df7, 0x00f6d10c, 0x00fa48fa, 0x007c0401,
+                0x0042fa2f, 0x00c4b6d4, 0x00c82f22, 0x004e63d9,
+                0x00d11cce, 0x00575035, 0x005bc9c3, 0x00dd8538,
             };
 
-#else
-            _crcTable2 = new UInt32[256];
-            for (var i = 0; i < 256; i++)
+            _commonCrc32 = new CommonCrc32();
+            _crc24ForRadix64 = new Crc24ForRadix64();
+        }
+
+        public static UInt32 CalculateCrc32(this IEnumerable<byte> source) => _commonCrc32.Calculate(source);
+        public static UInt32 CalculateCrc24(this IEnumerable<byte> source) => _crc24ForRadix64.Calculate(source);
+        public static IEnumerable<byte> GetSequenceWithCrc32(this IEnumerable<byte> source, ValueHolder<UInt32> result) => _commonCrc32.GetSequenceWithCrc(source, result);
+        public static IEnumerable<byte> GetSequenceWithCrc24(this IEnumerable<byte> source, ValueHolder<UInt32> result) => _crc24ForRadix64.GetSequenceWithCrc(source, result);
+
+        public static IEnumerable<char> GetBase64EncodedSequence(this IEnumerable<byte> source, char char62 = '+', char char63 = '/')
+        {
+            if (char62.IsBetween('0', '9') || char62.IsBetween('A', 'Z') || char62.IsBetween('a', 'z') || char62 == '=' || char62 <= '\u0020' || char62 >= '\u007f')
+                throw new ArgumentException();
+            if (char63.IsBetween('0', '9') || char63.IsBetween('A', 'Z') || char63.IsBetween('a', 'z') || char63 == '=' || char63 <= '\u0020' || char63 >= '\u007f')
+                throw new ArgumentException();
+            if (char62 == char63)
+                throw new ArgumentException();
+            return InternalGetBase64EncodedSequence(source, char62, char63);
+        }
+
+        public static IEnumerable<byte> GetBase64DecodedSequence(this IEnumerable<char> source, bool ignoreSpace = false, bool ignoreInvalidCharacter = false, char char62 = '+', char char63 = '/')
+        {
+            if (char62.IsBetween('0', '9') || char62.IsBetween('A', 'Z') || char62.IsBetween('a', 'z') || char62 == '=' || char62 <= '\u0020' || char62 >= '\u007f')
+                throw new ArgumentException();
+            if (char63.IsBetween('0', '9') || char63.IsBetween('A', 'Z') || char63.IsBetween('a', 'z') || char63 == '=' || char63 <= '\u0020' || char63 >= '\u007f')
+                throw new ArgumentException();
+            if (char62 == char63)
+                throw new ArgumentException();
+            return InternalGetBase64DecodedSequence(source, ignoreSpace, ignoreInvalidCharacter, char62, char63);
+        }
+
+        public static string EncodeBase64(this IEnumerable<byte> source, Base64EncodingType encodingType = Base64EncodingType.Default)
+        {
+            switch (encodingType)
             {
-                var c = (UInt32)(i << 24);
-                for (int j = 0; j < 8; j++)
-                    c = (c << 1) ^ ((c & 0x80000000U) != 0 ? 0x04C11DB7U : 0);
-                _crcTable2[i] = c;
+                case Base64EncodingType.Rrc4648Encoding: // Default
+                case Base64EncodingType.Rrc2045Encoding: // for MIME
+                    return
+                        string.Join(
+                            "\r\n",
+                            source.GetBase64EncodedSequence()
+                            .ToChunkOfArray(64)
+                            .Select(charArray => new string(charArray)));
+                case Base64EncodingType.Rrc4880Encoding: // for OpenPGP Radix-64
+                    var crc24Value = new ValueHolder<UInt32>();
+                    var bodyPart =
+                        string.Join(
+                            "\r\n",
+                            source
+                            .GetSequenceWithCrc24(crc24Value)
+                            .GetBase64EncodedSequence()
+                            .ToChunkOfArray(76)
+                            .Select(charArray => new string(charArray)));
+                    var crcPart =
+                        new string(
+                            new[]
+                            {
+                                (byte)((crc24Value.Value >> 16) & byte.MaxValue),
+                                (byte)((crc24Value.Value >> 8) & byte.MaxValue),
+                                (byte)((crc24Value.Value >> 0) & byte.MaxValue),
+                            }
+                            .GetBase64EncodedSequence()
+                            .ToArray());
+                    return bodyPart + "\r\n=" + crcPart;
+                default:
+                    throw new ArgumentException();
             }
-            for (int i = 0; i < _crcTable2.Length; i++)
+        }
+
+        public static IEnumerable<byte> DecodeBase64(this string source, Base64EncodingType encodingType = Base64EncodingType.Default)
+        {
+            switch (encodingType)
             {
-                if (i % 4 != 3)
-                    Console.Write("0x{0:x8}, ", _crcTable2[i]);
-                else
-                    Console.Write("0x{0:x8},\n", _crcTable2[i]);
+                case Base64EncodingType.Rrc4648Encoding: // Default
+                    return source.GetBase64DecodedSequence(false, false);
+                case Base64EncodingType.Rrc2045Encoding: // for MIME
+                    return source.GetBase64DecodedSequence(true, true);
+                case Base64EncodingType.Rrc4880Encoding: // for OpenPGP Radix-64
+                    var indexOfLastEqualSign = source.LastIndexOf('=');
+                    var bodyPart = indexOfLastEqualSign >= 0 ? source.Substring(0, indexOfLastEqualSign) : source;
+                    var crcPart = indexOfLastEqualSign >= 0 ? source.Substring(indexOfLastEqualSign) : null;
+                    var data = bodyPart.GetBase64DecodedSequence(true, false).ToArray();
+                    if (crcPart != null)
+                    {
+                        var crcByteArray = crcPart.GetSequence(1).GetBase64DecodedSequence(true, false).ToArray();
+                        if (crcByteArray.Length != 3)
+                            throw new FormatException();
+                        var desiredCrc = ((UInt32)crcByteArray[0] << 16) | ((UInt32)crcByteArray[1] << 8) | ((UInt32)crcByteArray[2] << 0);
+                        var actualCrc = data.CalculateCrc24();
+                        if (actualCrc != desiredCrc)
+                            throw new FormatException();
+                    }
+                    return data;
+                default:
+                    throw new ArgumentException();
             }
-#endif
-#endif
-        }
-
-        public static UInt32 CalculateCrc32(this byte[] buffer)
-        {
-            return buffer.GetSequence().CalculateCrc32();
-        }
-
-        public static UInt32 CalculateCrc32(this byte[] buffer, int offset)
-        {
-            return buffer.GetSequence(offset).CalculateCrc32();
-        }
-
-        public static UInt32 CalculateCrc32(this byte[] buffer, int offset, int count)
-        {
-            return buffer.GetSequence(offset, count).CalculateCrc32();
-        }
-
-        public static UInt32 CalculateCrc32(this IReadOnlyArray<byte> buffer, int offset)
-        {
-            return buffer.GetSequence(offset).CalculateCrc32();
-        }
-
-        public static UInt32 CalculateCrc32(this IReadOnlyArray<byte> buffer, int offset, int count)
-        {
-            return buffer.GetSequence(offset, count).CalculateCrc32();
-        }
-
-        public static UInt32 CalculateCrc32(this IEnumerable<byte> source)
-        {
-#if true
-            var value = 0xffffffffU;
-            foreach (var data in source)
-                value = _crcTable1[(value ^ data) & 0xff] ^ (value >> 8);
-            return value ^ 0xffffffffU;
-#else
-            var value = 0xffffffffU;
-            for (int i = 0; i < count; i++)
-                value = (value << 8) ^ _crcTable2[((value >> 24) ^ buffer[offset + i]) & 0xff];
-            return value;
-#endif
         }
 
         public static bool IsMatchCrc(this IEnumerable<byte> source, UInt32 expectedCrc)
@@ -560,8 +568,8 @@ namespace Utility
             var index2 = offset2;
             while (index1 <= limit1OfPhaseA)
             {
-                var value1 = BitConverter.ToUInt64(byteArray1, index1);
-                var value2 = BitConverter.ToUInt64(byteArray2, index2);
+                var value1 = byteArray1.ToUInt64LE(index1);
+                var value2 = byteArray2.ToUInt64LE(index2);
                 if (value1 != value2)
                     return false;
                 index1 += sizeof(UInt64);
@@ -592,251 +600,152 @@ namespace Utility
             return true;
         }
 
-        public static IEnumerable<ReadOnlySerializedBitArray> GetBitArraySequence(this IEnumerable<byte> source, int bitCount, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
+        public static IEnumerable<TinyBitArray> GetBitArraySequence(this IEnumerable<byte> source, int bitCount, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
         {
-            return source.Select(data => new[] { data }.AsReadOnly()).GetBitArraySequence(bitCount, packingDirection);
+            return new BitArraySequenceFromByteSequence(source, bitCount, packingDirection);
         }
 
-        public static IEnumerable<ReadOnlySerializedBitArray> GetBitArraySequence(this IEnumerable<byte[]> source, int bitCount, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
+        public static IEnumerable<TinyBitArray> GetBitArraySequence(this IEnumerable<byte[]> source, int bitCount, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
         {
-            return source.Select(bytes => bytes.AsReadOnly()).GetBitArraySequence(bitCount, packingDirection);
+            return source.SelectMany(bytes => bytes).GetBitArraySequence(bitCount, packingDirection);
         }
 
-        public static IEnumerable<ReadOnlySerializedBitArray> GetBitArraySequence(this IEnumerable<IReadOnlyArray<byte>> source, int bitCount, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
+        public static IEnumerable<TinyBitArray> GetBitArraySequence(this IEnumerable<IReadOnlyArray<byte>> source, int bitCount, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
         {
-            return new BitArraySequence(source, bitCount, packingDirection);
+            return source.SelectMany(bytes => bytes).GetBitArraySequence(bitCount, packingDirection);
         }
 
-        public static IEnumerable<byte> GetByteSequence(this IEnumerable<ReadOnlySerializedBitArray> source, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
+        public static IEnumerable<Byte> GetByteSequence(this IEnumerable<TinyBitArray> source, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
         {
-            return new ByteSequence(source, packingDirection);
+            return new ByteSequenceFromBitArraySequence(source, packingDirection);
         }
 
-        public static Int16 ToInt16LE(this IReadOnlyArray<byte> value, int startIndex)
-        {
-#if DEBUG
-            if (sizeof(Int16) != 2)
-                throw new Exception();
-#endif
-            if (startIndex + sizeof(Int16) > value.Length)
-                throw new IndexOutOfRangeException();
+        public static Int16 ToInt16LE(this IReadOnlyArray<byte> array, int startIndex) => (Int16)array.ToUInt16LE(startIndex);
 
-            return
-                BitConverter.ToInt16(new[]
-                {
-                    value[startIndex],
-                    value[startIndex + 1],
-                }, 0);
-        }
-
-        public static UInt16 ToUInt16LE(this IReadOnlyArray<byte> value, int startIndex)
+        public static UInt16 ToUInt16LE(this IReadOnlyArray<byte> array, int startIndex)
         {
 #if DEBUG
             if (sizeof(UInt16) != 2)
                 throw new Exception();
 #endif
-            if (startIndex + sizeof(UInt16) > value.Length)
+            if (array == null)
+                throw new ArgumentNullException("array");
+            if (startIndex < 0)
                 throw new IndexOutOfRangeException();
-
-            return
-                BitConverter.ToUInt16(new[]
-                {
-                    value[startIndex],
-                    value[startIndex + 1],
-                }, 0);
+            if (startIndex + sizeof(UInt16) > array.Length)
+                throw new IndexOutOfRangeException();
+            return (UInt16)(((UInt16)array[0] << 0) | ((UInt16)array[1] << 8));
         }
 
-        public static Int32 ToInt32LE(this IReadOnlyArray<byte> value, int startIndex)
-        {
-#if DEBUG
-            if (sizeof(Int32) != 4)
-                throw new Exception();
-#endif
-            if (startIndex + sizeof(Int32) > value.Length)
-                throw new IndexOutOfRangeException();
+        public static Int32 ToInt32LE(this IReadOnlyArray<byte> array, int startIndex) => (Int32)array.ToUInt32LE(startIndex);
 
-            return
-                BitConverter.ToInt32(new[]
-                {
-                    value[startIndex],
-                    value[startIndex + 1],
-                    value[startIndex + 2],
-                    value[startIndex + 3],
-                }, 0);
-        }
-
-        public static UInt32 ToUInt32LE(this IReadOnlyArray<byte> value, int startIndex)
+        public static UInt32 ToUInt32LE(this IReadOnlyArray<byte> array, int startIndex)
         {
 #if DEBUG
             if (sizeof(UInt32) != 4)
                 throw new Exception();
 #endif
-            if (startIndex + sizeof(UInt32) > value.Length)
+            if (array == null)
+                throw new ArgumentNullException("array");
+            if (startIndex < 0)
                 throw new IndexOutOfRangeException();
-
+            if (startIndex + sizeof(UInt32) > array.Length)
+                throw new IndexOutOfRangeException();
             return
-                BitConverter.ToUInt32(new[]
-                {
-                    value[startIndex],
-                    value[startIndex + 1],
-                    value[startIndex + 2],
-                    value[startIndex + 3],
-                }, 0);
+                ((UInt32)array[0] << 0) |
+                ((UInt32)array[1] << 8) |
+                ((UInt32)array[2] << 16) |
+                ((UInt32)array[3] << 24);
         }
 
-        public static Int64 ToInt64LE(this IReadOnlyArray<byte> value, int startIndex)
-        {
-#if DEBUG
-            if (sizeof(Int64) != 8)
-                throw new Exception();
-#endif
-            if (startIndex + sizeof(Int64) > value.Length)
-                throw new IndexOutOfRangeException();
+        public static Int64 ToInt64LE(this IReadOnlyArray<byte> array, int startIndex) => (Int64)array.ToUInt64LE(startIndex);
 
-            return
-                BitConverter.ToInt64(new[]
-                {
-                    value[startIndex],
-                    value[startIndex + 1],
-                    value[startIndex + 2],
-                    value[startIndex + 3],
-                    value[startIndex + 4],
-                    value[startIndex + 5],
-                    value[startIndex + 6],
-                    value[startIndex + 7],
-                }, 0);
-        }
-
-        public static UInt64 ToUInt64LE(this IReadOnlyArray<byte> value, int startIndex)
+        public static UInt64 ToUInt64LE(this IReadOnlyArray<byte> array, int startIndex)
         {
 #if DEBUG
             if (sizeof(UInt64) != 8)
                 throw new Exception();
 #endif
+            if (array == null)
+                throw new ArgumentNullException("array");
+            if (startIndex < 0)
+                throw new IndexOutOfRangeException();
+            if (startIndex + sizeof(UInt64) > array.Length)
+                throw new IndexOutOfRangeException();
+            return
+                ((UInt64)array[0] << 0) |
+                ((UInt64)array[1] << 8) |
+                ((UInt64)array[2] << 16) |
+                ((UInt64)array[3] << 24) |
+                ((UInt64)array[4] << 32) |
+                ((UInt64)array[5] << 40) |
+                ((UInt64)array[6] << 48) |
+                ((UInt64)array[7] << 56);
+        }
 
-            if (startIndex + sizeof(UInt64) > value.Length)
+        public static float ToSingleLE(this IReadOnlyArray<byte> array, int startIndex)
+        {
+            if (array == null)
+                throw new ArgumentNullException("array");
+            if (startIndex < 0)
+                throw new IndexOutOfRangeException();
+            if (BitConverter.IsLittleEndian)
+                return BitConverter.ToSingle(array.DuplicateAsWritableArray(), startIndex);
+            else
+                return BitConverter.ToSingle(array.DuplicateAsWritableArray().ReverseArray(), startIndex);
+        }
+
+        public static double ToDoubleLE(this IReadOnlyArray<byte> array, int startIndex)
+        {
+            if (array == null)
+                throw new ArgumentNullException("array");
+            if (startIndex < 0)
+                throw new IndexOutOfRangeException();
+            if (BitConverter.IsLittleEndian)
+                return BitConverter.ToDouble(array.DuplicateAsWritableArray(), startIndex);
+            else
+                return BitConverter.ToDouble(array.DuplicateAsWritableArray().ReverseArray(), startIndex);
+        }
+
+        public static string ToFriendlyString(this IReadOnlyArray<byte> value) => value.ToFriendlyString(0, value.Length);
+        public static string ToFriendlyString(this IReadOnlyArray<byte> value, int startIndex) => value.ToFriendlyString(startIndex, value.Length - startIndex);
+
+        public static string ToFriendlyString(this IReadOnlyArray<byte> array, int startIndex, int length)
+        {
+            if (array == null)
+                throw new ArgumentNullException("array");
+            if (startIndex < 0)
+                throw new IndexOutOfRangeException();
+            if (startIndex > array.Length)
+                throw new IndexOutOfRangeException();
+            if (length < 0)
+                throw new ArgumentException();
+            if (startIndex + length > array.Length)
                 throw new IndexOutOfRangeException();
 
-            return
-                BitConverter.ToUInt64(new[]
-                {
-                    value[startIndex],
-                    value[startIndex + 1],
-                    value[startIndex + 2],
-                    value[startIndex + 3],
-                    value[startIndex + 4],
-                    value[startIndex + 5],
-                    value[startIndex + 6],
-                    value[startIndex + 7],
-                }, 0);
+            var sb = new StringBuilder();
+            var isFirst = true;
+            for (var index = 0; index < length; ++index)
+            {
+                if (isFirst == false)
+                    sb.Append("-");
+                sb.Append(array[startIndex + index].ToString("x2"));
+                isFirst = false;
+            }
+            return sb.ToString();
         }
 
-        public static float ToSingleLE(this IReadOnlyArray<byte> value, int startIndex)
-        {
-#if DEBUG
-            if (sizeof(float) != 4)
-                throw new Exception();
-#endif
-            if (startIndex + sizeof(float) > value.Length)
-                throw new IndexOutOfRangeException();
-
-            return
-                BitConverter.ToSingle(new[]
-                {
-                    value[startIndex],
-                    value[startIndex + 1],
-                    value[startIndex + 2],
-                    value[startIndex + 3],
-                }, 0);
-        }
-
-        public static double ToDoubleLE(this IReadOnlyArray<byte> value, int startIndex)
-        {
-#if DEBUG
-            if (sizeof(double) != 8)
-                throw new Exception();
-#endif
-            if (startIndex + sizeof(double) > value.Length)
-                throw new IndexOutOfRangeException();
-
-            return
-                BitConverter.ToDouble(new[]
-                {
-                    value[startIndex],
-                    value[startIndex + 1],
-                    value[startIndex + 2],
-                    value[startIndex + 3],
-                    value[startIndex + 4],
-                    value[startIndex + 5],
-                    value[startIndex + 6],
-                    value[startIndex + 7],
-                }, 0);
-        }
-
-        public static string ToString(this IReadOnlyArray<byte> value)
-        {
-            return BitConverter.ToString(value.ToArray());
-        }
-
-        public static string ToString(this IReadOnlyArray<byte> value, int startIndex)
-        {
-            return BitConverter.ToString(value.Skip(startIndex).ToArray());
-        }
-
-        public static string ToString(this IReadOnlyArray<byte> value, int startIndex, int length)
-        {
-            return BitConverter.ToString(value.Skip(startIndex).Take(length).ToArray());
-        }
-
-        public static byte[] ToByteArray(this byte value)
-        {
-            return new[] { value };
-        }
-
-        public static byte[] ToByteArray(this sbyte value)
-        {
-            return new[] { (byte)value };
-        }
-
-        public static byte[] ToByteArrayLE(this Int16 value)
-        {
-            return BitConverter.GetBytes(value);
-        }
-
-        public static byte[] ToByteArrayLE(this UInt16 value)
-        {
-            return BitConverter.GetBytes(value);
-        }
-
-        public static byte[] ToByteArrayLE(this Int32 value)
-        {
-            return BitConverter.GetBytes(value);
-        }
-
-        public static byte[] ToByteArrayLE(this UInt32 value)
-        {
-            return BitConverter.GetBytes(value);
-        }
-
-        public static byte[] ToByteArrayLE(this Int64 value)
-        {
-            return BitConverter.GetBytes(value);
-        }
-
-        public static byte[] ToByteArrayLE(this UInt64 value)
-        {
-            return BitConverter.GetBytes(value);
-        }
-
-        public static byte[] ToByteArrayLE(this Single value)
-        {
-            return BitConverter.GetBytes(value);
-        }
-
-        public static byte[] ToByteArrayLE(this Double value)
-        {
-            return BitConverter.GetBytes(value);
-        }
+        public static Int16 ToInt16LE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt16LE(startIndex);
+        public static UInt16 ToUInt16LE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt16LE(startIndex);
+        public static Int32 ToInt32LE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt32LE(startIndex);
+        public static UInt32 ToUInt32LE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt32LE(startIndex);
+        public static Int64 ToInt64LE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt64LE(startIndex);
+        public static UInt64 ToUInt64LE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt64LE(startIndex);
+        public static float ToSingleLE(this byte[] array, int startIndex) => array.AsReadOnly().ToSingleLE(startIndex);
+        public static double ToDoubleLE(this byte[] array, int startIndex) => array.AsReadOnly().ToDoubleLE(startIndex);
+        public static string ToFriendlyString(this byte[] array) => array.AsReadOnly().ToFriendlyString();
+        public static string ToFriendlyString(this byte[] array, int startIndex) => array.AsReadOnly().ToFriendlyString(startIndex);
+        public static string ToFriendlyString(this byte[] array, int startIndex, int length) => array.AsReadOnly().ToFriendlyString(startIndex, length);
 
         public static Encoding GuessWhichEncoding(this byte[] bytes)
         {
@@ -982,6 +891,132 @@ namespace Utility
                 return Encoding.UTF8; // utf8
             else
                 return null;
+        }
+
+        private static IEnumerable<char> InternalGetBase64EncodedSequence(IEnumerable<byte> source, char char62, char char63)
+        {
+            return
+                source
+                .ToChunkOfReadOnlyArray(3)
+                .SelectMany(bytes =>
+                {
+                    switch (bytes.Length)
+                    {
+                        case 1:
+                            return
+                                new[]
+                                {
+                                    ToBase64Character(bytes[0] >> 2, char62, char63),
+                                    ToBase64Character((bytes[0] << 4) & 0x3f, char62, char63),
+                                    '=',
+                                    '=',
+                                };
+                        case 2:
+                            return
+                                new[]
+                                {
+                                    ToBase64Character(bytes[0] >> 2, char62, char63),
+                                    ToBase64Character(((bytes[0] << 4) | ( bytes[1] >> 4)) & 0x3f, char62, char63),
+                                    ToBase64Character((bytes[1] << 2) & 0x3f, char62, char63),
+                                     '=',
+                                };
+                        case 3:
+                            return
+                                new[]
+                                {
+                                    ToBase64Character(bytes[0] >> 2, char62, char63),
+                                    ToBase64Character(((bytes[0] << 4) | ( bytes[1] >> 4)) & 0x3f, char62, char63),
+                                    ToBase64Character(((bytes[1] << 2) | ( bytes[2] >> 6)) & 0x3f, char62, char63),
+                                    ToBase64Character(bytes[2]& 0x3f, char62, char63),
+                                };
+                        default:
+                            throw new Exception();
+                    }
+                });
+        }
+
+        private static IEnumerable<byte> InternalGetBase64DecodedSequence(IEnumerable<char> source, bool ignoreSpace, bool ignoreInvalidCharacter, char char62, char char63)
+        {
+            return
+                source
+                .Where(c =>
+                {
+                    if (c.IsAnyOf('\r', '\n'))
+                        return false;
+                    else if (char.IsWhiteSpace(c))
+                        return ignoreSpace ? true : throw new FormatException();
+                    else
+                        return true;
+                })
+                .TakeWhile(c => c != '=')
+                .Select(c => FromBase64Character(c, char62, char63))
+                .Where(n =>
+                    n >= 0
+                    ? true
+                    : ignoreInvalidCharacter
+                        ? false
+                        : throw new FormatException())
+                .ToChunkOfReadOnlyArray(4)
+                .SelectMany(bitArray =>
+                {
+                    switch (bitArray.Length)
+                    {
+                        case 2:
+                            return new[]
+                            {
+                                (Byte)((bitArray[0] << 2) | (bitArray[1] >> 4)),
+                            };
+                        case 3:
+                            return new[]
+                            {
+                                (Byte)((bitArray[0] << 2) | (bitArray[1] >> 4)),
+                                (Byte)((bitArray[1] << 4) | (bitArray[2] >> 2)),
+                            };
+                        case 4:
+                            return new[]
+                            {
+                                (Byte)((bitArray[0] << 2) | (bitArray[1] >> 4)),
+                                (Byte)((bitArray[1] << 4) | (bitArray[2] >> 2)),
+                                (Byte)((bitArray[2] << 6) | (bitArray[3] >> 0)),
+                            };
+                        default:
+                            throw new FormatException();
+                    }
+                });
+        }
+
+        private static char ToBase64Character(int n, char char62, char char63)
+        {
+            if (n < 0)
+                throw new Exception();
+            else if (n < 26)
+                return (char)('A' + n);
+            else if (n < 52)
+                return (char)('a' + n - 26);
+            else if (n < 62)
+                return (char)('0' + n - 52);
+            else if (n == 62)
+                return char62;
+            else if (n == 63)
+                return char63;
+            else
+                throw new Exception();
+        }
+
+        private static int FromBase64Character(char c, char char62, char char63)
+        {
+            if (c.IsBetween('A', 'Z'))
+                return c - 'A';
+            else if (c.IsBetween('a', 'z'))
+                return c - 'a' + 26;
+            else if (c.IsBetween('0', '9'))
+                return c - '0' + 52;
+            else if (c == char62)
+                return 62;
+            else if (c == char63)
+                return 63;
+            else
+                return -1;
         }
     }
 }

@@ -10,7 +10,7 @@ namespace ZipUtility.ZipExtraField
         : ExtraField
     {
         private ZipEntryHeaderType _headerType;
-        private byte[] _buffer;
+        private IReadOnlyArray<byte> _buffer;
         private IZip64ExtendedInformationExtraFieldValueSource _headerSource;
         private Int64? _internalSize;
         private Int64? _internalPackedSize;
@@ -31,7 +31,7 @@ namespace ZipUtility.ZipExtraField
 
         public const UInt16 ExtraFieldId = 1;
 
-        public override byte[] GetData(ZipEntryHeaderType headerType)
+        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
         {
             if (headerType != _headerType)
                 return null;
@@ -41,9 +41,9 @@ namespace ZipUtility.ZipExtraField
             return _buffer;
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
         {
-            _buffer = data.GetSequence(index, count).ToArray();
+            _buffer = data.GetSequence(index, count).ToArray().AsReadOnly();
             if (headerType == _headerType)
                 ParseInternalBuffer();
         }
@@ -231,7 +231,7 @@ namespace ZipUtility.ZipExtraField
                 throw new InvalidOperationException("HeaderSource is not set in Zip64 extra field.");
             var writer = new ByteArrayOutputStream();
             GetData(writer);
-            var newBuffer = writer.ToByteSequence().ToArray();
+            var newBuffer = writer.ToByteArray();
             _buffer = newBuffer.Length > 0 ? newBuffer : null;
         }
 

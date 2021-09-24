@@ -1,5 +1,5 @@
-﻿using ICSharpCode.SharpZipLib.Zip;
-using System;
+﻿using System;
+using Utility;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -10,7 +10,7 @@ namespace ZipUtility.ZipExtraField
         private const byte _supportedVersion = 0;
         private UInt32? _uncompressedSDSize;
         private byte? _version;
-        private CompressionMethod? _compressionType;
+        private ZipEntryCompressionMethodId? _compressionType;
         private UInt32? _crc;
 
         public WindowsSecurityDescriptorExtraField()
@@ -26,7 +26,7 @@ namespace ZipUtility.ZipExtraField
 
         public const UInt16 ExtraFieldId = 0x4453;
 
-        public override byte[] GetData(ZipEntryHeaderType headerType)
+        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
         {
             switch (headerType)
             {
@@ -54,10 +54,10 @@ namespace ZipUtility.ZipExtraField
                 writer.WriteUInt32LE(Crc);
                 writer.WriteBytes(CompressedSD);
             }
-            return writer.ToByteSequence().ToArray();
+            return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
         {
             _uncompressedSDSize = null;
             _version = null;
@@ -74,7 +74,7 @@ namespace ZipUtility.ZipExtraField
                     var version = reader.ReadByte();
                     if (version != _supportedVersion)
                         return;
-                    CompressionType = (CompressionMethod)reader.ReadUInt16LE();
+                    CompressionType = (ZipEntryCompressionMethodId)reader.ReadUInt16LE();
                     Crc = reader.ReadUInt32LE();
                     CompressedSD = reader.ReadToEnd();
                 }
@@ -108,7 +108,7 @@ namespace ZipUtility.ZipExtraField
 
         public UInt32 UncompressedSDSize { get => _uncompressedSDSize.Value; set => _uncompressedSDSize = value; }
         public byte Version { get => _version.Value; set => _version = value; }
-        public CompressionMethod CompressionType { get => _compressionType.Value; set => _compressionType = value; }
+        public ZipEntryCompressionMethodId CompressionType { get => _compressionType.Value; set => _compressionType = value; }
         public UInt32 Crc { get => _crc.Value; set => _crc = value; }
         public byte[] CompressedSD { get; set; }
     }

@@ -10,7 +10,7 @@ namespace ZipUtility.ZipExtraField
     {
         private class InternalExtraFieldItem
         {
-            public InternalExtraFieldItem(UInt16 extraFieldId, ZipEntryHeaderType appliedHeaderType, byte[] extraFieldBody)
+            public InternalExtraFieldItem(UInt16 extraFieldId, ZipEntryHeaderType appliedHeaderType, IReadOnlyArray<byte> extraFieldBody)
             {
                 ExtraFieldId = extraFieldId;
                 AppliedHeaderType = appliedHeaderType;
@@ -19,7 +19,7 @@ namespace ZipUtility.ZipExtraField
 
             public UInt16 ExtraFieldId { get; }
             public ZipEntryHeaderType AppliedHeaderType { get; }
-            public byte[] ExtraFieldBody { get; }
+            public IReadOnlyArray<byte> ExtraFieldBody { get; }
         }
 
 
@@ -172,7 +172,7 @@ namespace ZipUtility.ZipExtraField
         /// <returns>
         /// 拡張フィールドのコレクションのバイト配列表現を表す<see cref="IEnumerable{byte}"/>オブジェクト。
         /// </returns>
-        public IReadOnlyArray<byte> ToByteSequence()
+        public IReadOnlyArray<byte> ToByteArray()
         {
             var writer = new ByteArrayOutputStream();
             foreach (var extraFieldItem in _extraFields.Values)
@@ -181,7 +181,7 @@ namespace ZipUtility.ZipExtraField
                 writer.WriteUInt16LE((UInt16)extraFieldItem.ExtraFieldBody.Length);
                 writer.WriteBytes(extraFieldItem.ExtraFieldBody);
             }
-            return writer.ToByteSequence();
+            return writer.ToByteArray();
         }
 
         /// <summary>
@@ -219,7 +219,7 @@ namespace ZipUtility.ZipExtraField
                             string.Format(
                                 "Can not parse extra fields: header='{0}', extra data='{1}'",
                                 _headerType,
-                                BitConverter.ToString(extraFieldsSource.ToArray())),
+                                extraFieldsSource.ToArray().ToFriendlyString()),
                             ex);
                 }
             }

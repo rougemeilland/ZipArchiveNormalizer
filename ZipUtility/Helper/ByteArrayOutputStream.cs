@@ -21,27 +21,27 @@ namespace ZipUtility.Helper
 
         public void WriteUInt16LE(UInt16 data)
         {
-            _destination = _destination.Concat(BitConverter.GetBytes(data));
+            _destination = _destination.Concat(data.GetBytesLE());
         }
 
         public void WriteUInt32LE(UInt32 data)
         {
-            _destination = _destination.Concat(BitConverter.GetBytes(data));
+            _destination = _destination.Concat(data.GetBytesLE());
         }
 
         public void WriteInt32LE(Int32 data)
         {
-            _destination = _destination.Concat(BitConverter.GetBytes(data));
+            _destination = _destination.Concat(data.GetBytesLE());
         }
 
         public void WriteUInt64LE(UInt64 data)
         {
-            _destination = _destination.Concat(BitConverter.GetBytes(data));
+            _destination = _destination.Concat(data.GetBytesLE());
         }
 
         public void WriteInt64LE(Int64 data)
         {
-            _destination = _destination.Concat(BitConverter.GetBytes(data));
+            _destination = _destination.Concat(data.GetBytesLE());
         }
 
         public void WriteBytes(byte[] data)
@@ -49,7 +49,12 @@ namespace ZipUtility.Helper
             _destination = _destination.Concat(data);
         }
 
-        public IReadOnlyArray<byte> ToByteSequence()
+        public void WriteBytes(IReadOnlyArray<byte> data)
+        {
+            _destination = _destination.Concat(data);
+        }
+
+        public IReadOnlyArray<byte> ToByteArray()
         {
             return _destination.ToArray().AsReadOnly();
         }

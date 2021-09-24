@@ -17,7 +17,7 @@ namespace Test.Utility.IO
 
         private static void Test(BitPackingDirection packingDirection)
         {
-            var sourceBitArray = ReadOnlySerializedBitArray.FromByteSequence(_testFile.OpenRead().GetByteSequence(true), packingDirection);
+            var sourceBitStream = new BitInputStream(_testFile.OpenRead().GetByteSequence(true), packingDirection);
 
             using (var ms = new MemoryStream())
             {
@@ -28,8 +28,8 @@ namespace Test.Utility.IO
                     while (true)
                     {
                         var bitCount = bitCounts[count];
-                        var bitArray = sourceBitArray.Divide(bitCount.Minimum(sourceBitArray.Length), out sourceBitArray);
-                        if (bitArray.Length <= 0)
+                        var bitArray = sourceBitStream.Read(bitCount);
+                        if (bitArray == null)
                             break;
                         bitOutputStream.Write(bitArray);
                         count = (count + 1) % bitCounts.Length;

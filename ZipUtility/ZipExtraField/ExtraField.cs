@@ -1,5 +1,6 @@
 ﻿using ICSharpCode.SharpZipLib.Zip;
 using System;
+using Utility;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -15,13 +16,13 @@ namespace ZipUtility.ZipExtraField
 
         UInt16 IExtraField.ExtraFieldId => _extraFieldId;
 
-        public abstract byte[] GetData(ZipEntryHeaderType headerType);
+        public abstract IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType);
 
-        public abstract void SetData(ZipEntryHeaderType headerType, byte[] data, int offset, int count);
+        public abstract void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int offset, int count);
 
-        protected Exception GetBadFormatException(ZipEntryHeaderType headerType, byte[] data, int offset, int count)
+        protected Exception GetBadFormatException(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int offset, int count)
         {
-            return new BadZipFileFormatException(string.Format("Bad extra field: header={0}, type=0x{1:x4}, data=\"{2}\"", headerType, _extraFieldId, BitConverter.ToString(data, offset, count)));
+            return new BadZipFileFormatException(string.Format("Bad extra field: header={0}, type=0x{1:x4}, data=\"{2}\"", headerType, _extraFieldId, data.ToFriendlyString(offset, count)));
         }
 
         Int16 ITaggedData.TagID
@@ -38,13 +39,13 @@ namespace ZipUtility.ZipExtraField
         byte[] ITaggedData.GetData()
         {
             // ローカルファイルヘッダに書き込むときに呼び出される
-            return GetData(ZipEntryHeaderType.LocalFileHeader);
+            return GetData(ZipEntryHeaderType.LocalFileHeader).DuplicateAsWritableArray();
         }
 
         void ITaggedData.SetData(byte[] data, int offset, int count)
         {
             // セントラルディレクトリヘッダから読み込むときに呼び出される
-            SetData(ZipEntryHeaderType.CentralDirectoryHeader, data, offset, count);
+            SetData(ZipEntryHeaderType.CentralDirectoryHeader, data.AsReadOnly(), offset, count);
         }
     }
 }

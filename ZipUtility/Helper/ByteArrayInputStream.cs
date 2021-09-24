@@ -44,7 +44,7 @@ namespace ZipUtility.Helper
             return value;
         }
 
-        public byte[] ReadBytes(UInt16 count)
+        public IReadOnlyArray<byte> ReadBytes(UInt16 count)
         {
             if (_index + count > _length)
                 throw new UnexpectedEndOfStreamException();
@@ -54,7 +54,7 @@ namespace ZipUtility.Helper
                 _source.CopyTo(_index, buffer, 0, buffer.Length);
                 _index += count;
             }
-            return buffer;
+            return buffer.AsReadOnly();
         }
 
         public UInt16 ReadUInt16LE()

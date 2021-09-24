@@ -8,7 +8,7 @@ namespace Utility
     public static class RandomSequence
     {
         private class BitArraySequence
-            : IEnumerable<ReadOnlySerializedBitArray>
+            : IEnumerable<TinyBitArray>
         {
             private int _bitCount;
 
@@ -19,7 +19,7 @@ namespace Utility
                 _bitCount = bitCount;
             }
 
-            public IEnumerator<ReadOnlySerializedBitArray> GetEnumerator()
+            public IEnumerator<TinyBitArray> GetEnumerator()
             {
                 return
                     new RandomBytesSequence((_bitCount + 7) >> 3)
@@ -117,7 +117,7 @@ namespace Utility
         ///     ReadOnlyBitArray[] randomBitArrays = RandomSequence.GetBitArraySequence(5).Take(100).ToArray();
         /// </code>
         /// </example>
-        public static IEnumerable<ReadOnlySerializedBitArray> GetBitArraySequence(int bitCount) => new BitArraySequence(bitCount);
+        public static IEnumerable<TinyBitArray> GetBitArraySequence(int bitCount) => new BitArraySequence(bitCount);
 
         /// <summary>
         /// ランダムな表示可能な文字(\u000a, \u0020-\u007e)を要素とするシーケンスを示す<see cref="IEnumerable{Char}"/>オブジェクトです。

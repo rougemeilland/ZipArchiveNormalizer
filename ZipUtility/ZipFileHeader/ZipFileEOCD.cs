@@ -24,7 +24,7 @@ namespace ZipUtility.ZipFileHeader
             TotalNumberOfCentralDirectoryRecords = totalNumberOfCentralDirectoryRecords;
             SizeOfCentralDirectory = sizeOfCentralDirectory;
             OffsetOfStartOfCentralDirectory = offsetOfStartOfCentralDirectory;
-            CommentBytes = commentBytes.ToArray();
+            CommentBytes = commentBytes;
             IsRequiresZip64 =
                 NumberOfThisDisk == 0xffffU ||
                 DiskWhereCentralDirectoryStarts == 0xffffU ||
@@ -41,7 +41,7 @@ namespace ZipUtility.ZipFileHeader
         public UInt16 TotalNumberOfCentralDirectoryRecords { get; }
         public UInt32 SizeOfCentralDirectory { get; }
         public UInt32 OffsetOfStartOfCentralDirectory { get; }
-        public byte[] CommentBytes { get; }
+        public IReadOnlyArray<byte> CommentBytes { get; }
         public bool IsRequiresZip64 { get; }
 
         public static ZipFileEOCD Find(Stream zipInputStream, Int64 zipStartOffset)

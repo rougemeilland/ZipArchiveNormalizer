@@ -1,4 +1,5 @@
 ﻿using System;
+using Utility;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -15,7 +16,7 @@ namespace ZipUtility.ZipExtraField
 
         public const ushort ExtraFieldId = 0x7855;
 
-        public override byte[] GetData(ZipEntryHeaderType headerType)
+        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
         {
             var writer = new ByteArrayOutputStream();
             if (headerType == ZipEntryHeaderType.LocalFileHeader)
@@ -23,10 +24,10 @@ namespace ZipUtility.ZipExtraField
                 writer.WriteUInt16LE(UserId);
                 writer.WriteUInt16LE(GroupId);
             }
-            return writer.ToByteSequence().ToArray();
+            return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, byte[] data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
         {
             UserId = UInt16.MaxValue;
             GroupId = UInt16.MaxValue;
