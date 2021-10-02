@@ -6,7 +6,7 @@ namespace Test.Utility.IO
     {
         static void Main(string[] args)
         {
-            //TestFifoBuffer.Test();
+            TestFifoBuffer.Test();
             TestBufferedInputStream.Test();
             TestBufferedOutputStream.Test();
             TestBitInputStream.Test();

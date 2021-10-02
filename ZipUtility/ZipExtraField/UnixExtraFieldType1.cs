@@ -1,5 +1,6 @@
 ﻿using System;
 using Utility;
+using Utility.IO;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -50,7 +51,7 @@ namespace ZipUtility.ZipExtraField
                     UserId = reader.ReadUInt16LE();
                     GroupId = reader.ReadUInt16LE();
                 }
-                if (reader.ReadToEnd().Length > 0)
+                if (reader.ReadAllBytes().Length > 0)
                     throw GetBadFormatException(headerType, data, index, count);
                 success = true;
             }

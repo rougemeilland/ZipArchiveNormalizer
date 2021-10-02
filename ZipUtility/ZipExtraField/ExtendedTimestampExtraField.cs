@@ -1,4 +1,5 @@
 ﻿using Utility;
+using Utility.IO;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -57,7 +58,7 @@ namespace ZipUtility.ZipExtraField
                     if ((flag & 0x04) != 0)
                         CreationTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
                 }
-                if (reader.ReadToEnd().Length > 0)
+                if (reader.ReadAllBytes().Length > 0)
                     throw GetBadFormatException(headerType, data, index, count);
                 success = true;
             }

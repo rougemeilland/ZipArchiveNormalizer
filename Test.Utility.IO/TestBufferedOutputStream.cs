@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using Utility;
 using Utility.IO;
 
 namespace Test.Utility.IO
@@ -23,14 +24,14 @@ namespace Test.Utility.IO
             using (var ms = new MemoryStream())
             {
                 using (var inputStream = _testFile.OpenRead())
-                using (var outputStream = new BufferedOutputStream(ms, streamBufferSize, true))
+                using (var outputStream = ms.AsOutputByteStream().WithCache(streamBufferSize, true))
                 {
                     while (true)
                     {
                         var length = inputStream.Read(buffer, 0, buffer.Length);
                         if (length <= 0)
                             break;
-                        outputStream.Write(buffer, 0, length);
+                        outputStream.WriteBytes(buffer.AsReadOnly(), 0, length);
                         Console.Write(".");
                     }
                     if (doFlush)

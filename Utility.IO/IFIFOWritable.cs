@@ -4,8 +4,8 @@ namespace Utility.IO
 {
     interface IFifoWritable
     {
-        void Write(byte[] buffer, int offset, int count);
-        void WaitForReadCount(long count, CancellationToken token);
+        int Write(IReadOnlyArray<byte> buffer, int offset, int count);
+        void WaitForReadCount(ulong count, CancellationToken token);
         void Close();
     }
 }

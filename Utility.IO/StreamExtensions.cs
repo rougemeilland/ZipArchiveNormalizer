@@ -1,353 +1,986 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Utility;
 
 namespace Utility.IO
 {
     public static class StreamExtensions
     {
-        private const int _DEFAULT_BUFFER_SIZE = 81920;
-
-        private class ByteSequenceEnumerable
-            : IEnumerable<byte>
+        private class ReverseByteSequenceByByteStream
+            : ReverseByteSequenceByByteStreamEnumerable<UInt64>
         {
-            private class Enumerator
-                : IEnumerator<byte>
+            public ReverseByteSequenceByByteStream(IRandomInputByteStream<UInt64> inputStream, UInt64 offset, UInt64 count, bool leaveOpen, Action<int> progressAction)
+                : base(inputStream, offset, count, leaveOpen, progressAction)
             {
-                private bool _isDisposed;
-                private Stream _inputStream;
-                private long? _offset;
-                private long? _count;
-                private bool _leaveOpen;
-                private Action<int> _progressAction;
-                private byte[] _buffer;
-                private int _bufferCount;
-                private int _bufferIndex;
-                private long _index;
+            }
 
-                public Enumerator(Stream inputStream, long? offset, long? count, bool leaveOpen, Action<int> progressAction)
+            protected override UInt64 AddPositionAndDistance(UInt64 position, UInt64 distance)
+            {
+                checked
                 {
-                    _isDisposed = false;
-                    _inputStream = inputStream;
-                    _offset = offset;
-                    _count = count;
-                    _leaveOpen = leaveOpen;
-                    _progressAction = progressAction;
-                    _buffer = new byte[64 * 1024];
-                    _bufferCount = 0;
-                    _bufferIndex = 0;
-                    _index = 0;
-                    if (offset.HasValue)
-                        inputStream.Seek(offset.Value, SeekOrigin.Begin);
-                }
-
-                public byte Current
-                {
-                    get
-                    {
-                        // 既にオブジェクトが破棄されていれば例外
-                        if (_isDisposed)
-                            throw new ObjectDisposedException(GetType().FullName.ToString());
-                        // 既にEOSに達していれば例外
-                        if (_count.HasValue && _index > _count.Value)
-                            throw new InvalidOperationException();
-                        if (_bufferIndex >= _bufferCount)
-                            throw new InvalidOperationException();
-                        // 現在指しているデータを返す
-                        return _buffer[_bufferIndex];
-                    }
-                }
-
-                object IEnumerator.Current => Current;
-
-                public bool MoveNext()
-                {
-                    // 既にオブジェクトが破棄されていれば例外
-                    if (_isDisposed)
-                        throw new ObjectDisposedException(GetType().FullName.ToString());
-                    // index を一つ進める
-                    ++_bufferIndex;
-                    ++_index;
-                    if (_count.HasValue && _index > _count)
-                    {
-                        // 指定された回数だけ繰り返し終わった場合
-                        return false;
-                    }
-                    if (_bufferIndex >= _bufferCount)
-                    {
-                        // _buffer のデータの最後に到達した場合
-                        // _sourceStream から新たなデータを読み込もうと試みる
-                        _bufferCount = _inputStream.Read(_buffer, 0, _buffer.Length);
-                        if (_bufferCount <= 0)
-                        {
-                            // _sourceStream の終端に達してしまった場合
-                            return false;
-                        }
-                        _bufferIndex = 0;
-                        if (_progressAction != null)
-                        {
-                            try
-                            {
-                                _progressAction(_bufferCount);
-                            }
-                            catch (Exception)
-                            {
-                            }
-                        }
-                    }
-#if DEBUG
-                    if (_bufferIndex >= _bufferCount)
-                        throw new Exception();
-#endif
-                    return true;
-                }
-
-                public void Reset()
-                {
-                    if (!_inputStream.CanSeek)
-                        throw new NotSupportedException();
-                    _bufferCount = 0;
-                    _bufferIndex = 0;
-                    _index = 0;
-                    if (_offset.HasValue)
-                        _inputStream.Seek(_offset.Value, SeekOrigin.Begin);
-                }
-
-                protected virtual void Dispose(bool disposing)
-                {
-                    if (!_isDisposed)
-                    {
-                        if (disposing)
-                        {
-                            if (_inputStream != null)
-                            {
-                                if (_leaveOpen == false)
-                                    _inputStream.Dispose();
-                                _inputStream = null;
-                            }
-                        }
-                        _isDisposed = true;
-                    }
-                }
-
-                public void Dispose()
-                {
-                    Dispose(disposing: true);
-                    GC.SuppressFinalize(this);
+                    return position + distance;
                 }
             }
 
-            private Stream _inputStream;
-            private long? _offset;
-            private long? _count;
-            private bool _leaveOpen;
-            private Action<int> _progressAction;
-
-            public ByteSequenceEnumerable(Stream inputStream, long? offset, long? count, bool leaveOpen, Action<int> progressAction)
+            protected override int GetDistanceBetweenPositions(UInt64 position1, UInt64 distance2)
             {
-                _inputStream = inputStream;
-                _offset = offset;
-                _count = count;
-                _leaveOpen = leaveOpen;
-                _progressAction = progressAction;
+                checked
+                {
+                    return (int)(position1 - distance2);
+                }
             }
 
-            public IEnumerator<byte> GetEnumerator()
+            protected override ulong SubtractBufferSizeFromPosition(ulong position, uint distance)
             {
-                return new Enumerator(_inputStream, _offset, _count, _leaveOpen, _progressAction);
-            }
-
-            IEnumerator IEnumerable.GetEnumerator()
-            {
-                return GetEnumerator();
+                checked
+                {
+                    return position - distance;
+                }
             }
         }
 
-        private class ReverseByteSequence
-            : IEnumerable<byte>
+        private class BufferedInputStreamUInt64
+            : BufferedInputStream<UInt64>
         {
-            private class Enumerator
-                : IEnumerator<byte>
+            public BufferedInputStreamUInt64(IInputByteStream<ulong> baseStream, bool leaveOpen)
+                : base(baseStream, leaveOpen)
             {
-                private const int _bufferSize = 64 * 1024;
-                private bool _isDisposed;
-                private Stream _inputStream;
-                private long _offset;
-                private long _count;
-                private bool _leaveOpen;
-                private Action<int> _progressAction;
-                private byte[] _buffer;
-                private int _bufferCount;
-                private int _bufferIndex;
-                private long _FileIndex;
-
-                public Enumerator(Stream inputStream, long offset, long count, bool leaveOpen, Action<int> progressAction)
-                {
-                    _inputStream = inputStream;
-                    _offset = offset;
-                    _count = count;
-                    _leaveOpen = leaveOpen;
-                    _progressAction = progressAction;
-                    _buffer = new byte[_bufferSize];
-                    _bufferCount = 0;
-                    _bufferIndex = 0;
-                    _FileIndex = _offset + _count;
-                }
-
-                public byte Current => _bufferIndex.IsBetween(0, _bufferCount - 1) ? _buffer[_bufferIndex] : throw new InvalidOperationException();
-
-                object IEnumerator.Current => Current;
-
-                public bool MoveNext()
-                {
-                    if (_bufferIndex <= 0)
-                    {
-                        var newFileIndex = _FileIndex - _bufferSize;
-                        if (newFileIndex < _offset)
-                            newFileIndex = _offset;
-                        _bufferCount = (int)(_FileIndex - newFileIndex);
-                        if (_bufferCount <= 0)
-                            return false;
-                        _FileIndex = newFileIndex;
-                        _inputStream.Seek(_FileIndex, SeekOrigin.Begin);
-                        _inputStream.ReadBytes(_buffer, 0, _bufferCount);
-                        _bufferIndex = _bufferCount;
-                        if (_progressAction != null)
-                        {
-                            try
-                            {
-                                _progressAction(_bufferCount);
-                            }
-                            catch (Exception)
-                            {
-                            }
-                        }
-                    }
-                    --_bufferIndex;
-                    return true;
-                }
-
-                public void Reset()
-                {
-                    _bufferCount = -1;
-                    _bufferIndex = -1;
-                    _FileIndex = -1;
-                }
-
-                protected virtual void Dispose(bool disposing)
-                {
-                    if (!_isDisposed)
-                    {
-                        if (disposing)
-                        {
-                            if (_inputStream != null)
-                            {
-                                if (_leaveOpen == false)
-                                    _inputStream.Dispose();
-                                _inputStream = null;
-                            }
-                        }
-                        _isDisposed = true;
-                    }
-                }
-
-                public void Dispose()
-                {
-                    Dispose(disposing: true);
-                    GC.SuppressFinalize(this);
-                }
             }
 
-            private Stream _inputStream;
-            private long _offset;
-            private long _count;
-            private bool _leaveOpen;
-            private Action<int> _progressAction;
-
-            public ReverseByteSequence(Stream inputStream, long offset, long count, bool leaveOpen, Action<int> progressAction)
+            public BufferedInputStreamUInt64(IInputByteStream<ulong> baseStream, int bufferSize, bool leaveOpen)
+                : base(baseStream, bufferSize, leaveOpen)
             {
-                _inputStream = inputStream;
-                _offset = offset;
-                _count = count;
-                _leaveOpen = leaveOpen;
-                _progressAction = progressAction;
             }
 
-            public IEnumerator<byte> GetEnumerator()
-            {
-                return new Enumerator(_inputStream, _offset, _count, _leaveOpen, _progressAction);
-            }
+            protected override ulong ZeroPositionValue => 0;
 
-            IEnumerator IEnumerable.GetEnumerator()
+            protected override ulong AddPosition(ulong x, ulong y)
             {
-                return GetEnumerator();
+                checked
+                {
+                    return x + y;
+                }
             }
         }
 
-        public static IEnumerable<byte> GetByteSequence(this Stream inputStream, bool leaveOpen = false, Action<int> progressAction = null)
+        private class BufferedOutputStreamUInt64
+            : BufferedOutputStream<UInt64>
         {
-            return new ByteSequenceEnumerable(inputStream, null, null, leaveOpen, progressAction);
+            public BufferedOutputStreamUInt64(IOutputByteStream<ulong> baseStream, bool leaveOpen)
+                : base(baseStream, leaveOpen)
+            {
+            }
+
+            public BufferedOutputStreamUInt64(IOutputByteStream<ulong> baseStream, int bufferSize, bool leaveOpen)
+                : base(baseStream, bufferSize, leaveOpen)
+            {
+            }
+
+            protected override ulong ZeroPositionValue => 0;
+
+            protected override ulong AddPosition(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x + y;
+                }
+            }
         }
 
-        public static IEnumerable<byte> GetByteSequence(this Stream inputStream, long offset, bool leaveOpen = false, Action<int> progressAction = null)
+        private class BufferedRandomInputStreamUInt64
+            : BufferedRandomInputStream<ulong>
         {
-            if (inputStream.CanSeek == false)
-                throw new ArgumentException();
-            if (offset < 0)
-                throw new ArgumentException();
-            if (offset > inputStream.Length)
-                throw new ArgumentException();
-            return new ByteSequenceEnumerable(inputStream, offset, inputStream.Length - offset, leaveOpen, progressAction);
+
+            public BufferedRandomInputStreamUInt64(IRandomInputByteStream<ulong> baseStream, bool leaveOpen)
+                : base(baseStream, leaveOpen)
+            {
+            }
+
+            public BufferedRandomInputStreamUInt64(IRandomInputByteStream<ulong> baseStream, int bufferSize, bool leaveOpen)
+                : base(baseStream, bufferSize, leaveOpen)
+            {
+            }
+
+            protected override ulong AddPosition(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x + y;
+                }
+            }
         }
 
-        public static IEnumerable<byte> GetByteSequence(this Stream inputStream, long offset, long count, bool leaveOpen = false, Action<int> progressAction = null)
+        private class BufferedRandomOutputStreamUint64
+            : BufferedRandomOutputStream<UInt64>
         {
-            if (inputStream.CanSeek == false)
-                throw new ArgumentException();
-            if (offset < 0)
-                throw new ArgumentException();
-            if (count < 0)
-                throw new ArgumentException();
-            if (offset + count > inputStream.Length)
-                throw new ArgumentException();
-            return new ByteSequenceEnumerable(inputStream, offset, count, leaveOpen, progressAction);
+            public BufferedRandomOutputStreamUint64(IRandomOutputByteStream<UInt64> baseStream, bool leaveOpen)
+                : base(baseStream, leaveOpen)
+            {
+            }
+
+            public BufferedRandomOutputStreamUint64(IRandomOutputByteStream<UInt64> baseStream, int bufferSize, bool leaveOpen)
+                : base(baseStream, bufferSize, leaveOpen)
+            {
+            }
+
+            protected override ulong ZeroPositionValue => 0;
+
+            protected override ulong AddPosition(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x + y;
+                }
+            }
+
+            protected override ulong GetDistanceBetweenPositions(ulong x, ulong y)
+            {
+                return x - y;
+            }
         }
 
-        public static IEnumerable<byte> GetReverseByteSequence(this Stream inputStream, bool leaveOpen = false, Action<int> progressAction = null)
+        private class PartialInputStreamUint64
+            : PartialInputStream<UInt64, UInt64>
         {
-            if (inputStream.CanSeek == false)
-                throw new ArgumentException();
-            return new ReverseByteSequence(inputStream, 0, inputStream.Length, leaveOpen, progressAction);
+            public PartialInputStreamUint64(IInputByteStream<ulong> baseStream, bool leaveOpen)
+                : base(baseStream, leaveOpen)
+            {
+            }
+
+            public PartialInputStreamUint64(IInputByteStream<ulong> baseStream, ulong size, bool leaveOpen)
+                : base(baseStream, size, leaveOpen)
+            {
+            }
+
+            public PartialInputStreamUint64(IInputByteStream<ulong> baseStream, ulong? size, bool leaveOpen)
+                : base(baseStream, size, leaveOpen)
+            {
+            }
+
+            protected override ulong ZeroPositionValue => 0;
+
+            protected override ulong AddPosition(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x + y;
+                }
+            }
         }
 
-        public static IEnumerable<byte> GetReverseByteSequence(this Stream inputStream, long offset, bool leaveOpen = false, Action<int> progressAction = null)
+        private class PartialOutputStreamUint64
+            : PartialOutputStream<UInt64, UInt64>
         {
-            if (inputStream.CanSeek == false)
-                throw new ArgumentException();
-            if (offset < 0)
-                throw new ArgumentException();
-            if (offset > inputStream.Length)
-                throw new ArgumentException();
-            return new ReverseByteSequence(inputStream, offset, inputStream.Length - offset, leaveOpen, progressAction);
+            public PartialOutputStreamUint64(IOutputByteStream<ulong> baseStream, bool leaveOpen)
+                : base(baseStream, leaveOpen)
+            {
+            }
+
+            public PartialOutputStreamUint64(IOutputByteStream<ulong> baseStream, ulong size, bool leaveOpen)
+                : base(baseStream, size, leaveOpen)
+            {
+            }
+
+            public PartialOutputStreamUint64(IOutputByteStream<ulong> baseStream, ulong? size, bool leaveOpen)
+                : base(baseStream, size, leaveOpen)
+            {
+            }
+
+            protected override ulong ZeroPositionValue => 0;
+
+            protected override ulong AddPosition(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x + y;
+                }
+            }
         }
 
-        public static IEnumerable<byte> GetReverseByteSequence(this Stream inputStream, long offset, long count, bool leaveOpen = false, Action<int> progressAction = null)
+        private class PartialRandomInputStreamUint64
+            : PartialRandomInputStream<UInt64, UInt64>
         {
-            if (inputStream.CanSeek == false)
-                throw new ArgumentException();
-            if (offset < 0)
-                throw new ArgumentException();
-            if (count < 0)
-                throw new ArgumentException();
-            if (offset + count > inputStream.Length)
-                throw new ArgumentException();
-            return new ReverseByteSequence(inputStream, offset, count, leaveOpen, progressAction);
+            private IRandomInputByteStream<ulong> _baseStream;
+
+            public PartialRandomInputStreamUint64(IRandomInputByteStream<ulong> baseStream, bool leaveOpen = false)
+                : base(baseStream, leaveOpen)
+            {
+                _baseStream = baseStream;
+            }
+
+            public PartialRandomInputStreamUint64(IRandomInputByteStream<ulong> baseStream, ulong size, bool leaveOpen = false)
+                : base(baseStream, size, leaveOpen)
+            {
+                _baseStream = baseStream;
+            }
+
+            public PartialRandomInputStreamUint64(IRandomInputByteStream<ulong> baseStream, ulong offset, ulong size, bool leaveOpen = false)
+                : base(baseStream, offset, size, leaveOpen)
+            {
+                _baseStream = baseStream;
+            }
+
+            public PartialRandomInputStreamUint64(IRandomInputByteStream<ulong> baseStream, ulong? offset, ulong? size, bool leaveOpen = false)
+                : base(baseStream, offset, size, leaveOpen)
+            {
+                _baseStream = baseStream;
+            }
+
+            protected override ulong ZeroPositionValue => 0;
+
+            protected override ulong EndBasePositionValue => _baseStream.Length;
+
+            protected override ulong AddBasePosition(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x + y;
+                }
+            }
+
+            protected override ulong AddPosition(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x + y;
+                }
+            }
+
+            protected override ulong GetDistanceBetweenBasePositions(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x - y;
+                }
+            }
+
+            protected override ulong GetDistanceBetweenPositions(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x - y;
+                }
+            }
+        }
+
+        private class PartialRandomOutputStreamUint64
+            : PartialRandomOutputStream<UInt64, UInt64>
+        {
+            public PartialRandomOutputStreamUint64(IRandomOutputByteStream<ulong> baseStream, bool leaveOpen)
+                : base(baseStream, leaveOpen)
+            {
+            }
+
+            public PartialRandomOutputStreamUint64(IRandomOutputByteStream<ulong> baseStream, ulong size, bool leaveOpen)
+                : base(baseStream, size, leaveOpen)
+            {
+            }
+
+            public PartialRandomOutputStreamUint64(IRandomOutputByteStream<ulong> baseStream, ulong offset, ulong size, bool leaveOpen)
+                : base(baseStream, offset, size, leaveOpen)
+            {
+            }
+
+            public PartialRandomOutputStreamUint64(IRandomOutputByteStream<ulong> baseStream, ulong? offset, ulong? size, bool leaveOpen)
+                : base(baseStream, offset, size, leaveOpen)
+            {
+            }
+
+            protected override ulong ZeroPositionValue => 0;
+
+            protected override ulong ZeroBasePositionValue => 0;
+
+            protected override ulong AddBasePosition(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x + y;
+                }
+            }
+
+            protected override ulong AddPosition(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x + y;
+                }
+            }
+
+            protected override ulong GetDistanceBetweenBasePositions(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x - y;
+                }
+            }
+
+            protected override ulong GetDistanceBetweenPositions(ulong x, ulong y)
+            {
+                checked
+                {
+                    return x - y;
+                }
+            }
+        }
+
+        private const int _COPY_TO_DEFAULT_BUFFER_SIZE = 81920;
+        private const int _WRITE_BYTE_SEQUENCE_DEFAULT_BUFFER_SIZE = 81920;
+
+        public static IInputByteStream<ulong> AsInputByteStream(this Stream baseStream, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream.CanSeek)
+                    return new RandomInputByteStreamByStream(baseStream, leaveOpen);
+                else
+                    return new SequentialInputByteStreamByStream(baseStream, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IOutputByteStream<ulong> AsOutputByteStream(this Stream baseStream, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream.CanSeek)
+                    return new RandomOutputByteStreamByStream(baseStream, leaveOpen);
+                else
+                    return new SequentialOutputByteStreamByStream(baseStream, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static Stream AsStream(this IInputByteStream<ulong> baseStream, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return new StreamByInputByteStream(baseStream, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static Stream AsStream(this IOutputByteStream<ulong> baseStream, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return new StreamByOutputByteStream(baseStream, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IInputByteStream<ulong> AsByteStream(this IEnumerable<byte> baseSequence)
+        {
+            return new SequentialInputByteStreamBySequence(baseSequence);
+        }
+
+        public static IInputByteStream<ulong> AsByteStream(this IInputBitStream baseStream, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return new SequentialInputByteStreamByBitStream(baseStream, packingDirection, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IOutputByteStream<ulong> AsByteStream(this IOutputBitStream baseStream, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return new SequentialOutputByteStreamByBitStream(baseStream, packingDirection, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IInputBitStream AsBitStream(this IInputByteStream<ulong> baseStream, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return new SequentialInputBitStreamByByteStream(baseStream, packingDirection, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IInputBitStream AsBitStream(this IEnumerable<byte> baseSequence, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
+        {
+            return new SequentialInputBitStreamBySequence(baseSequence, packingDirection);
+        }
+
+        public static IOutputBitStream AsBitStream(this IOutputByteStream<ulong> baseStream, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return new SequentialOutputBitStreamByByteStream(baseStream, packingDirection, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IInputByteStream<ulong> WithPartial(this IInputByteStream<ulong> baseStream, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                var baseByteStream = baseStream as IRandomInputByteStream<ulong>;
+                if (baseByteStream != null)
+                    return new PartialRandomInputStreamUint64(baseByteStream, leaveOpen);
+                else
+                    return new PartialInputStreamUint64(baseStream, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+
+        }
+
+        public static IInputByteStream<ulong> WithPartial(this IInputByteStream<ulong> baseStream, ulong size, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                var baseByteStream = baseStream as IRandomInputByteStream<ulong>;
+                if (baseByteStream != null)
+                    return new PartialRandomInputStreamUint64(baseByteStream, size, leaveOpen);
+                else
+                    return new PartialInputStreamUint64(baseStream, size, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IInputByteStream<ulong> WithPartial(this IInputByteStream<ulong> baseStream, ulong offset, ulong size, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                var baseByteStream = baseStream as IRandomInputByteStream<ulong>;
+                if (baseByteStream == null)
+                    throw new NotSupportedException();
+                else
+                    return new PartialRandomInputStreamUint64(baseByteStream, offset, size, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IInputByteStream<ulong> WithPartial(this IInputByteStream<ulong> baseStream, ulong? offset, ulong? size, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                var baseByteStream = baseStream as IRandomInputByteStream<ulong>;
+                if (baseByteStream != null)
+                    return new PartialRandomInputStreamUint64(baseByteStream, offset, size, leaveOpen);
+                else if (offset.HasValue)
+                    throw new NotSupportedException();
+                else
+                    return new PartialInputStreamUint64(baseStream, size, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IOutputByteStream<ulong> WithPartial(this IOutputByteStream<ulong> baseStream, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                var baseByteStream = baseStream as IRandomOutputByteStream<ulong>;
+                if (baseByteStream != null)
+                    return new PartialRandomOutputStreamUint64(baseByteStream, leaveOpen);
+                else
+                    return new PartialOutputStreamUint64(baseStream, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IOutputByteStream<ulong> WithPartial(this IOutputByteStream<ulong> baseStream, ulong size, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                var baseByteStream = baseStream as IRandomOutputByteStream<ulong>;
+                if (baseByteStream != null)
+                    return new PartialRandomOutputStreamUint64(baseByteStream, size, leaveOpen);
+                else
+                    return new PartialOutputStreamUint64(baseStream, size, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IOutputByteStream<ulong> WithPartial(this IOutputByteStream<ulong> baseStream, ulong offset, ulong size, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                var baseByteStream = baseStream as IRandomOutputByteStream<ulong>;
+                if (baseByteStream == null)
+                    throw new NotSupportedException();
+                else
+                    return new PartialRandomOutputStreamUint64(baseByteStream, offset, size, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IOutputByteStream<ulong> WithPartial(this IOutputByteStream<ulong> baseStream, ulong? offset, ulong? size, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                var baseByteStream = baseStream as IRandomOutputByteStream<ulong>;
+                if (baseByteStream != null)
+                    return new PartialRandomOutputStreamUint64(baseByteStream, offset, size, leaveOpen);
+                else if (offset.HasValue)
+                    throw new NotSupportedException();
+                else
+                    return new PartialOutputStreamUint64(baseStream, size, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IInputByteStream<ulong> WithCache(this IInputByteStream<ulong> baseStream, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                var baseByteStream = baseStream as IRandomInputByteStream<ulong>;
+                if (baseByteStream != null)
+                    return new BufferedRandomInputStreamUInt64(baseByteStream, leaveOpen);
+                else
+                    return new BufferedInputStreamUInt64(baseStream, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IInputByteStream<ulong> WithCache(this IInputByteStream<ulong> baseStream, int cacheSize, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                var baseByteStream = baseStream as IRandomInputByteStream<ulong>;
+                if (baseByteStream != null)
+                    return new BufferedRandomInputStreamUInt64(baseByteStream, cacheSize, leaveOpen);
+                else
+                    return new BufferedInputStreamUInt64(baseStream, cacheSize, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IOutputByteStream<ulong> WithCache(this IOutputByteStream<ulong> baseStream, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                var baseByteStream = baseStream as IRandomOutputByteStream<ulong>;
+                if (baseByteStream != null)
+                    return new BufferedRandomOutputStreamUint64(baseByteStream, leaveOpen);
+                else
+                    return new BufferedOutputStreamUInt64(baseStream, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IOutputByteStream<ulong> WithCache(this IOutputByteStream<ulong> baseStream, int cacheSize, bool leaveOpen = false)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                var baseByteStream = baseStream as IRandomOutputByteStream<ulong>;
+                if (baseByteStream != null)
+                    return new BufferedRandomOutputStreamUint64(baseByteStream, cacheSize, leaveOpen);
+                else
+                    return new BufferedOutputStreamUInt64(baseStream, cacheSize, leaveOpen);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IEnumerable<byte> GetByteSequence(this Stream baseStream, bool leaveOpen = false, Action<int> progressAction = null)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return baseStream.AsInputByteStream(leaveOpen).GetByteSequence(progressAction: progressAction);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IEnumerable<byte> GetByteSequence(this IInputByteStream<ulong> baseStream, bool leaveOpen = false, Action<int> progressAction = null)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return new ByteSequenceByByteStreamEnumerable<UInt64>(baseStream, null, null, leaveOpen, progressAction);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IEnumerable<byte> GetByteSequence(this Stream baseStream, ulong offset, bool leaveOpen = false, Action<int> progressAction = null)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return baseStream.AsInputByteStream(leaveOpen).GetByteSequence(offset, progressAction: progressAction);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IEnumerable<byte> GetByteSequence(this IInputByteStream<ulong> baseStream, ulong offset, bool leaveOpen = false, Action<int> progressAction = null)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+                var byteSteram = baseStream as IRandomInputByteStream<ulong>;
+                if (byteSteram == null)
+                    throw new NotSupportedException();
+                if (offset < 0)
+                    throw new ArgumentException();
+                if (offset > byteSteram.Length)
+                    throw new ArgumentException();
+
+                return new ByteSequenceByByteStreamEnumerable<UInt64>(byteSteram, offset, byteSteram.Length - offset, leaveOpen, progressAction);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IEnumerable<byte> GetByteSequence(this Stream baseStream, ulong offset, ulong count, bool leaveOpen = false, Action<int> progressAction = null)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return baseStream.AsInputByteStream(leaveOpen).GetByteSequence(offset, count, progressAction: progressAction);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IEnumerable<byte> GetByteSequence(this IInputByteStream<ulong> baseStream, ulong offset, ulong count, bool leaveOpen = false, Action<int> progressAction = null)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+                var byteSteram = baseStream as IRandomInputByteStream<ulong>;
+                if (byteSteram == null)
+                    throw new NotSupportedException();
+                if (offset < 0)
+                    throw new ArgumentException();
+                if (count < 0)
+                    throw new ArgumentException();
+                if (offset + count > byteSteram.Length)
+                    throw new ArgumentException();
+
+                return new ByteSequenceByByteStreamEnumerable<UInt64>(byteSteram, offset, count, leaveOpen, progressAction);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IEnumerable<byte> GetReverseByteSequence(this Stream baseStream, bool leaveOpen = false, Action<int> progressAction = null)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return baseStream.AsInputByteStream(leaveOpen).GetReverseByteSequence(progressAction: progressAction);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IEnumerable<byte> GetReverseByteSequence(this IInputByteStream<ulong> baseStream, bool leaveOpen = false, Action<int> progressAction = null)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+                var byteSteram = baseStream as IRandomInputByteStream<ulong>;
+                if (byteSteram == null)
+                    throw new NotSupportedException();
+
+                return new ReverseByteSequenceByByteStream(byteSteram, 0, byteSteram.Length, leaveOpen, progressAction);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IEnumerable<byte> GetReverseByteSequence(this Stream baseStream, ulong offset, bool leaveOpen = false, Action<int> progressAction = null)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return baseStream.AsInputByteStream(leaveOpen).GetReverseByteSequence(offset, progressAction: progressAction);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IEnumerable<byte> GetReverseByteSequence(this IInputByteStream<ulong> baseStream, ulong offset, bool leaveOpen = false, Action<int> progressAction = null)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+                var byteSteram = baseStream as IRandomInputByteStream<ulong>;
+                if (byteSteram == null)
+                    throw new NotSupportedException();
+                if (offset < 0)
+                    throw new ArgumentException();
+                if (offset > byteSteram.Length)
+                    throw new ArgumentException();
+
+                return new ReverseByteSequenceByByteStream(byteSteram, offset, byteSteram.Length - offset, leaveOpen, progressAction);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IEnumerable<byte> GetReverseByteSequence(this Stream baseStream, ulong offset, ulong count, bool leaveOpen = false, Action<int> progressAction = null)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+
+                return baseStream.AsInputByteStream(leaveOpen).GetReverseByteSequence(offset, count, progressAction: progressAction);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
+        }
+
+        public static IEnumerable<byte> GetReverseByteSequence(this IInputByteStream<ulong> baseStream, ulong offset, ulong count, bool leaveOpen = false, Action<int> progressAction = null)
+        {
+            try
+            {
+                if (baseStream == null)
+                    throw new ArgumentNullException(nameof(baseStream));
+                var byteSteram = baseStream as IRandomInputByteStream<ulong>;
+                if (byteSteram == null)
+                    throw new NotSupportedException();
+                if (offset < 0)
+                    throw new ArgumentException();
+                if (count < 0)
+                    throw new ArgumentException();
+                if (offset + count > byteSteram.Length)
+                    throw new ArgumentException();
+
+                return new ReverseByteSequenceByByteStream(byteSteram, offset, count, leaveOpen, progressAction);
+            }
+            catch (Exception)
+            {
+                if (leaveOpen == false)
+                    baseStream?.Dispose();
+                throw;
+            }
         }
 
         public static bool StreamBytesEqual(this Stream stream1, Stream stream2, bool leaveOpen = false, Action<int> progressNotification = null)
+        {
+            using (var byteStream1 = stream1.AsInputByteStream(true))
+            using (var byteStream2 = stream2.AsInputByteStream(true))
+            {
+                return byteStream1.StreamBytesEqual(byteStream2, leaveOpen, progressNotification);
+            }
+        }
+
+        public static bool StreamBytesEqual(this IBasicInputByteStream stream1, IBasicInputByteStream stream2, bool leaveOpen = false, Action<int> progressNotification = null)
         {
             const int bufferSize = 81920;
 #if DEBUG
@@ -411,10 +1044,28 @@ namespace Utility.IO
 
         public static void CopyTo(this Stream source, Stream destination, Action<int> progressNotification)
         {
-            source.CopyTo(destination, _DEFAULT_BUFFER_SIZE, progressNotification);
+            using (var sourceByteStream = source.AsInputByteStream(true))
+            using (var destinationByteStream = destination.AsOutputByteStream(true))
+            {
+                sourceByteStream.CopyTo(destinationByteStream, _COPY_TO_DEFAULT_BUFFER_SIZE, progressNotification);
+            }
+        }
+
+        public static void CopyTo(this IBasicInputByteStream source, IBasicOutputByteStream destination, Action<int> progressNotification = null)
+        {
+            source.CopyTo(destination, _COPY_TO_DEFAULT_BUFFER_SIZE, progressNotification);
         }
 
         public static void CopyTo(this Stream source, Stream destination, int bufferSize, Action<int> progressNotification)
+        {
+            using (var sourceByteStream = source.AsInputByteStream(true))
+            using (var destinationByteStream = destination.AsOutputByteStream(true))
+            {
+                sourceByteStream.CopyTo(destinationByteStream, bufferSize, progressNotification);
+            }
+        }
+
+        public static void CopyTo(this IBasicInputByteStream source, IBasicOutputByteStream destination, int bufferSize, Action<int> progressNotification = null)
         {
             if (source == null)
                 throw new ArgumentNullException();
@@ -431,13 +1082,14 @@ namespace Utility.IO
                 var length = source.Read(buffer, 0, buffer.Length);
                 if (length <= 0)
                     break;
-                destination.Write(buffer, 0, length);
+                destination.WriteBytes(buffer.AsReadOnly(), 0, length);
                 progressCount += length;
                 if (progressCount >= bufferSize)
                 {
                     try
                     {
-                        progressNotification(bufferSize);
+                        if (progressNotification != null)
+                            progressNotification(bufferSize);
                     }
                     catch (Exception)
                     {
@@ -450,7 +1102,8 @@ namespace Utility.IO
             {
                 try
                 {
-                    progressNotification(progressCount);
+                    if (progressNotification != null)
+                        progressNotification(progressCount);
                 }
                 catch (Exception)
                 {
@@ -458,15 +1111,419 @@ namespace Utility.IO
             }
         }
 
-        public static IReadOnlyArray<byte> ReadBytes(this Stream source, int count)
+        public static byte? ReadByteOrNull(this IBasicInputByteStream inputStream)
+        {
+            var buffer = new byte[1];
+            var length = inputStream.Read(buffer, 0, 1);
+            if (length <= 0)
+                return null;
+            return buffer[0];
+        }
+
+        public static byte ReadByte(this IBasicInputByteStream inputStream)
+        {
+            return inputStream.ReadByteOrNull() ?? throw new UnexpectedEndOfStreamException();
+        }
+
+        public static IReadOnlyArray<byte> ReadBytes(this IBasicInputByteStream inputStream, ushort count) => inputStream.ReadBytes((int)count);
+
+        public static IReadOnlyArray<byte> ReadBytes(this Stream sourceStream, int count)
+        {
+            if (sourceStream == null)
+                throw new ArgumentNullException(nameof(sourceStream));
+            if (count < 0)
+                throw new ArgumentException();
+
+            return
+                ReadBytes(
+                    (uint)count,
+                    (_buffer, _offset, _count) => sourceStream.Read(_buffer, _offset, _count));
+        }
+
+        public static IReadOnlyArray<byte> ReadBytes(this IBasicInputByteStream sourceByteStream, int count)
+        {
+            if (sourceByteStream == null)
+                throw new ArgumentNullException(nameof(sourceByteStream));
+            if (count < 0)
+                throw new ArgumentException();
+
+            return
+                ReadBytes(
+                    (uint)count,
+                    (_buffer, _offset, _count) => sourceByteStream.Read(_buffer, _offset, _count));
+        }
+
+        public static IReadOnlyArray<byte> ReadBytes(this Stream sourceStream, uint count)
+        {
+            if (sourceStream == null)
+                throw new ArgumentNullException(nameof(sourceStream));
+
+            return
+                ReadBytes(
+                    count,
+                    (_buffer, _offset, _count) => sourceStream.Read(_buffer, _offset, _count));
+        }
+
+        public static IReadOnlyArray<byte> ReadBytes(this IBasicInputByteStream sourceByteStream, uint count)
+        {
+            if (sourceByteStream == null)
+                throw new ArgumentNullException(nameof(sourceByteStream));
+
+            return
+                ReadBytes(
+                    count,
+                    (_buffer, _offset, _count) => sourceByteStream.Read(_buffer, _offset, _count));
+        }
+
+        public static IEnumerable<byte> ReadBytes(this Stream sourceStream, long count)
+        {
+            if (sourceStream == null)
+                throw new ArgumentNullException(nameof(sourceStream));
+            if (count < 0)
+                throw new ArgumentException();
+
+            return
+                ReadBytes(
+                    (ulong)count,
+                    _count => sourceStream.ReadBytes(_count));
+        }
+
+        public static IEnumerable<byte> ReadBytes(this IBasicInputByteStream sourceByteStream, long count)
+        {
+            if (sourceByteStream == null)
+                throw new ArgumentNullException(nameof(sourceByteStream));
+            if (count < 0)
+                throw new ArgumentException();
+
+            return
+                ReadBytes(
+                    (ulong)count,
+                    _count => sourceByteStream.ReadBytes(_count));
+        }
+
+        public static IEnumerable<byte> ReadBytes(this Stream sourceStream, ulong count)
+        {
+            if (sourceStream == null)
+                throw new ArgumentNullException(nameof(sourceStream));
+
+            return
+                ReadBytes(
+                    count,
+                    _count => sourceStream.ReadBytes(_count));
+        }
+
+        public static IEnumerable<byte> ReadBytes(this IBasicInputByteStream sourceByteStream, ulong count)
+        {
+            if (sourceByteStream == null)
+                throw new ArgumentNullException(nameof(sourceByteStream));
+
+            return
+                ReadBytes(
+                    count,
+                    _count => sourceByteStream.ReadBytes(_count));
+        }
+
+        public static int ReadBytes(this Stream sourceStream, byte[] buffer, int offset, int count)
+        {
+            if (sourceStream == null)
+                throw new ArgumentNullException(nameof(sourceStream));
+
+            return
+                ReadBytes(
+                    buffer,
+                    offset,
+                    count,
+                    (_buffer, _offset, _count) => sourceStream.Read(_buffer, _offset, _count));
+        }
+
+        public static int ReadBytes(this IBasicInputByteStream sourceByteStream, byte[] buffer, int offset, int count)
+        {
+            if (sourceByteStream == null)
+                throw new ArgumentNullException(nameof(sourceByteStream));
+
+            return
+                ReadBytes(
+                    buffer,
+                    offset,
+                    count,
+                    (_buffer, _offset, _count) => sourceByteStream.Read(_buffer, _offset, _count));
+        }
+
+        public static IReadOnlyArray<byte> ReadAllBytes(this Stream sourceStream)
+        {
+            if (sourceStream == null)
+                throw new ArgumentNullException(nameof(sourceStream));
+
+            return ReadAllBytes((_buffer, _offset, _count) => sourceStream.Read(_buffer, _offset, _count));
+        }
+
+        public static IReadOnlyArray<byte> ReadAllBytes(this IBasicInputByteStream sourceByteStream)
+        {
+            if (sourceByteStream == null)
+                throw new ArgumentNullException(nameof(sourceByteStream));
+
+            return ReadAllBytes((_buffer, _offset, _count) => sourceByteStream.Read(_buffer, _offset, _count));
+        }
+
+        public static Int16 ReadInt16LE(this IBasicInputByteStream sourceByteStream)
+        {
+            var data = sourceByteStream.ReadBytes(sizeof(Int16));
+            if (data.Length != sizeof(Int16))
+                throw new UnexpectedEndOfStreamException();
+            return data.ToInt16LE(0);
+        }
+
+        public static Int16 ReadInt16BE(this IBasicInputByteStream sourceByteStream)
+        {
+            var data = sourceByteStream.ReadBytes(sizeof(Int16));
+            if (data.Length != sizeof(Int16))
+                throw new UnexpectedEndOfStreamException();
+            return data.ToInt16BE(0);
+        }
+
+        public static UInt16 ReadUInt16LE(this IBasicInputByteStream sourceByteStream)
+        {
+            var data = sourceByteStream.ReadBytes(sizeof(UInt16));
+            if (data.Length != sizeof(UInt16))
+                throw new UnexpectedEndOfStreamException();
+            return data.ToUInt16LE(0);
+        }
+
+        public static UInt16 ReadUInt16BE(this IBasicInputByteStream sourceByteStream)
+        {
+            var data = sourceByteStream.ReadBytes(sizeof(UInt16));
+            if (data.Length != sizeof(UInt16))
+                throw new UnexpectedEndOfStreamException();
+            return data.ToUInt16BE(0);
+        }
+
+        public static Int32 ReadInt32LE(this IBasicInputByteStream sourceByteStream)
+        {
+            var data = sourceByteStream.ReadBytes(sizeof(Int32));
+            if (data.Length != sizeof(Int32))
+                throw new UnexpectedEndOfStreamException();
+            return data.ToInt32LE(0);
+        }
+
+        public static Int32 ReadInt32BE(this IBasicInputByteStream sourceByteStream)
+        {
+            var data = sourceByteStream.ReadBytes(sizeof(Int32));
+            if (data.Length != sizeof(Int32))
+                throw new UnexpectedEndOfStreamException();
+            return data.ToInt32BE(0);
+        }
+
+        public static UInt32 ReadUInt32LE(this IBasicInputByteStream sourceByteStream)
+        {
+            var data = sourceByteStream.ReadBytes(sizeof(UInt32));
+            if (data.Length != sizeof(UInt32))
+                throw new UnexpectedEndOfStreamException();
+            return data.ToUInt32LE(0);
+        }
+
+        public static UInt32 ReadUInt32BE(this IBasicInputByteStream sourceByteStream)
+        {
+            var data = sourceByteStream.ReadBytes(sizeof(UInt32));
+            if (data.Length != sizeof(UInt32))
+                throw new UnexpectedEndOfStreamException();
+            return data.ToUInt32BE(0);
+        }
+
+        public static Int64 ReadInt64LE(this IBasicInputByteStream sourceByteStream)
+        {
+            var data = sourceByteStream.ReadBytes(sizeof(Int64));
+            if (data.Length != sizeof(Int64))
+                throw new UnexpectedEndOfStreamException();
+            return data.ToInt64LE(0);
+        }
+
+        public static Int64 ReadInt64BE(this IBasicInputByteStream sourceByteStream)
+        {
+            var data = sourceByteStream.ReadBytes(sizeof(Int64));
+            if (data.Length != sizeof(Int64))
+                throw new UnexpectedEndOfStreamException();
+            return data.ToInt64BE(0);
+        }
+
+        public static UInt64 ReadUInt64LE(this IBasicInputByteStream sourceByteStream)
+        {
+            var data = sourceByteStream.ReadBytes(sizeof(UInt64));
+            if (data.Length != sizeof(UInt64))
+                throw new UnexpectedEndOfStreamException();
+            return data.ToUInt64LE(0);
+        }
+
+        public static UInt64 ReadUInt64BE(this IBasicInputByteStream sourceByteStream)
+        {
+            var data = sourceByteStream.ReadBytes(sizeof(UInt64));
+            if (data.Length != sizeof(UInt64))
+                throw new UnexpectedEndOfStreamException();
+            return data.ToUInt64BE(0);
+        }
+
+        public static void Write(this Stream stream, byte[] buffer)
+        {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+
+            stream.Write(buffer, 0, buffer.Length);
+        }
+
+        public static void Write(this Stream stream, IReadOnlyArray<byte> buffer)
+        {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+
+            stream.Write(buffer, 0, buffer.Length);
+        }
+
+        public static void Write(this Stream stream, IReadOnlyArray<byte> buffer, int offset, int count)
+        {
+            stream.Write(buffer.GetRawArray(), offset, count);
+        }
+
+        public static void Write(this Stream stream, IEnumerable<byte> sequence)
+        {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+            if (sequence == null)
+                throw new ArgumentNullException(nameof(sequence));
+
+            foreach (var buffer in sequence.ToChunkOfArray(_WRITE_BYTE_SEQUENCE_DEFAULT_BUFFER_SIZE))
+                stream.Write(buffer, 0, buffer.Length);
+        }
+
+        public static void WriteByte(this IBasicOutputByteStream stream, byte value)
+        {
+            stream.WriteBytes(new[] { value });
+        }
+
+        public static void WriteBytes(this IBasicOutputByteStream stream, byte[] buffer)
+        {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+
+            stream.WriteBytes(buffer.AsReadOnly());
+        }
+
+        public static void WriteBytes(this IBasicOutputByteStream stream, IReadOnlyArray<byte> buffer)
+        {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+
+            stream.WriteBytes(buffer, 0, buffer.Length);
+        }
+
+        public static void WriteBytes(this IBasicOutputByteStream stream, IReadOnlyArray<byte> buffer, int offset, int count)
+        {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            if (offset < 0)
+                throw new ArgumentException("'offset' must not be negative.", nameof(offset));
+            if (count < 0)
+                throw new ArgumentException("'count' must not be negative.", nameof(count));
+            if (offset + count > buffer.Length)
+                throw new IndexOutOfRangeException("'offset + count' is greater than 'buffer.Length'.");
+
+            while (count > 0)
+            {
+                var length = stream.Write(buffer, offset, count);
+                offset += length;
+                count -= length;
+            }
+        }
+
+        public static void WriteBytes(this IBasicOutputByteStream stream, IEnumerable<byte> sequence)
+        {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+            if (sequence == null)
+                throw new ArgumentNullException(nameof(sequence));
+
+            foreach (var buffer in sequence.ToChunkOfReadOnlyArray(_WRITE_BYTE_SEQUENCE_DEFAULT_BUFFER_SIZE))
+                stream.WriteBytes(buffer, 0, buffer.Length);
+        }
+
+        public static void WriteInt16LE(this IBasicOutputByteStream stream, Int16 value)
+        {
+            stream.WriteBytes(value.GetBytesLE());
+        }
+
+        public static void WriteInt16BE(this IBasicOutputByteStream stream, Int16 value)
+        {
+            stream.WriteBytes(value.GetBytesBE());
+        }
+
+        public static void WriteUInt16LE(this IBasicOutputByteStream stream, UInt16 value)
+        {
+            stream.WriteBytes(value.GetBytesLE());
+        }
+
+        public static void WriteUInt16BE(this IBasicOutputByteStream stream, UInt16 value)
+        {
+            stream.WriteBytes(value.GetBytesBE());
+        }
+
+        public static void WriteInt32LE(this IBasicOutputByteStream stream, Int32 value)
+        {
+            stream.WriteBytes(value.GetBytesLE());
+        }
+
+        public static void WriteInt32BE(this IBasicOutputByteStream stream, Int32 value)
+        {
+            stream.WriteBytes(value.GetBytesBE());
+        }
+
+        public static void WriteUInt32LE(this IBasicOutputByteStream stream, UInt32 value)
+        {
+            stream.WriteBytes(value.GetBytesLE());
+        }
+
+        public static void WriteUInt32BE(this IBasicOutputByteStream stream, UInt32 value)
+        {
+            stream.WriteBytes(value.GetBytesBE());
+        }
+
+        public static void WriteInt64LE(this IBasicOutputByteStream stream, Int64 value)
+        {
+            stream.WriteBytes(value.GetBytesLE());
+        }
+
+        public static void WriteInt64BE(this IBasicOutputByteStream stream, Int64 value)
+        {
+            stream.WriteBytes(value.GetBytesBE());
+        }
+
+        public static void WriteUInt64LE(this IBasicOutputByteStream stream, UInt64 value)
+        {
+            stream.WriteBytes(value.GetBytesLE());
+        }
+
+        public static void WriteUInt64BE(this IBasicOutputByteStream stream, UInt64 value)
+        {
+            stream.WriteBytes(value.GetBytesBE());
+        }
+
+        private static IReadOnlyArray<byte> ReadBytes(uint count, Func<byte[], int, int, int> reader)
         {
             if (count < 0)
                 throw new ArgumentException("count");
+
             var buffer = new byte[count];
             var index = 0;
             while (index < buffer.Length)
             {
-                var length = source.Read(buffer, index, buffer.Length - index);
+                var length = reader(buffer, index, buffer.Length - index);
                 if (length <= 0)
                     break;
                 index += length;
@@ -476,14 +1533,30 @@ namespace Utility.IO
             return buffer.AsReadOnly();
         }
 
-        public static int ReadBytes(this Stream source, byte[] buffer, int offset, int count)
+        private static IEnumerable<byte> ReadBytes(ulong count, Func<int, IReadOnlyArray<byte>> reader)
+        {
+            if (count < 0)
+                throw new ArgumentException("count");
+
+            var byteArrayChain = new byte[0].AsEnumerable();
+            while (count > 0)
+            {
+                var length = (int)Math.Min(count, int.MaxValue);
+                var data = reader(length);
+                byteArrayChain = byteArrayChain.Concat(data);
+                count -= (uint)length;
+            }
+            return byteArrayChain;
+        }
+
+        private static int ReadBytes(byte[] buffer, int offset, int count, Func<byte[], int, int, int> reader)
         {
             if (count < 0)
                 throw new ArgumentException("count");
             var index = offset;
             while (index < offset + count)
             {
-                var length = source.Read(buffer, index, offset + count - index);
+                var length = reader(buffer, index, offset + count - index);
                 if (length <= 0)
                     break;
                 index += length;
@@ -491,73 +1564,21 @@ namespace Utility.IO
             return index - offset;
         }
 
-        public static IReadOnlyArray<byte> ReadBytes(this Stream source, long count)
+        private static IReadOnlyArray<byte> ReadAllBytes(Func<byte[], int, int, int> reader)
         {
-            if (count < 0)
-                throw new ArgumentException("count");
-            var byteArrayChain = new byte[0].AsEnumerable();
-            while (count > 0)
-            {
-                var length = (int)Math.Min(count, int.MaxValue);
-                var data = source.ReadBytes(length);
-                byteArrayChain = byteArrayChain.Concat(data);
-                count -= length;
-            }
-            return byteArrayChain.ToArray().AsReadOnly();
-        }
-
-        public static IReadOnlyArray<byte> ReadAllBytes(this Stream source)
-        {
+            const int BUFFER_SIZE = 80 * 2024;
             using (var outputStream = new MemoryStream())
             {
-                source.CopyTo(outputStream);
+                var buffer = new byte[BUFFER_SIZE];
+                while (true)
+                {
+                    var length = reader(buffer, 0, buffer.Length);
+                    if (length <= 0)
+                        break;
+                    outputStream.Write(buffer, 0, length);
+                }
                 return outputStream.ToArray().AsReadOnly();
             }
-        }
-
-        public static void Write(this Stream stream, byte[] buffer)
-        {
-            if (stream == null)
-                throw new ArgumentNullException("stream");
-            if (buffer == null)
-                throw new ArgumentNullException("buffer");
-            stream.Write(buffer, 0, buffer.Length);
-        }
-
-        public static void Write(this Stream stream, IReadOnlyArray<byte> buffer)
-        {
-            if (stream == null)
-                throw new ArgumentNullException("stream");
-            if (buffer == null)
-                throw new ArgumentNullException("buffer");
-            stream.Write(buffer.GetRawArray(), 0, buffer.Length);
-        }
-
-        public static void Write(this Stream stream, IReadOnlyArray<byte> buffer, int offset, int count)
-        {
-            if (stream == null)
-                throw new ArgumentNullException("stream");
-            if (buffer == null)
-                throw new ArgumentNullException("buffer");
-            if (offset < 0)
-                throw new ArgumentException("'offset' must not be negative.", "offset");
-            if (count < 0)
-                throw new ArgumentException("'count' must not be negative.", "count");
-            if (offset + count > buffer.Length)
-                throw new IndexOutOfRangeException("'offset + count' is greater than 'buffer.Length'.");
-
-            stream.Write(buffer, offset, count);
-        }
-
-        public static void Write(this Stream stream, IEnumerable<byte> sequence)
-        {
-            if (stream == null)
-                throw new ArgumentNullException("stream");
-            if (sequence == null)
-                throw new ArgumentNullException("sequence");
-
-            foreach (var buffer in sequence.ToChunkOfArray(_DEFAULT_BUFFER_SIZE))
-                stream.Write(buffer, 0, buffer.Length);
         }
 
 #if DEBUG

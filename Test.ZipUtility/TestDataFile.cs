@@ -14,6 +14,10 @@ namespace Test.ZipUtility
             var zeroFile = baseDirectory.GetFile("TEST_0バイトのファイル.txt");
             zeroFile.Delete();
             zeroFile.Create().Dispose();
+            for (int count = 0; count < 3000; count++)
+            {
+                CreateRandomTextFile(baseDirectory.GetFile(string.Format("TEST_非常に短いファイル{0}.txt", count)), 5);
+            }
             CreateRandomTextFile(baseDirectory.GetFile("TEST_普通のファイル.txt"), 10000);
             CreateRandomTextFile(baseDirectory.GetFile("TEST_1MBぐらいのファイル1.txt"), 1024 * 1024);
             CreateRandomTextFile(baseDirectory.GetFile("TEST_1MBぐらいのファイル2.txt"), 1024 * 1024);
@@ -26,7 +30,7 @@ namespace Test.ZipUtility
         private static void CreateRandomTextFile(FileInfo file, long length)
         {
             file.Delete();
-            using (var outputStream = new BufferedOutputStream(file.Create()))
+            using (var outputStream = file.Create().AsOutputByteStream().WithCache().AsStream())
             using (var writer = new StreamWriter(outputStream, Encoding.UTF8))
             {
                 var lockObject = new object();

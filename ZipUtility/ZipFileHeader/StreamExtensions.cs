@@ -12,12 +12,12 @@ namespace ZipUtility.ZipFileHeader
 private const int maximumSignatureBufferSize = 1024;
 #endif
 
-        public static long FindFirstSigunature(this Stream inputStream, byte[] signature, long offset, long count)
+        public static long FindFirstSigunature(this IRandomInputByteStream<UInt64> inputStream, byte[] signature, ulong offset, ulong count)
         {
             return inputStream.FindFirstSigunature(signature.Length, offset, count, (buffer, index) => buffer.SigunatureEqual(index, signature));
         }
 
-        public static long FindFirstSigunature(this Stream inputStream, int signatureLength, long offset, long count, Func<byte[], int, bool> predicate)
+        public static long FindFirstSigunature(this IRandomInputByteStream<UInt64> inputStream, int signatureLength, ulong offset, ulong count, Func<byte[], int, bool> predicate)
         {
             var buffer = new byte[signatureLength];
             var index = (long)-signatureLength;
@@ -37,12 +37,12 @@ private const int maximumSignatureBufferSize = 1024;
             return -1;
         }
 
-        public static long FindLastSigunature(this Stream inputStream, byte[] signature, long offset, long count)
+        public static ulong? FindLastSigunature(this IRandomInputByteStream<UInt64> inputStream, byte[] signature, ulong offset, ulong count)
         {
-            return inputStream.FindLastSigunature(signature.Length, offset, count, (buffer, index) => buffer.SigunatureEqual(index, signature));
+            return inputStream.FindLastSigunature((uint)signature.Length, offset, count, (buffer, index) => buffer.SigunatureEqual(index, signature));
         }
 
-        public static long FindLastSigunature(this Stream inputStream, int signatureLength, long offset, long count, Func<byte[], int, bool> predicate)
+        public static ulong? FindLastSigunature(this IRandomInputByteStream<UInt64> inputStream, uint signatureLength, ulong offset, ulong count, Func<byte[], int, bool> predicate)
         {
             var buffer = new byte[signatureLength];
             var index = offset + count;
@@ -59,7 +59,7 @@ private const int maximumSignatureBufferSize = 1024;
             }
             if (predicate(buffer, 0))
                 return index;
-            return -1;
+            return null;
         }
 
         private static bool SigunatureEqual(this byte[] array, int index, byte[] signature)

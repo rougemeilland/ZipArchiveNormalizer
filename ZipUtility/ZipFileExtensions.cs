@@ -1,12 +1,8 @@
 ﻿using ICSharpCode.SharpZipLib.Zip;
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using Utility;
 using ZipUtility.ZipExtraField;
-using ZipUtility.ZipFileHeader;
 
 namespace ZipUtility
 {
@@ -19,44 +15,6 @@ namespace ZipUtility
             _localFilePathReplacePattern = new Regex(@"(?<rep>[:\*\?""<>\|])", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         }
 
-        public static IEnumerable<ZipEntry> EnumerateZipEntry(this ZipFile zipFile)
-        {
-            return zipFile.Cast<ZipEntry>().ToList();
-        }
-
-        public static IEnumerable<ZipArchiveEntry> EnumerateZipArchiveEntry(this ZipFile zipFile, Stream zipFileInputStream)
-        {
-            return
-                zipFile
-                .EnumerateZipEntry()
-                .EnumerateZipArchiveEntry(zipFileInputStream);
-        }
-
-        public static IEnumerable<ZipArchiveEntry> EnumerateZipArchiveEntry(this IEnumerable<ZipEntry> zipEntries, Stream ziInputStream)
-        {
-            var zipEntriesArray =
-                zipEntries
-                .ToArray();
-            var headers =
-                ZipFileSummary.Parse(ziInputStream).EnumerateEntry(ziInputStream)
-                .ToArray();
-            if (zipEntriesArray.Length != headers.Length)
-                throw new Exception();
-            return
-                Enumerable.Range(0, zipEntriesArray.Length)
-                .Select(index => new ZipArchiveEntry(zipEntriesArray[index], headers[index]))
-                .ToReadOnlyCollection();
-        }
-
-        public static Stream GetInputStream(this ZipFile zipFile, ZipArchiveEntry entry)
-        {
-            return zipFile.GetInputStream(entry.Index);
-        }
-
-        public static Stream GetInputStream(this ZipFile zipFile, string entryFullName)
-        {
-            return zipFile.GetInputStream(new ZipEntry(entryFullName));
-        }
 
         public static ZipEntry CreateDesdinationEntry(this ZipArchiveEntry entry, string renamedEntryFullPath = null)
         {
@@ -66,7 +24,7 @@ namespace ZipUtility
             newEntry.Comment = entry.Comment;
             newEntry.HostSystem = (int)entry.HostSystem;
             newEntry.ExternalFileAttributes = (int)entry.ExternalFileAttributes;
-            newEntry.Size = entry.Size;
+            newEntry.Size = (long)entry.Size;
 
             // mimetype ファイルの場合は圧縮しない
             if (entry.FullName == "mimetype" || entry.IsDirectory || entry.Size == 0)

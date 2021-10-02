@@ -8,25 +8,22 @@ namespace Utility.IO
     public class FifoBuffer
         : IFifoReadable, IFifoWritable
     {
-        private class InputStream
-            : Stream
+        private class InputByteStream
+            : IInputByteStream<UInt64>
         {
             private bool _isDisposed;
             private IFifoReadable _reader;
-            private long _totalCount;
+            private ulong _position;
 
-            public InputStream(IFifoReadable reader)
+            public InputByteStream(IFifoReadable reader)
             {
                 _isDisposed = false;
                 _reader = reader;
-                _totalCount = 0;
+                _position = 0;
             }
+            public ulong Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
 
-            public override bool CanRead => true;
-            public override bool CanSeek => false;
-            public override bool CanWrite => false;
-
-            public override int Read(byte[] buffer, int offset, int count)
+            public int Read(byte[] buffer, int offset, int count)
             {
                 if (_isDisposed)
                     throw new ObjectDisposedException(GetType().FullName);
@@ -40,19 +37,19 @@ namespace Utility.IO
                 var length = _reader.Read(buffer, offset, count);
                 if (length > 0)
                 {
-                    _totalCount += length;
-                    _reader.SetReadCount(_totalCount);
+                    _position += (ulong)length;
+                    _reader.SetReadCount(_position);
                 }
                 return length;
             }
 
-            public override void Flush()
+            public void Dispose()
             {
-                if (_isDisposed)
-                    throw new ObjectDisposedException(GetType().FullName);
+                Dispose(disposing: true);
+                GC.SuppressFinalize(this);
             }
 
-            protected override void Dispose(bool disposing)
+            protected virtual void Dispose(bool disposing)
             {
                 if (!_isDisposed)
                 {
@@ -65,52 +62,51 @@ namespace Utility.IO
                         }
                     }
                     _isDisposed = true;
-                    base.Dispose(disposing);
                 }
             }
-
-            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-            public override long Length => throw new NotSupportedException();
-            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-            public override void SetLength(long value) => throw new NotSupportedException();
         }
 
-        private class OutputStream
-            : Stream
+        private class OutputByteStream
+            : IOutputByteStream<UInt64>
         {
             private bool _isDisposed;
             private IFifoWritable _writer;
             private bool _synchronouslyWriting;
-            private long _totalCount;
+            private ulong _position;
             private CancellationTokenSource _cts;
 
-            public OutputStream(IFifoWritable writer, bool synchronouslyWriting)
+            public OutputByteStream(IFifoWritable writer, bool synchronouslyWriting)
             {
                 _isDisposed = false;
                 _writer = writer;
                 _synchronouslyWriting = synchronouslyWriting;
-                _totalCount = 0;
+                _position = 0;
                 _cts = new CancellationTokenSource();
             }
 
-            public override bool CanRead => false;
-            public override bool CanSeek => false;
-            public override bool CanWrite => true;
+            public ulong Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
 
-
-            public override void Write(byte[] buffer, int offset, int count)
+            public int Write(IReadOnlyArray<byte> buffer, int offset, int count)
             {
                 if (_isDisposed)
                     throw new ObjectDisposedException(GetType().FullName);
+                if (buffer == null)
+                    throw new ArgumentNullException(nameof(buffer));
+                if (offset < 0)
+                    throw new ArgumentException();
+                if (count < 0)
+                    throw new ArgumentException();
+                if (offset + count > buffer.Length)
+                    throw new ArgumentException();
 
-                _writer.Write(buffer, offset, count);
-                _totalCount += count;
+                var length = _writer.Write(buffer, offset, count);
+                _position += (uint)length;
                 if (_synchronouslyWriting)
                     InternalFlush();
+                return length;
             }
 
-            public override void Flush()
+            public void Flush()
             {
                 if (_isDisposed)
                     throw new ObjectDisposedException(GetType().FullName);
@@ -118,7 +114,21 @@ namespace Utility.IO
                 InternalFlush();
             }
 
-            protected override void Dispose(bool disposing)
+            public void Close()
+            {
+                if (_isDisposed)
+                    throw new ObjectDisposedException(GetType().FullName);
+
+                Dispose();
+            }
+
+            public void Dispose()
+            {
+                Dispose(disposing: true);
+                GC.SuppressFinalize(this);
+            }
+
+            protected virtual void Dispose(bool disposing)
             {
                 if (!_isDisposed)
                 {
@@ -136,21 +146,14 @@ namespace Utility.IO
                         }
                     }
                     _isDisposed = true;
-                    base.Dispose(disposing);
                 }
             }
-
-            public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-            public override long Length => throw new NotSupportedException();
-            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-            public override void SetLength(long value) => throw new NotSupportedException();
 
             private void InternalFlush()
             {
                 try
                 {
-                    _writer.WaitForReadCount(_totalCount, _cts.Token);
+                    _writer.WaitForReadCount(_position, _cts.Token);
                 }
                 catch (ObjectDisposedException ex)
                 {
@@ -161,7 +164,6 @@ namespace Utility.IO
                     throw new IOException("The stream is closed.", ex);
                 }
             }
-
         }
 
         private class FifoQueue
@@ -202,7 +204,7 @@ namespace Utility.IO
                 }
             }
 
-            public int Enqueue(byte[] buffer, int offset, int count)
+            public int Enqueue(IReadOnlyArray<byte> buffer, int offset, int count)
             {
                 lock (this)
                 {
@@ -212,7 +214,7 @@ namespace Utility.IO
                     if (actualCount > 0)
                     {
                         var newBuffer = new byte[actualCount];
-                        Array.Copy(buffer, offset, newBuffer, 0, actualCount);
+                        buffer.CopyTo(offset, newBuffer, 0, actualCount);
                         _queue.AddLast(newBuffer);
                         _currentCount += newBuffer.Length;
                     }
@@ -256,8 +258,8 @@ namespace Utility.IO
         private ManualResetEventSlim _isReadyForWriterEvent;
         private ManualResetEventSlim _isReadyForReadCountEvent;
         private CancellationTokenSource _accessCanceller;
-        private long _totalReadCount;
-        private long _expectedReadCount;
+        private ulong _totalReadCount;
+        private ulong _expectedReadCount;
 
         public FifoBuffer(int maximumBufferSize = _maximumBufferSize)
         {
@@ -272,31 +274,17 @@ namespace Utility.IO
             _isReadyForReadCountEvent = new ManualResetEventSlim();
             _accessCanceller = new CancellationTokenSource();
             _totalReadCount = 0;
-            _expectedReadCount = long.MaxValue;
+            _expectedReadCount = ulong.MaxValue;
         }
 
-        public Stream GetInputStream()
+        public IInputByteStream<UInt64> GetInputByteStream()
         {
-            lock (this)
-            {
-                if (_isOpenedReader)
-                    throw new InvalidOperationException("Can open reader only once.");
-                var stream = new InputStream(this);
-                _isOpenedReader = true;
-                return stream;
-            }
+            return InternalGetInputStream();
         }
 
-        public Stream GetOutputStream(bool synchronouslyWriting)
+        public IOutputByteStream<UInt64> GetOutputByteStream(bool synchronouslyWriting)
         {
-            lock (this)
-            {
-                if (_isOpenedByWriter)
-                    throw new InvalidOperationException("Can open writer only once.");
-                var stream = new OutputStream(this, synchronouslyWriting);
-                _isOpenedByWriter = true;
-                return stream;
-            }
+            return InternalGetOutputStream(synchronouslyWriting);
         }
 
         protected virtual void Dispose(bool disposing)
@@ -328,6 +316,30 @@ namespace Utility.IO
                     }
                 }
                 _isDisposed = true;
+            }
+        }
+
+        private InputByteStream InternalGetInputStream()
+        {
+            lock (this)
+            {
+                if (_isOpenedReader)
+                    throw new InvalidOperationException("Can open reader only once.");
+                var stream = new InputByteStream(this);
+                _isOpenedReader = true;
+                return stream;
+            }
+        }
+
+        private OutputByteStream InternalGetOutputStream(bool synchronouslyWriting)
+        {
+            lock (this)
+            {
+                if (_isOpenedByWriter)
+                    throw new InvalidOperationException("Can open writer only once.");
+                var stream = new OutputByteStream(this, synchronouslyWriting);
+                _isOpenedByWriter = true;
+                return stream;
             }
         }
 
@@ -406,7 +418,7 @@ namespace Utility.IO
             }
         }
 
-        private int InternalWrite(byte[] buffer, int offset, int count)
+        private int InternalWrite(IReadOnlyArray<byte> buffer, int offset, int count)
         {
             while (true)
             {
@@ -535,7 +547,7 @@ namespace Utility.IO
             return InternalRead(buffer, offset, count);
         }
 
-        void IFifoReadable.SetReadCount(long count)
+        void IFifoReadable.SetReadCount(ulong count)
         {
             lock (this)
             {
@@ -560,17 +572,12 @@ namespace Utility.IO
             }
         }
 
-        void IFifoWritable.Write(byte[] buffer, int offset, int count)
+        int IFifoWritable.Write(IReadOnlyArray<byte> buffer, int offset, int count)
         {
-            var totalCount = 0;
-            while (totalCount < count)
-            {
-                var length = InternalWrite(buffer, offset + totalCount, count - totalCount);
-                totalCount += length;
-            }
+            return InternalWrite(buffer, offset, count);
         }
 
-        void IFifoWritable.WaitForReadCount(long count, CancellationToken token)
+        void IFifoWritable.WaitForReadCount(ulong count, CancellationToken token)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);

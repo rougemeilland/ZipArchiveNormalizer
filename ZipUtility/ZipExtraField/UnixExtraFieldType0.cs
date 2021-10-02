@@ -1,5 +1,6 @@
 ﻿using System;
 using Utility;
+using Utility.IO;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -12,7 +13,7 @@ namespace ZipUtility.ZipExtraField
         {
             UserId = UInt16.MaxValue;
             GroupId = UInt16.MaxValue;
-            AdditionalData = new byte[0];
+            AdditionalData = new byte[0].AsReadOnly();
         }
 
         public const ushort ExtraFieldId = 13;
@@ -45,8 +46,8 @@ namespace ZipUtility.ZipExtraField
                 LastWriteTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
                 UserId = reader.ReadUInt16LE();
                 GroupId = reader.ReadUInt16LE();
-                AdditionalData = reader.ReadToEnd();
-                if (reader.ReadToEnd().Length > 0)
+                AdditionalData = reader.ReadAllBytes();
+                if (reader.ReadAllBytes().Length > 0)
                     throw GetBadFormatException(headerType, data, index, count);
                 success = true;
             }
@@ -71,6 +72,6 @@ namespace ZipUtility.ZipExtraField
 
         public UInt16 UserId { get; set; }
         public UInt16 GroupId { get; set; }
-        public byte[] AdditionalData { get; set; }
+        public IReadOnlyArray<byte> AdditionalData { get; set; }
     }
 }

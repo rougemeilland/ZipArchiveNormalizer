@@ -1,5 +1,6 @@
 ﻿using System;
 using Utility;
+using Utility.IO;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -76,7 +77,7 @@ namespace ZipUtility.ZipExtraField
                         return;
                     CompressionType = (ZipEntryCompressionMethodId)reader.ReadUInt16LE();
                     Crc = reader.ReadUInt32LE();
-                    CompressedSD = reader.ReadToEnd();
+                    CompressedSD = reader.ReadAllBytes();
                 }
                 else
                 {
@@ -85,7 +86,7 @@ namespace ZipUtility.ZipExtraField
                     _crc = null;
                     CompressedSD = null;
                 }
-                if (reader.ReadToEnd().Length > 0)
+                if (reader.ReadAllBytes().Length > 0)
                     throw GetBadFormatException(headerType, data, index, count);
                 success = true;
             }
@@ -110,6 +111,6 @@ namespace ZipUtility.ZipExtraField
         public byte Version { get => _version.Value; set => _version = value; }
         public ZipEntryCompressionMethodId CompressionType { get => _compressionType.Value; set => _compressionType = value; }
         public UInt32 Crc { get => _crc.Value; set => _crc = value; }
-        public byte[] CompressedSD { get; set; }
+        public IReadOnlyArray<byte> CompressedSD { get; set; }
     }
 }

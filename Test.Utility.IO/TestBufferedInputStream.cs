@@ -16,7 +16,7 @@ namespace Test.Utility.IO
             var buffer = new byte[bufferSize];
             using (var ms = new MemoryStream())
             {
-                using (var inputStream = new BufferedInputStream(_testFile.OpenRead(), streamBufferSize, false))
+                using (var inputStream = _testFile.OpenRead().AsInputByteStream().WithCache(streamBufferSize))
                 {
                     while (true)
                     {

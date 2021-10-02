@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Linq;
 using Utility;
 using Utility.IO;
@@ -15,7 +14,7 @@ namespace ZipUtility.ZipFileHeader
             _dataDescriptorSignature = new byte[] { 0x50, 0x4b, 0x07, 0x08 };
         }
 
-        private ZipEntryDataDescriptor(UInt32 crc, Int64 packedSize, Int64 size)
+        private ZipEntryDataDescriptor(UInt32 crc, UInt64 packedSize, UInt64 size)
         {
             Crc = crc;
             PackedSize = packedSize;
@@ -23,35 +22,25 @@ namespace ZipUtility.ZipFileHeader
         }
 
         public UInt32 Crc { get; }
-        public Int64 PackedSize { get; }
-        public Int64 Size { get; }
+        public UInt64 PackedSize { get; }
+        public UInt64 Size { get; }
 
-        public static ZipEntryDataDescriptor Parse(Stream zipFileInputStrem, long dataOffset, long packedSizeValueInCentralDirectoryHeader, long sizeValueInCentralDirectoryHeader, bool isZip64, ZipEntryCompressionMethodId compressionMethodId, ZipEntryGeneralPurposeBitFlag flag)
+        public static ZipEntryDataDescriptor Parse(IZipInputStream zipInputStrem, ZipStreamPosition dataPosition, UInt64 packedSizeValueInCentralDirectoryHeader, UInt64 sizeValueInCentralDirectoryHeader, bool isZip64, ZipEntryCompressionMethodId compressionMethodId, ZipEntryGeneralPurposeBitFlag flag)
         {
-#if false
-            // このチェック方法は zipFileInputStrem がバッファリングされていると誤った結果を得る可能性があるので取りやめる
-            var startPosition = zipFileInputStrem.Position;
-#endif
-            var actualSize = 0L;
+            var startPosition = zipInputStrem.Position;
+            var actualSize = 0UL;
             var actualCrc =
-                compressionMethodId.GetCompressionMethod(flag).GetInputStream(zipFileInputStrem, dataOffset, packedSizeValueInCentralDirectoryHeader, sizeValueInCentralDirectoryHeader, true)
+                compressionMethodId
+                    .GetCompressionMethod(flag)
+                    .GetInputStream(
+                        zipInputStrem
+                            .AsPartial(dataPosition, packedSizeValueInCentralDirectoryHeader),
+                        sizeValueInCentralDirectoryHeader)
                 .GetByteSequence(false)
-                .Select(b =>
-                {
-                    ++actualSize;
-                    return b;
-                })
-                .CalculateCrc32();
-#if false
-            // このチェック方法は zipFileInputStrem がバッファリングされていると誤った結果を得る可能性があるので取りやめる
-            var actualPackedSize = zipFileInputStrem.Position - startPosition;
-
-#endif
-            // この前のデータの読み込みに使用しているストリームの実装によっては、この時点での zipFileInputStrem.Position が
-            // データディスクリプタの開始位置を過ぎてしまっている可能性があるので、明示的に Seek しなければならない。
-            zipFileInputStrem.Seek(dataOffset + packedSizeValueInCentralDirectoryHeader, SeekOrigin.Begin);
-
-            var sourceData = zipFileInputStrem.ReadBytes(isZip64 ? 24 : 16);
+                .CalculateCrc32(out actualSize);
+            var actualPackedSize = zipInputStrem.Position - startPosition;
+            //zipFileInputStrem.Seek(dataOffset + packedSizeValueInCentralDirectoryHeader, RandomByteStreamSeekType.FromStart);
+            var sourceData = zipInputStrem.ReadBytes(isZip64 ? 24 : 16);
             var foundDataDescriptor =
                 new Func<ZipEntryDataDescriptor>[]
                 {
@@ -62,11 +51,8 @@ namespace ZipUtility.ZipFileHeader
                 .Where(dataDescriptor =>
                     dataDescriptor != null &&
                     dataDescriptor.Check(actualCrc, packedSizeValueInCentralDirectoryHeader, sizeValueInCentralDirectoryHeader) &&
-#if false
-            // このチェック方法は zipFileInputStrem がバッファリングされていると誤った結果を得る可能性があるので取りやめる
                     dataDescriptor.PackedSize == actualPackedSize &&
-#endif
-                    dataDescriptor.Size == actualSize )
+                    dataDescriptor.Size == actualSize)
                 .FirstOrDefault();
             if (foundDataDescriptor == null)
                 throw new BadZipFileFormatException("Not found data descriptor.");
@@ -83,8 +69,8 @@ namespace ZipUtility.ZipFileHeader
                     if (!signature.SequenceEqual(_dataDescriptorSignature))
                         return null;
                     var crc = source.ToUInt32LE(4);
-                    var packedSize = source.ToInt64LE(8);
-                    var size = source.ToInt64LE(16);
+                    var packedSize = source.ToUInt64LE(8);
+                    var size = source.ToUInt64LE(16);
                     return new ZipEntryDataDescriptor(crc, packedSize, size);
                 }
                 else
@@ -103,8 +89,8 @@ namespace ZipUtility.ZipFileHeader
                 if (isZip64)
                 {
                     var crc = source.ToUInt32LE(0);
-                    var packedSize = source.ToInt64LE(4);
-                    var size = source.ToInt64LE(12);
+                    var packedSize = source.ToUInt64LE(4);
+                    var size = source.ToUInt64LE(12);
                     return new ZipEntryDataDescriptor(crc, packedSize, size);
                 }
                 else
@@ -117,7 +103,7 @@ namespace ZipUtility.ZipFileHeader
             }
         }
 
-        private bool Check(UInt32 crc, Int64 packedSize, Int64 size)
+        private bool Check(UInt32 crc, UInt64 packedSize, UInt64 size)
         {
             return
                 Crc == crc &&

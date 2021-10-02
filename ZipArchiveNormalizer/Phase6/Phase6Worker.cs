@@ -1,6 +1,4 @@
-﻿using ICSharpCode.SharpZipLib.Zip;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -55,134 +53,135 @@ namespace ZipArchiveNormalizer.Phase6
 
         protected override void ActionForFile(FileInfo sourceFile, IFileWorkerActionParameter parameter)
         {
-            var entries = sourceFile.EnumerateZipArchiveEntry().ToList();
-            var mainContentTextEntries =
-                entries
-                .Where(entry =>
-                    _contentTextFileNamePattern.IsMatch(entry.FullName) &&
-                    entry.Size >= _minimumAozoraBunkoTextCharacters &&
-                    !_filesNotToBeExtractedForAozoraBunkoPattern.IsMatch(Path.GetFileNameWithoutExtension(entry.FullName)))
-                .ToList();
-            var imageFileEntries =
-                entries
-                .Where(entry => _imageFileNamePattern.IsMatch(entry.FullName))
-                .ToDictionary(entry => entry.FullName, entry => entry, StringComparer.InvariantCultureIgnoreCase);
-            if (mainContentTextEntries.None())
+            using (var zipFile = sourceFile.OpenAsZipFile())
             {
-                RaiseErrorReportedEvent(
-                    sourceFile,
-                    "青空文庫アーカイブファイルに本文テキストファイルが見つかりませんでした。");
-                return;
-            }
-            if (!mainContentTextEntries.IsSingle())
-            {
-                RaiseWarningReportedEvent(
-                    sourceFile,
-                    string.Format(
-                        "青空文庫アーカイブファイルに本文テキストファイルが複数見つかったので自動的な展開を中断しました。: \"{0}\",  \"{1}\", ...",
-                        mainContentTextEntries.First().FullName,
-                        mainContentTextEntries.Skip(1).First().FullName));
-                return;
-            }
-            var mainContentTextEntry = mainContentTextEntries.First();
-            var localTextFileName = Path.GetFileNameWithoutExtension(sourceFile.Name) + ".txt";
-            if (localTextFileName.StartsWith("."))
-                localTextFileName = localTextFileName.Substring(1);
-#if DEBUG
-            if (mainContentTextEntry.LastWriteTimeUtc.HasValue && mainContentTextEntry.LastWriteTimeUtc.Value.Kind != DateTimeKind.Utc)
-                throw new Exception();
-            if (mainContentTextEntry.LastAccessTimeUtc.HasValue && mainContentTextEntry.LastAccessTimeUtc.Value.Kind != DateTimeKind.Utc)
-                throw new Exception();
-            if (mainContentTextEntry.CreationTimeUtc.HasValue && mainContentTextEntry.CreationTimeUtc.Value.Kind != DateTimeKind.Utc)
-                throw new Exception();
-#endif
-            var success = false;
-            var extracted = false;
-            var textFileEntrySubDirectory = Path.GetDirectoryName(mainContentTextEntry.FullName);
-            var localTextFilePath =
-                    string.IsNullOrEmpty(textFileEntrySubDirectory)
-                    ? Path.Combine(sourceFile.DirectoryName, localTextFileName)
-                    : Path.Combine(sourceFile.DirectoryName, textFileEntrySubDirectory, localTextFileName);
-            var tempFile =
-                new FileInfo(Path.Combine(Path.GetDirectoryName(localTextFilePath), "." + Path.GetFileName(localTextFilePath) + ".temp"));
-            try
-            {
-                var newText =
-                    ReadTextEntry(
+                var entries = zipFile.GetEntries();
+                var mainContentTextEntries =
+                    entries
+                    .Where(entry =>
+                        _contentTextFileNamePattern.IsMatch(entry.FullName) &&
+                        entry.Size >= _minimumAozoraBunkoTextCharacters &&
+                        !_filesNotToBeExtractedForAozoraBunkoPattern.IsMatch(Path.GetFileNameWithoutExtension(entry.FullName)))
+                    .ToList();
+                var imageFileEntries =
+                    entries
+                    .Where(entry => _imageFileNamePattern.IsMatch(entry.FullName))
+                    .ToDictionary(entry => entry.FullName, entry => entry, StringComparer.InvariantCultureIgnoreCase);
+                if (mainContentTextEntries.None())
+                {
+                    RaiseErrorReportedEvent(
                         sourceFile,
-                        mainContentTextEntry,
-                        entries,
-                        sourceFile.DirectoryName,
-                        textFileEntrySubDirectory,
-                        (imageEntryName, imageFile, newLocalFileCreated) =>
-                        {
-                            if (newLocalFileCreated)
-                                extracted = true;
-                            imageFileEntries.Remove(imageEntryName);
-                        });
-                tempFile.Directory.Create();
-                File.WriteAllText(tempFile.FullName, newText, _aozoraBunkoTextFileEncoding);
-                bool alreadyExistsTextFile;
-                var newContentTextFile = tempFile.RenameFile(Path.GetFileName(localTextFilePath), out alreadyExistsTextFile);
-                if (!alreadyExistsTextFile)
-                {
-                    mainContentTextEntry.SeTimeStampToExtractedFile(newContentTextFile.FullName);
-                    extracted = true;
+                        "青空文庫アーカイブファイルに本文テキストファイルが見つかりませんでした。");
+                    return;
                 }
-                if (extracted)
-                    RaiseInformationReportedEvent(sourceFile, "アーカイブファイルを展開しました。");
-                var newSourceFileName = sourceFile.Name;
-                if (!newSourceFileName.StartsWith(".", StringComparison.OrdinalIgnoreCase))
-                {
-                    newSourceFileName = "." + newSourceFileName;
-                    UpdateProgress();
-                    var newSourceFile = sourceFile.RenameFile(Path.Combine(sourceFile.DirectoryName, newSourceFileName));
-                    AddToDestinationFiles(newSourceFile);
-                    IncrementChangedFileCount();
-                }
-                else
-                {
-                    AddToDestinationFiles(sourceFile);
-                    if (extracted)
-                        IncrementChangedFileCount();
-                }
-                if (imageFileEntries.Any())
+                if (!mainContentTextEntries.IsSingle())
                 {
                     RaiseWarningReportedEvent(
                         sourceFile,
                         string.Format(
-                            "参照されていないイメージファイルが含まれています。: {{{0}}}",
-                            string.Join(
-                                ", ",
-                                imageFileEntries.Keys
-                                .OrderBy(entryName => entryName, StringComparer.InvariantCultureIgnoreCase)
-                                .Select(entryName => string.Format("\"{0}\"", entryName)))));
+                            "青空文庫アーカイブファイルに本文テキストファイルが複数見つかったので自動的な展開を中断しました。: \"{0}\",  \"{1}\", ...",
+                            mainContentTextEntries.First().FullName,
+                            mainContentTextEntries.Skip(1).First().FullName));
+                    return;
                 }
-                success = true;
-            }
-            finally
-            {
-                if (tempFile.Exists)
-                    tempFile.Delete();
-                if (!success)
+                var mainContentTextEntry = mainContentTextEntries.First();
+                var localTextFileName = Path.GetFileNameWithoutExtension(sourceFile.Name) + ".txt";
+                if (localTextFileName.StartsWith("."))
+                    localTextFileName = localTextFileName.Substring(1);
+#if DEBUG
+                if (mainContentTextEntry.LastWriteTimeUtc.HasValue && mainContentTextEntry.LastWriteTimeUtc.Value.Kind != DateTimeKind.Utc)
+                    throw new Exception();
+                if (mainContentTextEntry.LastAccessTimeUtc.HasValue && mainContentTextEntry.LastAccessTimeUtc.Value.Kind != DateTimeKind.Utc)
+                    throw new Exception();
+                if (mainContentTextEntry.CreationTimeUtc.HasValue && mainContentTextEntry.CreationTimeUtc.Value.Kind != DateTimeKind.Utc)
+                    throw new Exception();
+#endif
+                var success = false;
+                var extracted = false;
+                var textFileEntrySubDirectory = Path.GetDirectoryName(mainContentTextEntry.FullName);
+                var localTextFilePath =
+                        string.IsNullOrEmpty(textFileEntrySubDirectory)
+                        ? Path.Combine(sourceFile.DirectoryName, localTextFileName)
+                        : Path.Combine(sourceFile.DirectoryName, textFileEntrySubDirectory, localTextFileName);
+                var tempFile =
+                    new FileInfo(Path.Combine(Path.GetDirectoryName(localTextFilePath), "." + Path.GetFileName(localTextFilePath) + ".temp"));
+                try
                 {
-                    RaiseErrorReportedEvent(
-                        sourceFile,
-                        "アーカイブファイルからエントリの展開に失敗しました。");
+                    var newText =
+                        ReadTextEntry(
+                            zipFile,
+                            mainContentTextEntry,
+                            entries,
+                            sourceFile.DirectoryName,
+                            textFileEntrySubDirectory,
+                            (imageEntryName, imageFile, newLocalFileCreated) =>
+                            {
+                                if (newLocalFileCreated)
+                                    extracted = true;
+                                imageFileEntries.Remove(imageEntryName);
+                            });
+                    tempFile.Directory.Create();
+                    File.WriteAllText(tempFile.FullName, newText, _aozoraBunkoTextFileEncoding);
+                    bool alreadyExistsTextFile;
+                    var newContentTextFile = tempFile.RenameFile(Path.GetFileName(localTextFilePath), out alreadyExistsTextFile);
+                    if (!alreadyExistsTextFile)
+                    {
+                        mainContentTextEntry.SeTimeStampToExtractedFile(newContentTextFile.FullName);
+                        extracted = true;
+                    }
+                    if (extracted)
+                        RaiseInformationReportedEvent(sourceFile, "アーカイブファイルを展開しました。");
+                    var newSourceFileName = sourceFile.Name;
+                    if (!newSourceFileName.StartsWith(".", StringComparison.OrdinalIgnoreCase))
+                    {
+                        newSourceFileName = "." + newSourceFileName;
+                        UpdateProgress();
+                        var newSourceFile = sourceFile.RenameFile(Path.Combine(sourceFile.DirectoryName, newSourceFileName));
+                        AddToDestinationFiles(newSourceFile);
+                        IncrementChangedFileCount();
+                    }
+                    else
+                    {
+                        AddToDestinationFiles(sourceFile);
+                        if (extracted)
+                            IncrementChangedFileCount();
+                    }
+                    if (imageFileEntries.Any())
+                    {
+                        RaiseWarningReportedEvent(
+                            sourceFile,
+                            string.Format(
+                                "参照されていないイメージファイルが含まれています。: {{{0}}}",
+                                string.Join(
+                                    ", ",
+                                    imageFileEntries.Keys
+                                    .OrderBy(entryName => entryName, StringComparer.InvariantCultureIgnoreCase)
+                                    .Select(entryName => string.Format("\"{0}\"", entryName)))));
+                    }
+                    success = true;
+                }
+                finally
+                {
+                    if (tempFile.Exists)
+                        tempFile.Delete();
+                    if (!success)
+                    {
+                        RaiseErrorReportedEvent(
+                            sourceFile,
+                            "アーカイブファイルからエントリの展開に失敗しました。");
+                    }
                 }
             }
         }
 
-        private string ReadTextEntry(FileInfo archiveFile, ZipArchiveEntry aozoraBunkoMainContentEntry, IEnumerable<ZipArchiveEntry> zipArchiveEntries, string archiveDirectoryPath, string textFileEntrySubDirectory, Action<string, FileInfo, bool> actionOnImageExtracted)
+        private string ReadTextEntry(ZipArchiveFile zipFile, ZipArchiveEntry aozoraBunkoMainContentEntry, ZipArchiveEntryCollection zipArchiveEntries, string archiveDirectoryPath, string textFileEntrySubDirectory, Action<string, FileInfo, bool> actionOnImageExtracted)
         {
-            using (var zipFile = new ZipFile(archiveFile.FullName))
-            using (var textEntryInputStream = zipFile.GetInputStream(aozoraBunkoMainContentEntry))
-            using (var reader = new StreamReader(textEntryInputStream, _aozoraBunkoTextFileEncoding))
+            using (var textEntryInputStream = zipFile.GetInputStream( aozoraBunkoMainContentEntry))
             {
-                var text = reader.ReadToEnd();
+                var contentText = ReadText(textEntryInputStream);
                 var newText =
                     _aozoraBunkoImageLinkPattern.Replace(
-                        text,
+                        contentText,
                         match =>
                             AozoraBunkoTextImageLinkReplacer(
                                 zipFile,
@@ -195,7 +194,15 @@ namespace ZipArchiveNormalizer.Phase6
             }
         }
 
-        private string AozoraBunkoTextImageLinkReplacer(ZipFile zipFile, IEnumerable<ZipArchiveEntry> zipArchiveEntries, string archiveDirectoryPath, string textFileEntrySubDirectory, Match match, Action<string, FileInfo, bool> actionOnImageExtracted)
+        private static string ReadText(IInputByteStream<UInt64> textEntryInputStream)
+        {
+            using (var reader = new StreamReader(textEntryInputStream.AsStream(), _aozoraBunkoTextFileEncoding))
+            {
+                return reader.ReadToEnd();
+            }
+        }
+
+        private string AozoraBunkoTextImageLinkReplacer(ZipArchiveFile zipFile, ZipArchiveEntryCollection zipArchiveEntries, string archiveDirectoryPath, string textFileEntrySubDirectory, Match match, Action<string, FileInfo, bool> actionOnImageExtracted)
         {
             var type = match.Groups["type"].Value;
             var prefix = match.Groups["prefix"].Value;
@@ -221,7 +228,7 @@ namespace ZipArchiveNormalizer.Phase6
             var imageTemporaryFile = new FileInfo(Path.Combine(Path.GetDirectoryName(imageLocalFilePath), "." + Path.GetFileName(imageLocalFilePath) + ".temp"));
             try
             {
-                if (!ExtractImageFile(zipFile, imageEntryName, imageTemporaryFile))
+                if (!ExtractImageFile(zipFile, zipArchiveEntries, imageEntryName, imageTemporaryFile))
                     return match.Value;
                 var foundImageArchiveEntry =
                     zipArchiveEntries
@@ -263,16 +270,16 @@ namespace ZipArchiveNormalizer.Phase6
             }
         }
 
-        private bool ExtractImageFile(ZipFile zipFile, string imageEntryName, FileInfo imageLocalFile)
+        private bool ExtractImageFile(ZipArchiveFile zipFile, ZipArchiveEntryCollection zipArchiveEntries,  string imageEntryName, FileInfo imageLocalFile)
         {
             try
             {
-                var imageEntry = zipFile.GetEntry(imageEntryName);
+                var imageEntry = zipArchiveEntries[imageEntryName];
                 if (imageEntry == null)
                     return false;
                 imageLocalFile.Directory.Create();
                 using (var imageInputStream = zipFile.GetInputStream(imageEntry))
-                using (var localImageFileStream = imageLocalFile.Create())
+                using (var localImageFileStream = imageLocalFile.Create().AsOutputByteStream())
                 {
                     imageInputStream.CopyTo(localImageFileStream, count => UpdateProgress());
                     return true;

@@ -1,7 +1,5 @@
-﻿using ICSharpCode.SharpZipLib.Zip;
-using System;
+﻿using System;
 using System.IO;
-using System.Linq;
 using Utility;
 using Utility.IO;
 using ZipUtility.ZipExtraField;
@@ -12,16 +10,15 @@ namespace ZipUtility
     public class ZipArchiveEntry
     {
         private ZipEntryCompressionMethod _compressionMethod;
-        private long _dataOffset;
         private bool? _dataIsOk;
 
-        internal ZipArchiveEntry(ZipEntry zipEntry, ZipEntryHeader internalHeader)
+        internal ZipArchiveEntry(ZipEntryHeader internalHeader, UInt64 localFileHeaderOrder, Int64 zipFileInstanceId)
         {
             Index = internalHeader.CentralDirectoryHeader.Index;
             IsDirectory = internalHeader.CentralDirectoryHeader.IsDirectiry;
             FullNameForPrimaryKey = internalHeader.LocalFileHeader.OriginalFullName;
 
-            Offset = internalHeader.CentralDirectoryHeader.LocalFileHeaderOffset;
+            LocalFileHeaderPosition = internalHeader.CentralDirectoryHeader.LocalFileHeaderPosition;
             Crc = internalHeader.CentralDirectoryHeader.Crc;
             Size = internalHeader.CentralDirectoryHeader.Size;
             PackedSize = internalHeader.CentralDirectoryHeader.PackedSize;
@@ -52,66 +49,42 @@ namespace ZipUtility
             CommentCanBeExpressedInUnicode = internalHeader.CentralDirectoryHeader.CommentCanBeExpressedInUnicode;
             CommentCanBeExpressedInStandardEncoding = internalHeader.CentralDirectoryHeader.CommentCanBeExpressedInStandardEncoding;
             _compressionMethod = internalHeader.LocalFileHeader.CompressionMethod.GetCompressionMethod(internalHeader.LocalFileHeader.GeneralPurposeBitFlag);
-            _dataOffset = internalHeader.LocalFileHeader.DataOffset;
+            DataPosition = internalHeader.LocalFileHeader.DataPosition;
             _dataIsOk = internalHeader.LocalFileHeader.IsCheckedCrc ? (bool?)true : null;
             if (HostSystem.IsAnyOf(ZipEntryHostSystem.FAT, ZipEntryHostSystem.VFAT, ZipEntryHostSystem.Windows_NTFS, ZipEntryHostSystem.OS2_HPFS))
             {
                 FullNameForPrimaryKey = FullNameForPrimaryKey.Replace(@"\", "/");
                 FullName = FullName.Replace(@"\", "/");
             }
-#if DEBUG
-        Func<DateTime?, DateTime?, bool> dateTimeEqualityComparer =
-                (dateTime1, dateTime2) =>
-                {
-                    if (dateTime1 == null)
-                        return dateTime2 == null;
-                    else if (dateTime2 == null)
-                        return false;
-                    else
-                        return dateTime1.Value.Equals(dateTime2.Value);
-                };
-            if (Offset != zipEntry.Offset)
-                throw new Exception();
-            if (Crc != zipEntry.Crc)
-                throw new Exception();
-            if (Size != zipEntry.Size)
-                throw new Exception();
-            if (PackedSize != zipEntry.CompressedSize)
-                throw new Exception();
-            if (FullNameForPrimaryKey != zipEntry.Name)
-                throw new Exception();
-            if ((UInt16)CompressionMethod != (UInt16)zipEntry.CompressionMethod)
-                throw new Exception();
-            if ((byte)HostSystem != (byte)zipEntry.HostSystem)
-                throw new Exception();
-            if ((UInt32)ExternalFileAttributes != (UInt32)zipEntry.ExternalFileAttributes)
-                throw new Exception();
-            if ((EntryTextEncoding == ZipEntryTextEncoding.UTF8Encoding) != zipEntry.IsUnicodeText)
-                throw new Exception();
-            if (internalHeader.LocalFileHeader.DosDateTime.HasValue && dateTimeEqualityComparer(internalHeader.LocalFileHeader.DosDateTime, internalHeader.CentralDirectoryHeader.DosDateTime) == false)
-                throw new Exception();
-            if (internalHeader.CentralDirectoryHeader.GeneralPurposeBitFlag != internalHeader.LocalFileHeader.GeneralPurposeBitFlag)
-                throw new Exception();
-            if (internalHeader.CentralDirectoryHeader.CompressionMethod != internalHeader.LocalFileHeader.CompressionMethod)
-                throw new Exception();
-            if (internalHeader.CentralDirectoryHeader.Crc != internalHeader.LocalFileHeader.Crc)
-                throw new Exception();
-            if (internalHeader.CentralDirectoryHeader.Size != internalHeader.LocalFileHeader.Size)
-                throw new Exception();
-            if (internalHeader.CentralDirectoryHeader.PackedSize != internalHeader.LocalFileHeader.PackedSize)
-                throw new Exception();
-            if (!internalHeader.CentralDirectoryHeader.FullNameBytes.SequenceEqual(internalHeader.LocalFileHeader.FullNameBytes))
-                throw new Exception();
-            if (!string.Equals(internalHeader.CentralDirectoryHeader.FullName, internalHeader.LocalFileHeader.FullName, StringComparison.Ordinal))
-                throw new Exception();
-            if (internalHeader.CentralDirectoryHeader.FullNameCanBeExpressedInUnicode != internalHeader.LocalFileHeader.FullNameCanBeExpressedInUnicode)
-                throw new Exception();
-            if (internalHeader.CentralDirectoryHeader.FullNameCanBeExpressedInStandardEncoding != internalHeader.LocalFileHeader.FullNameCanBeExpressedInStandardEncoding)
-                throw new Exception();
-#endif
+            ZipFileInstanceId = zipFileInstanceId;
         }
 
-        public long Index { get; }
+        /// <summary>
+        /// Order of appearance in central directory headers (0, 1, 2, ...)
+        /// </summary>
+        public ulong Index { get; }
+
+        /// <summary>
+        /// Order of appearance in local file headers (0, 1, 2, ...)
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// In most cases, sorting by the <see cref="Index"/> property and sorting by the <see cref="Order"/> property will be in the same order.
+        /// Use the <see cref="Index"/> property except for special purposes.
+        /// </para>
+        /// <para>
+        /// Sorting the entries by this property is rarely common.
+        /// However, for example, sorting by the <see cref="Order"/> property may be effective in the following cases.
+        /// </para>
+        /// <para>
+        /// 1) When decompressing multiple files included in ZIP continuously.
+        /// </para>
+        /// <para>
+        /// 2) If a particular file must be at the beginning of a ZIP file and you want to check if it meets that requirement (such as a ".epub" file)
+        /// </para>
+        /// </remarks>
+        public ulong Order { get; }
+
         public bool IsFile => !IsDirectory;
         public bool IsDirectory { get; }
 
@@ -122,10 +95,9 @@ namespace ZipUtility
         /// <see cref="FullNameForPrimaryKey"/>では拡張フィールドその他によるエンコーディングの判別を行っていないこと。
         /// </summary>
         public string FullNameForPrimaryKey { get; }
-        public long Offset { get; }
         public long Crc { get; }
-        public long Size { get; }
-        public long PackedSize { get; }
+        public ulong Size { get; }
+        public ulong PackedSize { get; }
         public ZipEntryCompressionMethodId CompressionMethod { get => _compressionMethod.CompressionMethodId; }
         public ZipEntryHostSystem HostSystem { get; }
         public UInt32 ExternalFileAttributes { get; }
@@ -174,7 +146,20 @@ namespace ZipUtility
             }
         }
 
-        internal void CheckData(Stream zipInputStream, Action<int> progressAction)
+        internal Int64 ZipFileInstanceId { get; }
+        internal ZipStreamPosition LocalFileHeaderPosition { get; }
+        internal ZipStreamPosition DataPosition { get; }
+
+        internal IInputByteStream<UInt64> GetInputStream(IZipInputStream zipFileStream)
+        {
+            return
+                _compressionMethod.GetInputStream(
+                    zipFileStream
+                        .AsPartial(DataPosition, PackedSize),
+                    Size);
+        }
+
+        internal void CheckData(IZipInputStream zipInputStream, Action<int> progressAction = null)
         {
             if (IsFile == false)
                 return;
@@ -184,7 +169,7 @@ namespace ZipUtility
                 throw new BadZipFileFormatException(string.Format("Bad entry data: index={0}, name=\"{1}\"", Index, FullName));
             try
             {
-                var actualCrc = _compressionMethod.GetInputStream(zipInputStream, _dataOffset, PackedSize, Size, true).GetByteSequence(progressAction: progressAction).CalculateCrc32();
+                var actualCrc = GetInputStream(zipInputStream).GetByteSequence(progressAction: progressAction).CalculateCrc32();
                 if (actualCrc != Crc)
                     throw
                         new BadZipFileFormatException(

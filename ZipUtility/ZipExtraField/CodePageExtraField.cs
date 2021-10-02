@@ -1,5 +1,6 @@
 ﻿using System;
 using Utility;
+using Utility.IO;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
@@ -34,7 +35,7 @@ namespace ZipUtility.ZipExtraField
             try
             {
                 CodePage = reader.ReadInt32LE();
-                if (reader.ReadToEnd().Length > 0)
+                if (reader.ReadAllBytes().Length > 0)
                     throw GetBadFormatException(headerType, data, index, count);
                 succes = true;
 

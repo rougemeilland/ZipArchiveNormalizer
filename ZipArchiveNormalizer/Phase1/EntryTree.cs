@@ -237,8 +237,9 @@ namespace ZipArchiveNormalizer.Phase1
         private static IEnumerable<IZipArchiveEntryComparer> _variousNodecomparers;
         private static IEnumerable<UInt16> _knownExtraFieldIds;
         private FileInfo _sourceArchiveFile;
+        private ZipArchiveFile _zipFile;
         private ArchiveType _archiveType;
-        private IEnumerable<ZipArchiveEntry> _sourceEntries;
+        private ZipArchiveEntryCollection _sourceEntries;
         private IEnumerable<EntryTreeNode> _rootEntries;
 
         static EntryTree()
@@ -313,19 +314,18 @@ namespace ZipArchiveNormalizer.Phase1
                 .ToReadOnlyCollection();
         }
 
-        private EntryTree(FileInfo sourceArchiveFile, ArchiveType archiveType, IEnumerable<ZipArchiveEntry> sourceEntries, IEnumerable<EntryTreeNode> rootEntries)
+        private EntryTree(FileInfo sourceArchiveFile, ZipArchiveFile zipFile, ArchiveType archiveType, ZipArchiveEntryCollection sourceEntries, IEnumerable<EntryTreeNode> rootEntries)
         {
             _sourceArchiveFile = sourceArchiveFile;
+            _zipFile = zipFile;
             _archiveType = archiveType;
-            _sourceEntries = sourceEntries.ToList();
+            _sourceEntries = sourceEntries;
             _rootEntries = rootEntries.ToList();
         }
 
-        public static EntryTree GetEntryTree(FileInfo archiveFile)
+        public static EntryTree GetEntryTree(FileInfo archiveFile, ZipArchiveFile zipFile)
         {
-            var entries =
-                archiveFile.EnumerateZipArchiveEntry()
-                .ToReadOnlyCollection();
+            var entries = zipFile.GetEntries();
 
             var archiveType = archiveFile.GetArchiveType(() => entries, entry => entry.FullName);
             if (archiveType == ArchiveType.Unknown)
@@ -333,6 +333,7 @@ namespace ZipArchiveNormalizer.Phase1
             return
                 new EntryTree(
                     archiveFile,
+                    zipFile,
                     archiveType,
                     entries,
                     BuildTree(
@@ -397,7 +398,7 @@ namespace ZipArchiveNormalizer.Phase1
                     _sourceEntries.FirstOrDefault(entry => entry.IsFile && entry.FullName == "mimetype");
                 if (foundMimeTypeEntry != null)
                 {
-                    if (!needToUpdate && foundMimeTypeEntry.Offset > 0)
+                    if (!needToUpdate && foundMimeTypeEntry.Order > 0)
                     {
                         RaiseInformationReportedEvent("mimetype エントリを先頭に移動します。");
                         needToUpdate = true;
@@ -472,7 +473,7 @@ namespace ZipArchiveNormalizer.Phase1
                 foreach (var currentEntry in EnumerateEntry().Where(entry => entry.SourceEntry != null))
                 {
                     if (previousEntry != null &&
-                        previousEntry.SourceEntry.Offset > currentEntry.SourceEntry.Offset)
+                        previousEntry.SourceEntry.Order > currentEntry.SourceEntry.Order)
                     {
                         RaiseInformationReportedEvent(string.Format("エントリの順番を最適化します。"));
                         needToUpdate = true;
@@ -629,12 +630,12 @@ namespace ZipArchiveNormalizer.Phase1
         {
 
             var fileTimeStamp = (DateTime?)null;
-            using (var sourceZipFile = new ZipFile(_sourceArchiveFile.FullName))
+            using (var sourceZipArchiveFile = _sourceArchiveFile.OpenAsZipFile())
             using (var newZipArchiveFileStream = new FileStream(destinationFile.FullName, FileMode.Create))
             using (var newZipArchiveOutputStream = new ZipOutputStream(newZipArchiveFileStream))
             {
                 // zip ファイルコメントの設定
-                newZipArchiveOutputStream.SetComment(sourceZipFile.ZipFileComment);
+                newZipArchiveOutputStream.SetComment(sourceZipArchiveFile.Comment);
 
                 foreach (var modifiedEntry in EnumerateEntry())
                 {
@@ -653,7 +654,7 @@ namespace ZipArchiveNormalizer.Phase1
 
                         // アーカイブファイルへの書き込み
                         newZipArchiveOutputStream.PutNextEntry(newEntry);
-                        using (var sourceZipArchiveInputStream = sourceZipFile.GetInputStream(modifiedEntry.SourceEntry))
+                        using (var sourceZipArchiveInputStream = sourceZipArchiveFile.GetInputStream(modifiedEntry.SourceEntry).AsStream())
                         {
                             sourceZipArchiveInputStream.CopyTo(newZipArchiveOutputStream, count => RaiseProgressUpdatedEvent());
                         }

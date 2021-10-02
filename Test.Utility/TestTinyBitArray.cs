@@ -72,7 +72,7 @@ namespace Test.Utility
                         Console.WriteLine(string.Format("TestTinyBitArray.TestFrom.FromUint16: 処理結果が一致しません。: value=0x{0:x4}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
                 });
 
-            new UInt32[] { 0, 1, 2, 3, 6, 0x80000000, 0x40000000, 0xc0000000, 0x60000000, 0xffffffff }
+            new UInt32[] { 0, 1, 2, 3, 6, 0x80000000, 0x40000000, 0xc0000000, 0x60000000, UInt32.MaxValue }
                 .SelectMany(value => Enumerable.Range(1, 31), (value, count) => new { value, count })
                 .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { item.value, item.count, direction })
                 .Select(item => new
@@ -160,7 +160,7 @@ namespace Test.Utility
                         Console.WriteLine(string.Format("TestTinyBitArray.TestToInteger.ToUint16: 処理結果が一致しません。: bitArray={0}, direction={1}, actual=0x{2:x4}, desired=0x{3:x4}", item.bitArray, item.direction, actual, item.desired));
                 });
 
-            new UInt32[] { 0, 1, 2, 3, 6, 0x80000000, 0x40000000, 0xc0000000, 0x60000000, 0xffffffff }
+            new UInt32[] { 0, 1, 2, 3, 6, 0x80000000, 0x40000000, 0xc0000000, 0x60000000, UInt32.MaxValue }
                 .SelectMany(value => Enumerable.Range(1, 31), (value, count) => new { value, count })
                 .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { item.value, item.count, direction })
                 .Select(item => new

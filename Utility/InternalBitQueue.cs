@@ -314,7 +314,7 @@ namespace Utility
             public void CopyTo(bool[] destinationArray, int destinationOffset)
             {
                 if (destinationArray == null)
-                    throw new ArgumentNullException("destinationArray");
+                    throw new ArgumentNullException(nameof(destinationArray));
                 if (destinationOffset < 0)
                     throw new IndexOutOfRangeException();
                 if (destinationOffset > destinationArray.Length)
@@ -329,7 +329,7 @@ namespace Utility
                 if (sourceOffset < 0)
                     throw new IndexOutOfRangeException();
                 if (destinationArray == null)
-                    throw new ArgumentNullException("destinationArray");
+                    throw new ArgumentNullException(nameof(destinationArray));
                 if (destinationOffset < 0)
                     throw new IndexOutOfRangeException();
                 if (count < 0)

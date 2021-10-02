@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Utility;
+using Utility.IO;
 using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField

@@ -47,67 +47,87 @@ namespace ZipArchiveNormalizer.Phase1
                 EventHandler<FileMessageReportedEventArgs> warningReportedEventHander = (s, e) => RaiseWarningReportedEvent(e.TargetFile, e.Message);
                 EventHandler<FileMessageReportedEventArgs> errorReportedEventHander = (s, e) => RaiseErrorReportedEvent(e.TargetFile, e.Message);
                 EventHandler<ProgressUpdatedEventArgs> progressUpdatedHander = (s, e) => UpdateProgress();
-                var entryTree = EntryTree.GetEntryTree(sourceFile);
-                entryTree.InformationReported += informationReportedEventHander;
-                entryTree.WarningReported += warningReportedEventHander;
-                entryTree.ErrorReported += errorReportedEventHander;
-                entryTree.ProgressUpdated += progressUpdatedHander;
+                FileInfo newZipFile = null;
                 try
                 {
-                    if (entryTree.ContainsEntryIncompatibleWithUnicode())
+                    using (var sourceZipFile = sourceFile.OpenAsZipFile())
                     {
-                        RaiseErrorReportedEvent(sourceFile, "このアプリケーションでは扱えない名前またはコメントを持つエントリがアーカイブファイルに含まれているため、無視します。");
-                        RaiseBadFileFoundEvent(sourceFile);
-                        return;
-                    }
+                        var entryTree = EntryTree.GetEntryTree(sourceFile, sourceZipFile);
+                        entryTree.InformationReported += informationReportedEventHander;
+                        entryTree.WarningReported += warningReportedEventHander;
+                        entryTree.ErrorReported += errorReportedEventHander;
+                        entryTree.ProgressUpdated += progressUpdatedHander;
+                        try
+                        {
+                            if (entryTree.ContainsEntryIncompatibleWithUnicode())
+                            {
+                                RaiseErrorReportedEvent(sourceFile, "このアプリケーションでは扱えない名前またはコメントを持つエントリがアーカイブファイルに含まれているため、無視します。");
+                                RaiseBadFileFoundEvent(sourceFile);
+                                return;
+                            }
 
-                    if (entryTree.ContainsAbsoluteEntryPathName())
-                    {
-                        RaiseErrorReportedEvent(sourceFile, "アーカイブファイルに絶対パスのエントリが含まれているため無視します。");
-                        RaiseBadFileFoundEvent(sourceFile);
-                        return;
-                    }
+                            if (entryTree.ContainsAbsoluteEntryPathName())
+                            {
+                                RaiseErrorReportedEvent(sourceFile, "アーカイブファイルに絶対パスのエントリが含まれているため無視します。");
+                                RaiseBadFileFoundEvent(sourceFile);
+                                return;
+                            }
 
-                    if (entryTree.ContainsDuplicateName())
-                    {
-                        RaiseErrorReportedEvent(sourceFile, "アーカイブファイルに重複したエントリが含まれているため無視します。");
-                        RaiseBadFileFoundEvent(sourceFile);
-                        return;
-                    }
+                            if (entryTree.ContainsDuplicateName())
+                            {
+                                RaiseErrorReportedEvent(sourceFile, "アーカイブファイルに重複したエントリが含まれているため無視します。");
+                                RaiseBadFileFoundEvent(sourceFile);
+                                return;
+                            }
 
-                    var needToUpdate = entryTree.Normalize();
-                    UpdateProgress();
+                            var needToUpdate = entryTree.Normalize();
+                            UpdateProgress();
 
-                    if (entryTree.IsEmpty)
-                    {
-                        sourceFile.Delete();
-                        RaiseInformationReportedEvent(sourceFile, "空のアーカイブファイルを削除します。");
-                        UpdateProgress();
-                        IncrementChangedFileCount();
+                            if (entryTree.IsEmpty)
+                            {
+                                sourceFile.Delete();
+                                RaiseInformationReportedEvent(sourceFile, "空のアーカイブファイルを削除します。");
+                                UpdateProgress();
+                                IncrementChangedFileCount();
+                            }
+                            else if (needToUpdate)
+                            {
+                                newZipFile = SaveEntryTreeToArchiveFile(sourceFile, entryTree);
+                                UpdateProgress();
+                                IncrementChangedFileCount();
+                                AddToDestinationFiles(sourceFile);
+                            }
+                            else
+                            {
+                                UpdateProgress();
+                                AddToDestinationFiles(sourceFile);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception(string.Format("アーカイブファイルの処理中に例外が発生しました。: \"{0}\"", sourceFile.FullName), ex);
+                        }
+                        finally
+                        {
+                            entryTree.InformationReported -= informationReportedEventHander;
+                            entryTree.WarningReported -= warningReportedEventHander;
+                            entryTree.ErrorReported -= errorReportedEventHander;
+                            entryTree.ProgressUpdated -= progressUpdatedHander;
+                        }
                     }
-                    else if (needToUpdate)
-                    {
-                        SaveEntryTreeToArchiveFile(sourceFile, entryTree);
-                        UpdateProgress();
-                        IncrementChangedFileCount();
-                        AddToDestinationFiles(sourceFile);
-                    }
-                    else
-                    {
-                        UpdateProgress();
-                        AddToDestinationFiles(sourceFile);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    throw new Exception(string.Format("アーカイブファイルの処理中に例外が発生しました。: \"{0}\"", sourceFile.FullName), ex);
                 }
                 finally
                 {
-                    entryTree.InformationReported -= informationReportedEventHander;
-                    entryTree.WarningReported -= warningReportedEventHander;
-                    entryTree.ErrorReported -= errorReportedEventHander;
-                    entryTree.ProgressUpdated -= progressUpdatedHander;
+                    if (newZipFile != null)
+                    {
+                        sourceFile.SendToRecycleBin();
+                        new FileInfo(newZipFile.FullName).MoveTo(sourceFile.FullName);
+#if DEBUG
+
+                        if (newZipFile.Exists)
+                            throw new Exception();
+#endif
+                    }
                 }
             }
             catch (IOException)
@@ -115,22 +135,14 @@ namespace ZipArchiveNormalizer.Phase1
             }
         }
 
-        private void SaveEntryTreeToArchiveFile(FileInfo sourceFile, EntryTree entryTree)
+        private FileInfo SaveEntryTreeToArchiveFile(FileInfo sourceFile, EntryTree entryTree)
         {
             var newArchiveFile = new FileInfo(Path.Combine(Path.GetDirectoryName(sourceFile.FullName), "." + Path.GetFileName(sourceFile.FullName) + ".temp"));
             try
             {
                 newArchiveFile.Delete();
                 entryTree.SaveTo(newArchiveFile);
-                sourceFile.SendToRecycleBin();
-                // MoveTo メソッドは FileInfo オブジェクトを改変してしまうため、
-                // 複製してから呼び出している
-                new FileInfo(newArchiveFile.FullName).MoveTo(sourceFile.FullName);
-#if DEBUG
-
-                if (newArchiveFile.Exists)
-                    throw new Exception();
-#endif
+                return newArchiveFile;
             }
             catch (Exception)
             {

@@ -38,7 +38,7 @@ namespace ZipUtility.ZipExtraField
             if (dateTime.Kind == DateTimeKind.Unspecified)
                 throw new Exception();
             var timeStamp = (dateTime.ToUniversalTime() - _baseTime).TotalSeconds;
-            if (timeStamp < Int32.MinValue || timeStamp > Int32.MaxValue)
+            if (timeStamp.IsBetween(Int32.MinValue, Int32.MaxValue) == false)
                 throw new OverflowException();
             return (Int32)timeStamp;
         }

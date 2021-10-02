@@ -15,7 +15,7 @@ namespace Utility
             public BitArraySequence(int bitCount)
             {
                 if (bitCount <= 0)
-                    throw new ArgumentException("'bitCount' must not be less than or equal to zero.", "bitCount");
+                    throw new ArgumentException("'bitCount' must not be less than or equal to zero.", nameof(bitCount));
                 _bitCount = bitCount;
             }
 

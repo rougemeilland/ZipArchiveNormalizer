@@ -16,24 +16,43 @@ namespace ZipArchiveNormalizer.Phase4
     {
         private class ZipArchiveFileSummary
         {
+            public ZipArchiveFileSummary(FileInfo file, ZipArchiveFile zipFile)
+            {
+                File = file;
+                var entries =
+                    zipFile.GetEntries()
+                    .Where(entry => entry.IsFile)
+                    .ToReadOnlyCollection();
+                TotalOfEntryCount = entries.Count;
+                TotalOfExtraFieldCount = entries.Sum(entry => (long)entry.ExtraFields.Count);
+                TotalOfEntryNameLength = entries.Sum(entry => (long)entry.FullName.Length);
+                NewestWriteTimeTicks = entries.Max(entry => entry.LastWriteTimeUtc?.Ticks ?? long.MinValue);
+            }
+
+            public FileInfo File { get; }
+            public int TotalOfEntryCount { get; }
+            public long TotalOfExtraFieldCount { get; }
+            public long TotalOfEntryNameLength { get; }
+            public long NewestWriteTimeTicks { get; }
+        }
+
+        private class ZipArchiveFileDetail
+        {
+            private ZipArchiveFile _zipFile;
             private IDictionary<long, IReadOnlyCollection<ZipArchiveEntry>> _entries;
 
-            public ZipArchiveFileSummary(FileInfo archiveFile)
+            public ZipArchiveFileDetail(FileInfo file, ZipArchiveFile zipFile)
             {
-                ArchiveFile = archiveFile;
+                File = file;
+                _zipFile = zipFile;
                 _entries =
-                    archiveFile
-                    .EnumerateZipArchiveEntry()
+                    zipFile.GetEntries()
                     .Where(entry => entry.IsFile)
                     .GroupBy(entry => entry.Crc)
                     .ToDictionary(g => g.Key, g => g.ToReadOnlyCollection());
-                TotalOfEntryCount = _entries.Values.Sum(item => item.Count);
-                TotalOfExtraFieldCount = _entries.Values.Sum(item => item.Sum(entry => (long)entry.ExtraFields.Count));
-                TotalOfEntryNameLength = _entries.Values.Sum(item => item.Sum(entry => (long)entry.FullName.Length));
-                NewestWriteTimeTicks = _entries.Values.Max(item => item.Max(entry => entry.LastWriteTimeUtc?.Ticks ?? long.MinValue));
             }
 
-            public FileInfo ArchiveFile { get; }
+            public FileInfo File { get; }
             public IEnumerable<long> Crcs => _entries.Keys;
 
             public IReadOnlyCollection<ZipArchiveEntry> FindEntriesByCrc(long crc)
@@ -46,10 +65,7 @@ namespace ZipArchiveNormalizer.Phase4
             }
 
             public bool ContainsCrc(long crc) => _entries.ContainsKey(crc);
-            public int TotalOfEntryCount { get; }
-            public long TotalOfExtraFieldCount { get; }
-            public long TotalOfEntryNameLength { get; }
-            public long NewestWriteTimeTicks { get; }
+            public IInputByteStream<UInt64> GetInputStream(ZipArchiveEntry entry) => _zipFile.GetInputStream(entry);
         }
 
         private class ZipArchiveFileSummaryImportanceComparer
@@ -79,7 +95,7 @@ namespace ZipArchiveNormalizer.Phase4
                         return c;
                     if ((c = x.NewestWriteTimeTicks.CompareTo(y.NewestWriteTimeTicks)) != 0)
                         return -c;
-                    return _fileImportanceComparer.Compare(x.ArchiveFile, y.ArchiveFile);
+                    return _fileImportanceComparer.Compare(x.File, y.File);
                 }
             }
         }
@@ -130,9 +146,12 @@ namespace ZipArchiveNormalizer.Phase4
                 .Select(file =>
                 {
                     SafetyCancellationCheck();
-                    var summary = new ZipArchiveFileSummary(file);
-                    UpdateProgress(totalCount, Interlocked.Increment(ref counrOfDone));
-                    return summary;
+                    using (var zipFile = file.OpenAsZipFile())
+                    {
+                        var summary = new ZipArchiveFileSummary(file, zipFile);
+                        UpdateProgress(totalCount, Interlocked.Increment(ref counrOfDone));
+                        return summary;
+                    }
                 })
                 .QuickSort(item => item, _zipArchiveFileSummaryImportanceComparer);
 
@@ -157,10 +176,13 @@ namespace ZipArchiveNormalizer.Phase4
                             }
                             try
                             {
-                                SearchSimilarFiles(
-                                    item.summary1,
-                                    item.summary2,
-                                    () => UpdateProgress());
+                                using (var zipFile1 = item.summary1.File.OpenAsZipFile())
+                                using (var zipFile2 = item.summary2.File.OpenAsZipFile())
+                                {
+                                    var detail1 = new ZipArchiveFileDetail(item.summary1.File, zipFile1);
+                                    var detail2 = new ZipArchiveFileDetail(item.summary2.File, zipFile2);
+                                    SearchSimilarFiles(detail1, detail2, () => UpdateProgress());
+                                }
                             }
                             catch (OperationCanceledException)
                             {
@@ -173,8 +195,8 @@ namespace ZipArchiveNormalizer.Phase4
                                         string.Format(
                                             "並列処理中に例外が発生しました。: 処理クラス={0}, 対象ファイル1=\"{1}\", 対象ファイル2=\"{2}\", message=\"{3}\", スタックトレース=>{4}",
                                             GetType().FullName,
-                                            item.summary1.ArchiveFile.FullName,
-                                            item.summary2.ArchiveFile.FullName,
+                                            item.summary1.File.FullName,
+                                            item.summary2.File.FullName,
                                             ex.Message,
                                             ex.StackTrace),
                                         ex);
@@ -187,25 +209,25 @@ namespace ZipArchiveNormalizer.Phase4
             }
             SafetyCancellationCheck();
             foreach (var archiveFileSummary in archiveFileSummaries)
-                AddToDestinationFiles(archiveFileSummary.ArchiveFile);
+                AddToDestinationFiles(archiveFileSummary.File);
         }
 
-        private void SearchSimilarFiles(ZipArchiveFileSummary summary1, ZipArchiveFileSummary summary2, Action progressUpdater)
+        private void SearchSimilarFiles(ZipArchiveFileDetail detail1, ZipArchiveFileDetail detail2, Action progressUpdater)
         {
             var crcAndEntryCount1 =
-                summary1.Crcs
-                .Select(crc => new { crc, entryCount = summary1.FindEntriesByCrc(crc).Count });
+                detail1.Crcs
+                .Select(crc => new { crc, entryCount = detail1.FindEntriesByCrc(crc).Count });
             var crcAndEntryCount2 =
-                summary2.Crcs
-                .Select(crc => new { crc, entryCount = summary2.FindEntriesByCrc(crc).Count });
+                detail2.Crcs
+                .Select(crc => new { crc, entryCount = detail2.FindEntriesByCrc(crc).Count });
             var equalCrcAndEntryCount =
                 crcAndEntryCount1.SequenceEqual(
                     crcAndEntryCount2,
                     crcAndEntryCount2.CreateEqualityComparer(
                         (x, y) => x.crc == y.crc && x.entryCount == y.entryCount,
                         x => x.crc.GetHashCode() ^ x.entryCount.GetHashCode()));
-            var result1 = CheckIfEntriesAreIncludedInOtherEntries(summary1, summary2, progressUpdater);
-            var result2 = CheckIfEntriesAreIncludedInOtherEntries(summary2, summary1, progressUpdater);
+            var result1 = CheckIfEntriesAreIncludedInOtherEntries(detail1, detail2, progressUpdater);
+            var result2 = CheckIfEntriesAreIncludedInOtherEntries(detail2, detail1, progressUpdater);
             if (result1 == EntriesContaininfType.ContansAndAllDataMatched)
             {
                 if (result2 == EntriesContaininfType.ContansAndAllDataMatched)
@@ -213,18 +235,18 @@ namespace ZipArchiveNormalizer.Phase4
                     if (equalCrcAndEntryCount)
                     {
                         RaiseWarningReportedEvent(
-                            summary1.ArchiveFile,
+                            detail1.File,
                             string.Format(
                                 "エントリ名を除いて、アーカイブに含まれるエントリがすべて別のアーカイブと完全に等しいです。(データの一致): \"{0}\"",
-                                summary2.ArchiveFile.FullName));
+                                detail2.File.FullName));
                     }
                     else
                     {
                         RaiseWarningReportedEvent(
-                            summary1.ArchiveFile,
+                            detail1.File,
                             string.Format(
                                 "エントリ名を除いて、アーカイブに含まれるエントリが全て別のアーカイブと完全に等しいです。(データの一致) どちらかに同じ内容のファイルが重複して存在しているかもしれません。: \"{0}\"",
-                                summary2.ArchiveFile.FullName));
+                                detail2.File.FullName));
                     }
                 }
                 else if (result2 == EntriesContaininfType.ContansAndOnlyCrcMatched)
@@ -232,27 +254,27 @@ namespace ZipArchiveNormalizer.Phase4
                     if (equalCrcAndEntryCount)
                     {
                         RaiseWarningReportedEvent(
-                            summary1.ArchiveFile,
+                            detail1.File,
                             string.Format(
                                 "エントリ名を除いて、アーカイブに含まれるエントリがすべて別のアーカイブとほぼ等しいです。(CRCの一致): \"{0}\"",
-                                summary2.ArchiveFile.FullName));
+                                detail2.File.FullName));
                     }
                     else
                     {
                         RaiseWarningReportedEvent(
-                            summary1.ArchiveFile,
+                            detail1.File,
                             string.Format(
                                 "エントリ名を除いて、アーカイブに含まれるエントリが全て別のアーカイブとほぼ等しいです。(CRCの一致) どちらかに同じ内容のファイルが重複して存在しているかもしれません。: \"{0}\"",
-                                summary2.ArchiveFile.FullName));
+                                detail2.File.FullName));
                     }
                 }
                 else
                 {
                     RaiseWarningReportedEvent(
-                        summary1.ArchiveFile,
+                        detail1.File,
                         string.Format(
                             "アーカイブに含まれるエントリがすべて別のアーカイブにも含まれています。(データの一致) エントリ名は異なるかもしれません。: \"{0}\"",
-                            summary2.ArchiveFile.FullName));
+                            detail2.File.FullName));
                 }
             }
             else if (result1 == EntriesContaininfType.ContansAndOnlyCrcMatched)
@@ -262,27 +284,27 @@ namespace ZipArchiveNormalizer.Phase4
                     if (equalCrcAndEntryCount)
                     {
                         RaiseWarningReportedEvent(
-                            summary1.ArchiveFile,
+                            detail1.File,
                             string.Format(
                                 "エントリ名を除いて、アーカイブに含まれるエントリがすべて別のアーカイブとほぼ等しいです。(CRCの一致): \"{0}\"",
-                                summary2.ArchiveFile.FullName));
+                                detail2.File.FullName));
                     }
                     else
                     {
                         RaiseWarningReportedEvent(
-                            summary1.ArchiveFile,
+                            detail1.File,
                             string.Format(
                                 "エントリ名を除いて、アーカイブに含まれるエントリが全て別のアーカイブとほぼ等しいです。(CRCの一致) どちらかに同じ内容のファイルが重複して存在しているかもしれません。: \"{0}\"",
-                                summary2.ArchiveFile.FullName));
+                                detail2.File.FullName));
                     }
                 }
                 else
                 {
                     RaiseWarningReportedEvent(
-                        summary1.ArchiveFile,
+                        detail1.File,
                         string.Format(
                             "アーカイブに含まれるエントリがすべて別のアーカイブにも含まれている可能性があります。(CRCの一致) エントリ名は異なるかもしれません。: \"{0}\"",
-                            summary2.ArchiveFile.FullName));
+                            detail2.File.FullName));
                 }
             }
             else
@@ -290,18 +312,18 @@ namespace ZipArchiveNormalizer.Phase4
                 if (result2 == EntriesContaininfType.ContansAndAllDataMatched)
                 {
                     RaiseWarningReportedEvent(
-                        summary2.ArchiveFile,
+                        detail2.File,
                         string.Format(
                             "アーカイブに含まれるエントリがすべて別のアーカイブにも含まれています。(データの一致) エントリ名は異なるかもしれません。: \"{0}\"",
-                            summary1.ArchiveFile.FullName));
+                            detail1.File.FullName));
                 }
                 else if (result2 == EntriesContaininfType.ContansAndOnlyCrcMatched)
                 {
                     RaiseWarningReportedEvent(
-                        summary2.ArchiveFile,
+                        detail2.File,
                         string.Format(
                             "アーカイブに含まれるエントリがすべて別のアーカイブにも含まれている可能性があります。(CRCの一致) エントリ名は異なるかもしれません。: \"{0}\"",
-                            summary1.ArchiveFile.FullName));
+                            detail1.File.FullName));
                 }
                 else
                 {
@@ -310,34 +332,30 @@ namespace ZipArchiveNormalizer.Phase4
             }
         }
 
-        private EntriesContaininfType CheckIfEntriesAreIncludedInOtherEntries(ZipArchiveFileSummary summary1, ZipArchiveFileSummary summary2, Action progressUpdater)
+        private EntriesContaininfType CheckIfEntriesAreIncludedInOtherEntries(ZipArchiveFileDetail detail1, ZipArchiveFileDetail detail2, Action progressUpdater)
         {
-            if (summary1.Crcs.All(crc => summary2.ContainsCrc(crc)) == false)
+            if (detail1.Crcs.All(crc => detail2.ContainsCrc(crc)) == false)
                 return EntriesContaininfType.NotContains;
-            if (summary1.Crcs.All(crc => EqualsArchiveFileEntryOfCrc(summary1, summary2, crc, progressUpdater) == true) == false)
+            if (detail1.Crcs.All(crc => EqualsArchiveFileEntryOfCrc(detail1, detail2, crc, progressUpdater) == true) == false)
                 return EntriesContaininfType.ContansAndOnlyCrcMatched;
             return EntriesContaininfType.ContansAndAllDataMatched;
         }
 
-        private bool? EqualsArchiveFileEntryOfCrc(ZipArchiveFileSummary summary1, ZipArchiveFileSummary summary2, long crc, Action progressUpdater)
+        private bool? EqualsArchiveFileEntryOfCrc(ZipArchiveFileDetail detail1, ZipArchiveFileDetail detail2, long crc, Action progressUpdater)
         {
             try
             {
                 SafetyCancellationCheck();
                 UpdateProgress();
-                var entries1 = summary1.FindEntriesByCrc(crc);
+                var entries1 = detail1.FindEntriesByCrc(crc);
                 if (!entries1.IsSingle())
                     return null;
-                var entries2 = summary2.FindEntriesByCrc(crc);
+                var entries2 = detail2.FindEntriesByCrc(crc);
                 if (!entries2.IsSingle())
                     return null;
-                using (var zipFile1 = new ZipFile(summary1.ArchiveFile.FullName))
-                using (var zipFile2 = new ZipFile(summary2.ArchiveFile.FullName))
-                {
-                    return
-                        zipFile1.GetInputStream(entries1.Single())
-                        .StreamBytesEqual(zipFile2.GetInputStream(entries2.Single()), progressNotification: count => UpdateProgress());
-                }
+                return
+                    detail1.GetInputStream(entries1.Single())
+                    .StreamBytesEqual(detail2.GetInputStream(entries2.Single()), progressNotification: count => UpdateProgress());
             }
             finally
             {

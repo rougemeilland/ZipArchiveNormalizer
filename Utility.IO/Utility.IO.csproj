@@ -43,21 +43,46 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BitInputStream.cs" />
-    <Compile Include="BitOutputStream.cs" />
+    <Compile Include="BufferedRandomInputStream.cs" />
     <Compile Include="BufferedInputStream.cs" />
+    <Compile Include="BufferedRandomOutputStream.cs" />
     <Compile Include="BufferedOutputStream.cs" />
-    <Compile Include="BufferedStream.cs" />
+    <Compile Include="ByteSequenceByByteStreamEnumerable.cs" />
+    <Compile Include="IBasicInputByteStream.cs" />
+    <Compile Include="IBasicOutputByteStream.cs" />
+    <Compile Include="ICodeProgress.cs" />
     <Compile Include="FifoBuffer.cs" />
     <Compile Include="FileExtensions.cs" />
     <Compile Include="IFifoWritable.cs" />
     <Compile Include="IFifoReadable.cs" />
-    <Compile Include="InputStream.cs" />
-    <Compile Include="OutputStream.cs" />
+    <Compile Include="IOutputBitStream.cs" />
+    <Compile Include="IInputBitStream.cs" />
+    <Compile Include="IRandomInputByteStream.cs" />
+    <Compile Include="IRandomOutputByteStream.cs" />
+    <Compile Include="IOutputByteStream.cs" />
+    <Compile Include="IInputByteStream.cs" />
+    <Compile Include="IReverseByteSequenceEnumeratorParameter.cs" />
+    <Compile Include="PartialRandomInputStream.cs" />
     <Compile Include="PartialInputStream.cs" />
+    <Compile Include="PartialRandomOutputStream.cs" />
     <Compile Include="PartialOutputStream.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RandomInputByteStreamByStream.cs" />
+    <Compile Include="RandomOutputByteStreamByStream.cs" />
+    <Compile Include="ReverseByteSequenceByByteStreamEnumerable.cs" />
+    <Compile Include="SequentialInputBitStreamBy.cs" />
+    <Compile Include="SequentialInputBitStreamByByteStream.cs" />
+    <Compile Include="SequentialInputBitStreamBySequence.cs" />
+    <Compile Include="SequentialInputByteStreamByBitStream.cs" />
+    <Compile Include="SequentialInputByteStreamBySequence.cs" />
+    <Compile Include="SequentialInputByteStreamByStream.cs" />
+    <Compile Include="SequentialOutputBitStreamByByteStream.cs" />
+    <Compile Include="SequentialOutputByteStreamByBitStream.cs" />
+    <Compile Include="SequentialOutputByteStreamByStream.cs" />
+    <Compile Include="StreamByInputByteStream.cs" />
+    <Compile Include="StreamByOutputByteStream.cs" />
     <Compile Include="StreamExtensions.cs" />
+    <Compile Include="UnexpectedEndOfStreamException.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Utility\Utility.csproj">

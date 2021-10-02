@@ -21,23 +21,29 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test.Utility", "Test.Utilit
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Support.CharacteristicZipFilesCollecter", "Support.CharacteristicZipFilesCollecter\Support.CharacteristicZipFilesCollecter.csproj", "{3F7CAC0E-F45A-4786-9D24-F0295EEC0622}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtility.Compression", "ZipUtility.Compression\ZipUtility.Compression.csproj", "{76B2AB24-3370-49C8-9DE4-225AB14A429E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtility.IO.Compression", "ZipUtility.IO.Compression\ZipUtility.IO.Compression.csproj", "{76B2AB24-3370-49C8-9DE4-225AB14A429E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtility.Compression.BZIP2", "ZipUtility.Compression.BZIP2\ZipUtility.Compression.BZIP2.csproj", "{15110153-FAAB-4514-A55D-06928F1927BF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtility.IO.Compression.BZIP2", "ZipUtility.IO.Compression.BZIP2\ZipUtility.IO.Compression.BZIP2.csproj", "{15110153-FAAB-4514-A55D-06928F1927BF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtility.Compression.Lzma", "ZipUtility.Compression.Lzma\ZipUtility.Compression.Lzma.csproj", "{E1EA8EFC-C510-4D89-8406-943F3F52E9FD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtility.IO.Compression.Lzma", "ZipUtility.IO.Compression.Lzma\ZipUtility.IO.Compression.Lzma.csproj", "{E1EA8EFC-C510-4D89-8406-943F3F52E9FD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtility.Compression.Deflate", "ZipUtility.Compression.Deflate\ZipUtility.Compression.Deflate.csproj", "{248BE4C5-7754-426D-A8D7-B7D31886CC0F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtility.IO.Compression.Deflate", "ZipUtility.IO.Compression.Deflate\ZipUtility.IO.Compression.Deflate.csproj", "{248BE4C5-7754-426D-A8D7-B7D31886CC0F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utility.IO", "Utility.IO\Utility.IO.csproj", "{1B07B24E-48AF-4A55-8B16-9936B2946372}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SevenZip.Lzma", "SevenZip.Lzma\SevenZip.Lzma.csproj", "{CC472154-944B-4E90-AF9B-DC06BCB629BC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test.ZipUtility.Compression", "Test.ZipUtility.Compression\Test.ZipUtility.Compression.csproj", "{889420C0-FB83-48F2-9215-7EB47DB51E10}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test.ZipUtility.IO.Compression", "Test.ZipUtility.IO.Compression\Test.ZipUtility.IO.Compression.csproj", "{889420C0-FB83-48F2-9215-7EB47DB51E10}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test.ZipUtility", "Test.ZipUtility\Test.ZipUtility.csproj", "{2B461D88-1B20-45F9-B2A4-9A6CC433E604}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test.Utility.IO", "Test.Utility.IO\Test.Utility.IO.csproj", "{97CE628D-2AF7-4531-97F3-9930D15557ED}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtility.IO", "ZipUtility.IO\ZipUtility.IO.csproj", "{75161237-3A27-4214-9C51-CE076EF19E33}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utility.IO.Compression.Lzma", "Utility.IO.Compression.Lzma\Utility.IO.Compression.Lzma.csproj", "{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utility.IO.Compression", "Utility.IO.Compression\Utility.IO.Compression.csproj", "{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -265,6 +271,42 @@ Global
 		{97CE628D-2AF7-4531-97F3-9930D15557ED}.Release|x64.Build.0 = Release|Any CPU
 		{97CE628D-2AF7-4531-97F3-9930D15557ED}.Release|x86.ActiveCfg = Release|Any CPU
 		{97CE628D-2AF7-4531-97F3-9930D15557ED}.Release|x86.Build.0 = Release|Any CPU
+		{75161237-3A27-4214-9C51-CE076EF19E33}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{75161237-3A27-4214-9C51-CE076EF19E33}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{75161237-3A27-4214-9C51-CE076EF19E33}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{75161237-3A27-4214-9C51-CE076EF19E33}.Debug|x64.Build.0 = Debug|Any CPU
+		{75161237-3A27-4214-9C51-CE076EF19E33}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{75161237-3A27-4214-9C51-CE076EF19E33}.Debug|x86.Build.0 = Debug|Any CPU
+		{75161237-3A27-4214-9C51-CE076EF19E33}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{75161237-3A27-4214-9C51-CE076EF19E33}.Release|Any CPU.Build.0 = Release|Any CPU
+		{75161237-3A27-4214-9C51-CE076EF19E33}.Release|x64.ActiveCfg = Release|Any CPU
+		{75161237-3A27-4214-9C51-CE076EF19E33}.Release|x64.Build.0 = Release|Any CPU
+		{75161237-3A27-4214-9C51-CE076EF19E33}.Release|x86.ActiveCfg = Release|Any CPU
+		{75161237-3A27-4214-9C51-CE076EF19E33}.Release|x86.Build.0 = Release|Any CPU
+		{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}.Debug|x64.Build.0 = Debug|Any CPU
+		{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}.Debug|x86.Build.0 = Debug|Any CPU
+		{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}.Release|x64.ActiveCfg = Release|Any CPU
+		{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}.Release|x64.Build.0 = Release|Any CPU
+		{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}.Release|x86.ActiveCfg = Release|Any CPU
+		{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}.Release|x86.Build.0 = Release|Any CPU
+		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Debug|x64.Build.0 = Debug|Any CPU
+		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Debug|x86.Build.0 = Debug|Any CPU
+		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Release|x64.ActiveCfg = Release|Any CPU
+		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Release|x64.Build.0 = Release|Any CPU
+		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Release|x86.ActiveCfg = Release|Any CPU
+		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

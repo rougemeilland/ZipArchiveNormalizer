@@ -17,18 +17,17 @@ namespace Test.Utility.IO
 
         private static void Test(BitPackingDirection packingDirection)
         {
-            var sourceBitStream = new BitInputStream(_testFile.OpenRead().GetByteSequence(true), packingDirection);
-
             using (var ms = new MemoryStream())
             {
-                using (var bitOutputStream = new BitOutputStream(ms, packingDirection, true))
+                using (var sourceBitStream = _testFile.OpenRead().AsInputByteStream().AsBitStream(packingDirection))
+                using (var bitOutputStream = ms.AsOutputByteStream().AsBitStream(packingDirection, true))
                 {
                     var bitCounts = new[] { 1, 3, 5, 7, 11 };
                     var count = 0;
                     while (true)
                     {
                         var bitCount = bitCounts[count];
-                        var bitArray = sourceBitStream.Read(bitCount);
+                        var bitArray = sourceBitStream.ReadBits(bitCount);
                         if (bitArray == null)
                             break;
                         bitOutputStream.Write(bitArray);

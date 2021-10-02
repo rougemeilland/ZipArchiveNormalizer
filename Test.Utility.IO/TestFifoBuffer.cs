@@ -37,7 +37,7 @@ namespace Test.Utility.IO
                 Task.Run(() =>
                 {
                     using (var inputStream = testFile.OpenRead())
-                    using (var outputStream = fifo.GetOutputStream(sync))
+                    using (var outputStream = fifo.GetOutputByteStream(sync))
                     {
                         var buffer = new byte[writerBufferSize];
                         while (true)
@@ -45,7 +45,7 @@ namespace Test.Utility.IO
                             var length = inputStream.Read(buffer, 0, buffer.Length);
                             if (length <= 0)
                                 break;
-                            outputStream.Write(buffer, 0, length);
+                            outputStream.Write(buffer.AsReadOnly(), 0, length);
                             if (waitOnOutput)
                                 Thread.Sleep(100);
                             Console.Write(".");
@@ -60,7 +60,7 @@ namespace Test.Utility.IO
                     var testData = testFile.ReadAllBytes();
                     var index = 0;
                     var buffer = new byte[readerBufferSize];
-                    using (var inputStream = fifo.GetInputStream())
+                    using (var inputStream = fifo.GetInputByteStream())
                     {
                         while (true)
                         {

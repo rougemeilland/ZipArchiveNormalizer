@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Utility;
+using Utility.IO;
 using ZipUtility;
 
 namespace ZipArchiveNormalizer
@@ -28,7 +29,10 @@ namespace ZipArchiveNormalizer
 
         public static ArchiveType GetArchiveType(this FileInfo file)
         {
-            return file.GetArchiveType(() => file.EnumerateZipArchiveEntry(), item => item.FullName);
+            using (var zipFile = file.OpenAsZipFile())
+            {
+                return file.GetArchiveType(() => zipFile.GetEntries(), item => item.FullName);
+            }
         }
 
         public static ArchiveType GetArchiveType<ELEMENT_T>(this FileInfo file, Func<IEnumerable<ELEMENT_T>> entriesGetter, Func<ELEMENT_T, string> entryNameSelecter)
@@ -68,15 +72,14 @@ namespace ZipArchiveNormalizer
             Directory.CreateDirectory(outputDirectoryPath);
             try
             {
-                using (var sourceZipFileInputStream = new FileStream(archiveFile.FullName, FileMode.Open, FileAccess.Read, FileShare.Read))
-                using (var sourceZipFile = new ZipFile(sourceZipFileInputStream, true))
+                using (var sourceZipFile = archiveFile.OpenAsZipFile())
                 {
-                    foreach (var sourceEntry in sourceZipFile.EnumerateZipArchiveEntry(sourceZipFileInputStream).Where(entry => entry.IsFile == true))
+                    foreach (var sourceEntry in  sourceZipFile.GetEntries().Where(entry => entry.IsFile == true))
                     {
                         var localFile = new FileInfo(Path.Combine(outputDirectoryPath, sourceEntry.GetRelativeLocalFilePath()));
                         localFile.Directory.Create();
                         using (var inputStream = sourceZipFile.GetInputStream(sourceEntry))
-                        using (var outputStream = localFile.Create())
+                        using (var outputStream = localFile.Create().AsOutputByteStream())
                         {
                             inputStream.CopyTo(outputStream);
                         }

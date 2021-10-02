@@ -172,7 +172,7 @@ namespace Utility
         public TinyBitArray Concat(TinyBitArray other)
         {
             if (other == null)
-                throw new ArgumentNullException("other");
+                throw new ArgumentNullException(nameof(other));
 
             var newBitArray = _bitArray.Clone();
             newBitArray.Enqueue(other._bitArray);
@@ -210,9 +210,9 @@ namespace Utility
         public static TinyBitArray operator +(TinyBitArray x, TinyBitArray y)
         {
             if (x == null)
-                throw new ArgumentNullException("x");
+                throw new ArgumentNullException(nameof(x));
             if (y == null)
-                throw new ArgumentNullException("y");
+                throw new ArgumentNullException(nameof(y));
             return x.Concat(y);
         }
 
@@ -223,7 +223,7 @@ namespace Utility
         public void CopyTo(bool[] destinationArray, int destinationOffset)
         {
             if (destinationArray == null)
-                throw new ArgumentNullException("destinationArray");
+                throw new ArgumentNullException(nameof(destinationArray));
             if (destinationOffset < 0)
                 throw new IndexOutOfRangeException();
             if (destinationOffset > destinationArray.Length)
@@ -238,7 +238,7 @@ namespace Utility
             if (sourceOffset < 0)
                 throw new IndexOutOfRangeException();
             if (destinationArray == null)
-                throw new ArgumentNullException("destinationArray");
+                throw new ArgumentNullException(nameof(destinationArray));
             if (destinationOffset < 0)
                 throw new IndexOutOfRangeException();
             if (count < 0)

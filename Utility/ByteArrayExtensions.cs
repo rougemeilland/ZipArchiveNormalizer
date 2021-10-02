@@ -438,6 +438,8 @@ namespace Utility
 
         public static UInt32 CalculateCrc32(this IEnumerable<byte> source) => _commonCrc32.Calculate(source);
         public static UInt32 CalculateCrc24(this IEnumerable<byte> source) => _crc24ForRadix64.Calculate(source);
+        public static UInt32 CalculateCrc32(this IEnumerable<byte> source, out ulong count) => _commonCrc32.Calculate(source, out count);
+        public static UInt32 CalculateCrc24(this IEnumerable<byte> source, out ulong count) => _crc24ForRadix64.Calculate(source, out count);
         public static IEnumerable<byte> GetSequenceWithCrc32(this IEnumerable<byte> source, ValueHolder<UInt32> result) => _commonCrc32.GetSequenceWithCrc(source, result);
         public static IEnumerable<byte> GetSequenceWithCrc24(this IEnumerable<byte> source, ValueHolder<UInt32> result) => _crc24ForRadix64.GetSequenceWithCrc(source, result);
 
@@ -629,12 +631,12 @@ namespace Utility
                 throw new Exception();
 #endif
             if (array == null)
-                throw new ArgumentNullException("array");
+                throw new ArgumentNullException(nameof(array));
             if (startIndex < 0)
                 throw new IndexOutOfRangeException();
             if (startIndex + sizeof(UInt16) > array.Length)
                 throw new IndexOutOfRangeException();
-            return (UInt16)(((UInt16)array[0] << 0) | ((UInt16)array[1] << 8));
+            return (UInt16)(((UInt16)array[startIndex + 0] << 0) | ((UInt16)array[startIndex + 1] << 8));
         }
 
         public static Int32 ToInt32LE(this IReadOnlyArray<byte> array, int startIndex) => (Int32)array.ToUInt32LE(startIndex);
@@ -646,16 +648,16 @@ namespace Utility
                 throw new Exception();
 #endif
             if (array == null)
-                throw new ArgumentNullException("array");
+                throw new ArgumentNullException(nameof(array));
             if (startIndex < 0)
                 throw new IndexOutOfRangeException();
             if (startIndex + sizeof(UInt32) > array.Length)
                 throw new IndexOutOfRangeException();
             return
-                ((UInt32)array[0] << 0) |
-                ((UInt32)array[1] << 8) |
-                ((UInt32)array[2] << 16) |
-                ((UInt32)array[3] << 24);
+                ((UInt32)array[startIndex + 0] << 00) |
+                ((UInt32)array[startIndex + 1] << 08) |
+                ((UInt32)array[startIndex + 2] << 16) |
+                ((UInt32)array[startIndex + 3] << 24);
         }
 
         public static Int64 ToInt64LE(this IReadOnlyArray<byte> array, int startIndex) => (Int64)array.ToUInt64LE(startIndex);
@@ -667,44 +669,217 @@ namespace Utility
                 throw new Exception();
 #endif
             if (array == null)
-                throw new ArgumentNullException("array");
+                throw new ArgumentNullException(nameof(array));
             if (startIndex < 0)
                 throw new IndexOutOfRangeException();
             if (startIndex + sizeof(UInt64) > array.Length)
                 throw new IndexOutOfRangeException();
             return
-                ((UInt64)array[0] << 0) |
-                ((UInt64)array[1] << 8) |
-                ((UInt64)array[2] << 16) |
-                ((UInt64)array[3] << 24) |
-                ((UInt64)array[4] << 32) |
-                ((UInt64)array[5] << 40) |
-                ((UInt64)array[6] << 48) |
-                ((UInt64)array[7] << 56);
+                ((UInt64)array[startIndex + 0] << 0) |
+                ((UInt64)array[startIndex + 1] << 8) |
+                ((UInt64)array[startIndex + 2] << 16) |
+                ((UInt64)array[startIndex + 3] << 24) |
+                ((UInt64)array[startIndex + 4] << 32) |
+                ((UInt64)array[startIndex + 5] << 40) |
+                ((UInt64)array[startIndex + 6] << 48) |
+                ((UInt64)array[startIndex + 7] << 56);
         }
 
-        public static float ToSingleLE(this IReadOnlyArray<byte> array, int startIndex)
+        public static float ToSingleLE(this IReadOnlyArray<byte> array, int startIndex) => array.GetRawArray().ToSingleLE(startIndex);
+        public static double ToDoubleLE(this IReadOnlyArray<byte> array, int startIndex) => array.GetRawArray().ToDoubleLE(startIndex);
+        public static Int16 ToInt16LE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt16LE(startIndex);
+        public static UInt16 ToUInt16LE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt16LE(startIndex);
+        public static Int32 ToInt32LE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt32LE(startIndex);
+        public static UInt32 ToUInt32LE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt32LE(startIndex);
+        public static Int64 ToInt64LE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt64LE(startIndex);
+        public static UInt64 ToUInt64LE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt64LE(startIndex);
+
+        public static Single ToSingleLE(this byte[] array, int startIndex)
         {
+#if DEBUG
+            if (sizeof(Single) != 4)
+                throw new Exception();
+#endif
             if (array == null)
-                throw new ArgumentNullException("array");
+                throw new ArgumentNullException(nameof(array));
             if (startIndex < 0)
                 throw new IndexOutOfRangeException();
+            if (startIndex + sizeof(Single) > array.Length)
+                throw new IndexOutOfRangeException();
             if (BitConverter.IsLittleEndian)
-                return BitConverter.ToSingle(array.DuplicateAsWritableArray(), startIndex);
+                return BitConverter.ToSingle(array, startIndex);
             else
-                return BitConverter.ToSingle(array.DuplicateAsWritableArray().ReverseArray(), startIndex);
+            {
+                return
+                    BitConverter.ToSingle(new[]
+                    {
+                        array[startIndex + 3],
+                        array[startIndex + 2],
+                        array[startIndex + 1],
+                        array[startIndex + 0],
+                    }, 0);
+            }
         }
 
-        public static double ToDoubleLE(this IReadOnlyArray<byte> array, int startIndex)
+        public static Double ToDoubleLE(this byte[] array, int startIndex)
         {
+#if DEBUG
+            if (sizeof(Double) != 8)
+                throw new Exception();
+#endif
             if (array == null)
-                throw new ArgumentNullException("array");
+                throw new ArgumentNullException(nameof(array));
             if (startIndex < 0)
                 throw new IndexOutOfRangeException();
+            if (startIndex + sizeof(Double) > array.Length)
+                throw new IndexOutOfRangeException();
             if (BitConverter.IsLittleEndian)
-                return BitConverter.ToDouble(array.DuplicateAsWritableArray(), startIndex);
+                return BitConverter.ToDouble(array, startIndex);
             else
-                return BitConverter.ToDouble(array.DuplicateAsWritableArray().ReverseArray(), startIndex);
+            {
+                return
+                    BitConverter.ToDouble(new[]
+                    {
+                        array[startIndex + 7],
+                        array[startIndex + 6],
+                        array[startIndex + 5],
+                        array[startIndex + 4],
+                        array[startIndex + 3],
+                        array[startIndex + 2],
+                        array[startIndex + 1],
+                        array[startIndex + 0],
+                    }, 0);
+            }
+        }
+
+        public static Int16 ToInt16BE(this IReadOnlyArray<byte> array, int startIndex) => (Int16)array.ToUInt16BE(startIndex);
+
+        public static UInt16 ToUInt16BE(this IReadOnlyArray<byte> array, int startIndex)
+        {
+#if DEBUG
+            if (sizeof(UInt16) != 2)
+                throw new Exception();
+#endif
+            if (array == null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new IndexOutOfRangeException();
+            if (startIndex + sizeof(UInt16) > array.Length)
+                throw new IndexOutOfRangeException();
+            return (UInt16)(((UInt16)array[0] << 8) | ((UInt16)array[1] << 0));
+        }
+
+        public static Int32 ToInt32BE(this IReadOnlyArray<byte> array, int startIndex) => (Int32)array.ToUInt32BE(startIndex);
+
+        public static UInt32 ToUInt32BE(this IReadOnlyArray<byte> array, int startIndex)
+        {
+#if DEBUG
+            if (sizeof(UInt32) != 4)
+                throw new Exception();
+#endif
+            if (array == null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new IndexOutOfRangeException();
+            if (startIndex + sizeof(UInt32) > array.Length)
+                throw new IndexOutOfRangeException();
+            return
+                ((UInt32)array[startIndex + 0] << 24) |
+                ((UInt32)array[startIndex + 1] << 16) |
+                ((UInt32)array[startIndex + 2] << 08) |
+                ((UInt32)array[startIndex + 3] << 00);
+        }
+
+        public static Int64 ToInt64BE(this IReadOnlyArray<byte> array, int startIndex) => (Int64)array.ToUInt64BE(startIndex);
+
+        public static UInt64 ToUInt64BE(this IReadOnlyArray<byte> array, int startIndex)
+        {
+#if DEBUG
+            if (sizeof(UInt64) != 8)
+                throw new Exception();
+#endif
+            if (array == null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new IndexOutOfRangeException();
+            if (startIndex + sizeof(UInt64) > array.Length)
+                throw new IndexOutOfRangeException();
+            return
+                ((UInt64)array[startIndex + 0] << 56) |
+                ((UInt64)array[startIndex + 1] << 48) |
+                ((UInt64)array[startIndex + 2] << 40) |
+                ((UInt64)array[startIndex + 3] << 32) |
+                ((UInt64)array[startIndex + 4] << 24) |
+                ((UInt64)array[startIndex + 5] << 16) |
+                ((UInt64)array[startIndex + 6] << 08) |
+                ((UInt64)array[startIndex + 7] << 00);
+        }
+
+        public static float ToSingleBE(this IReadOnlyArray<byte> array, int startIndex) => array.GetRawArray().ToSingleBE(startIndex);
+        public static double ToDoubleBE(this IReadOnlyArray<byte> array, int startIndex) => array.GetRawArray().ToDoubleBE(startIndex);
+        public static Int16 ToInt16BE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt16BE(startIndex);
+        public static UInt16 ToUInt16BE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt16BE(startIndex);
+        public static Int32 ToInt32BE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt32BE(startIndex);
+        public static UInt32 ToUInt32BE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt32BE(startIndex);
+        public static Int64 ToInt64BE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt64BE(startIndex);
+        public static UInt64 ToUInt64BE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt64BE(startIndex);
+
+        public static Single ToSingleBE(this byte[] array, int startIndex)
+        {
+#if DEBUG
+            if (sizeof(Single) != 4)
+                throw new Exception();
+#endif
+            if (array == null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new IndexOutOfRangeException();
+            if (startIndex + sizeof(Single) > array.Length)
+                throw new IndexOutOfRangeException();
+            if (BitConverter.IsLittleEndian)
+            {
+                return
+                    BitConverter.ToSingle(new[]
+                    {
+                        array[startIndex + 3],
+                        array[startIndex + 2],
+                        array[startIndex + 1],
+                        array[startIndex + 0],
+                    }, 0);
+            }
+            else
+                return BitConverter.ToSingle(array, startIndex);
+        }
+
+        public static Double ToDoubleBE(this byte[] array, int startIndex)
+        {
+#if DEBUG
+            if (sizeof(Double) != 8)
+                throw new Exception();
+#endif
+            if (array == null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new IndexOutOfRangeException();
+            if (startIndex + sizeof(Double) > array.Length)
+                throw new IndexOutOfRangeException();
+            if (BitConverter.IsLittleEndian)
+            {
+                return
+                    BitConverter.ToDouble(new[]
+                    {
+                        array[startIndex + 7],
+                        array[startIndex + 6],
+                        array[startIndex + 5],
+                        array[startIndex + 4],
+                        array[startIndex + 3],
+                        array[startIndex + 2],
+                        array[startIndex + 1],
+                        array[startIndex + 0],
+                    }, 0);
+            }
+            else
+                return BitConverter.ToDouble(array, startIndex);
         }
 
         public static string ToFriendlyString(this IReadOnlyArray<byte> value) => value.ToFriendlyString(0, value.Length);
@@ -713,7 +888,7 @@ namespace Utility
         public static string ToFriendlyString(this IReadOnlyArray<byte> array, int startIndex, int length)
         {
             if (array == null)
-                throw new ArgumentNullException("array");
+                throw new ArgumentNullException(nameof(array));
             if (startIndex < 0)
                 throw new IndexOutOfRangeException();
             if (startIndex > array.Length)
@@ -735,22 +910,10 @@ namespace Utility
             return sb.ToString();
         }
 
-        public static Int16 ToInt16LE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt16LE(startIndex);
-        public static UInt16 ToUInt16LE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt16LE(startIndex);
-        public static Int32 ToInt32LE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt32LE(startIndex);
-        public static UInt32 ToUInt32LE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt32LE(startIndex);
-        public static Int64 ToInt64LE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt64LE(startIndex);
-        public static UInt64 ToUInt64LE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt64LE(startIndex);
-        public static float ToSingleLE(this byte[] array, int startIndex) => array.AsReadOnly().ToSingleLE(startIndex);
-        public static double ToDoubleLE(this byte[] array, int startIndex) => array.AsReadOnly().ToDoubleLE(startIndex);
         public static string ToFriendlyString(this byte[] array) => array.AsReadOnly().ToFriendlyString();
         public static string ToFriendlyString(this byte[] array, int startIndex) => array.AsReadOnly().ToFriendlyString(startIndex);
         public static string ToFriendlyString(this byte[] array, int startIndex, int length) => array.AsReadOnly().ToFriendlyString(startIndex, length);
-
-        public static Encoding GuessWhichEncoding(this byte[] bytes)
-        {
-            return bytes.AsReadOnly().GuessWhichEncoding();
-        }
+        public static Encoding GuessWhichEncoding(this byte[] bytes) => bytes.AsReadOnly().GuessWhichEncoding();
 
         public static Encoding GuessWhichEncoding(this IReadOnlyArray<byte> bytes)
         {

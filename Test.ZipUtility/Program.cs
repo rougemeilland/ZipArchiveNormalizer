@@ -7,8 +7,8 @@ namespace Test.ZipUtility
     {
         static void Main(string[] args)
         {
-            TestDataFile.Create(new DirectoryInfo(@"D:\テストデータ"));
-            //ValidationOfZipFile.Test(args);
+            //TestDataFile.Create(new DirectoryInfo(@"D:\テストデータ"));
+            ValidationOfZipFile.Test(args);
             Console.WriteLine();
             Console.WriteLine("OK");
             Console.Beep();

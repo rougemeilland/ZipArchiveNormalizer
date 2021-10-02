@@ -40,9 +40,9 @@ namespace ZipArchiveNormalizer.Phase0
         {
             try
             {
-                using (var zipFileBaseStream = new FileStream(sourceFile.FullName, FileMode.Open, FileAccess.Read, FileShare.Read))
+                using (var zipFile = sourceFile.OpenAsZipFile())
                 {
-                    foreach (var entry in zipFileBaseStream.EnumerateZipArchiveEntry())
+                    foreach (var entry in zipFile.GetEntries())
                     {
                         UpdateProgress();
                         var extraFieldIds =

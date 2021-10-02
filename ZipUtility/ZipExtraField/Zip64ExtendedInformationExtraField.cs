@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using Utility;
+using Utility.IO;
 using ZipUtility.Helper;
 using ZipUtility.ZipFileHeader;
 
@@ -12,9 +13,9 @@ namespace ZipUtility.ZipExtraField
         private ZipEntryHeaderType _headerType;
         private IReadOnlyArray<byte> _buffer;
         private IZip64ExtendedInformationExtraFieldValueSource _headerSource;
-        private Int64? _internalSize;
-        private Int64? _internalPackedSize;
-        private Int64? _internalRelatiiveHeaderOffset;
+        private UInt64? _internalSize;
+        private UInt64? _internalPackedSize;
+        private UInt64? _internalRelatiiveHeaderOffset;
         private UInt32? _inernalDiskStartNumber;
 
         protected Zip64ExtendedInformationExtraField(ZipEntryHeaderType headerType)
@@ -65,7 +66,7 @@ namespace ZipUtility.ZipExtraField
             _internalRelatiiveHeaderOffset.HasValue ||
             _inernalDiskStartNumber.HasValue;
 
-        protected Int64 InternalSize
+        protected UInt64 InternalSize
         {
             get
             {
@@ -102,7 +103,7 @@ namespace ZipUtility.ZipExtraField
             }
         }
 
-        protected Int64 InternalPackedSize
+        protected UInt64 InternalPackedSize
         {
             get
             {
@@ -139,7 +140,7 @@ namespace ZipUtility.ZipExtraField
             }
         }
 
-        protected Int64 InternalRelativeHeaderOffset
+        protected UInt64 InternalRelativeHeaderOffset
         {
             get
             {
@@ -248,7 +249,7 @@ namespace ZipUtility.ZipExtraField
                 try
                 {
                     SetData(reader, (UInt16)_buffer.Length);
-                    if (reader.ReadToEnd().Length > 0)
+                    if (reader.ReadAllBytes().Length > 0)
                         throw GetBadFormatException(_headerType, _buffer, 0, _buffer.Length);
                     success = true;
                 }

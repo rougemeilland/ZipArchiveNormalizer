@@ -1,27 +1,42 @@
-﻿using ICSharpCode.SharpZipLib.Zip;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
+using System.Text.RegularExpressions;
+using Utility;
+using Utility.IO;
 
 namespace ZipUtility
 {
     public static class FileExtensions
     {
+        private static Regex _sevenZipMultiVolumeZipFileNamePattern;
+        private static Regex _generalMultiVolumeZipFileNamePattern;
+
+        static FileExtensions()
+        {
+            _sevenZipMultiVolumeZipFileNamePattern = new Regex(@"^(?<body>[^\\/]+\.zip)\.[0-9]{3,}$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            _generalMultiVolumeZipFileNamePattern = new Regex(@"^(?<body>[^\\/]+)\.zip$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
+
         public static ZipFileCheckResult CheckZipFile(this FileInfo file, Action<string> detailAction = null, Action progressAction = null)
         {
             try
             {
-                progressAction();
-                using (var zipInputStream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.RandomAccess))
-                {
+                if (progressAction != null)
                     progressAction();
-                    foreach (var entry in zipInputStream.EnumerateZipArchiveEntry())
+                var entryCount = 0UL;
+                using (var zipFile = file.OpenAsZipFile())
+                {
+                    if (progressAction != null)
+                        progressAction();
+                    foreach (var entry in zipFile.GetEntries())
                     {
-                        entry.CheckData(zipInputStream, progressAction != null ? count => progressAction() : (Action<int>)null);
+                        zipFile.CheckEntry(entry, progressAction != null ? count => progressAction() : (Action<int>)null);
+                        ++entryCount;
                         progressAction();
                     }
                 }
+                detailAction(string.Format("entry count={0}", entryCount));
                 return  ZipFileCheckResult.Ok;
             }
             catch (EncryptedZipFileNotSupportedException ex)
@@ -50,38 +65,74 @@ namespace ZipUtility
             }
         }
 
-        public static IEnumerable<ZipEntry> EnumerateZipEntry(this FileInfo zipFileInfo)
+        public static ZipArchiveFile OpenAsZipFile(this FileInfo sourceFile)
         {
-            using (var zipInputStream = new FileStream(zipFileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read))
+            var sourceStream = GetSourceStreamByFileNamePattern(sourceFile);
+            while (true)
             {
-                return zipInputStream.EnumerateZipEntry();
+                var success = false;
+                try
+                {
+                    var zipFile = ZipArchiveFile.Parse(sourceStream);
+                    success = true;
+                    return zipFile;
+                }
+                catch (MultiVolumeDetectedException ex)
+                {
+                    sourceStream.Dispose();
+                    var lastDiskNumber = ex.LastDiskNumber;
+                    sourceStream = GetSourceStreamByLastDiskNumber(sourceFile, lastDiskNumber);
+                }
+                finally
+                {
+                    if (!success)
+                        sourceStream.Dispose();
+                }
             }
         }
 
-        public static IEnumerable<ZipEntry> EnumerateZipEntry(this Stream zipInputStream)
+        private static IZipInputStream GetSourceStreamByFileNamePattern(FileInfo sourceFile)
         {
-            using (var zipFile = new ZipFile(zipInputStream, true))
+            var match = _sevenZipMultiVolumeZipFileNamePattern.Match(sourceFile.Name);
+            if (match.Success)
             {
-                return zipFile.Cast<ZipEntry>().ToList();
+                var body = match.Groups["body"].Value;
+                var files = new List<FileInfo>();
+                for (var index = 1UL; index <= (UInt64)UInt32.MaxValue; ++index)
+                {
+                    var file = new FileInfo(Path.Combine(sourceFile.DirectoryName, string.Format("{0}.{1:D3}", body, index)));
+                    if (!file.Exists)
+                        break;
+                    files.Add(file);
+                }
+                return GetMultiVolumeInputStream(files.ToArray().AsReadOnly());
             }
+            else
+                return new SingleVolumeZipInputStream( sourceFile);
         }
 
-        public static IEnumerable<ZipArchiveEntry> EnumerateZipArchiveEntry(this FileInfo zipFileInfo)
+        private static IZipInputStream GetSourceStreamByLastDiskNumber(FileInfo sourceFile, UInt32 lastDiskNumber)
         {
-            using (var zipInputStream = new FileStream(zipFileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read))
+            var match = _generalMultiVolumeZipFileNamePattern.Match(sourceFile.Name);
+            if (!match.Success)
+                throw new NotSupportedSpecificationException("Unknown format as multi-volume ZIP file.");
+            var body = match.Groups["body"].Value;
+            var files = new List<FileInfo>();
+            for (var index = 1U; index < lastDiskNumber; ++index)
             {
-                return zipInputStream.EnumerateZipArchiveEntry();
+
+                var file = new FileInfo(Path.Combine(sourceFile.DirectoryName, string.Format("{0}.z{1:D2}", body, index)));
+                if (!file.Exists)
+                    throw new BadZipFileFormatException("There is a missing disk in a multi-volume ZIP file.");
+                files.Add(file);
             }
+            files.Add(sourceFile);
+            return GetMultiVolumeInputStream(files.ToArray().AsReadOnly());
         }
 
-        public static IEnumerable<ZipArchiveEntry> EnumerateZipArchiveEntry(this Stream zipInputStream)
+        private static IZipInputStream GetMultiVolumeInputStream(IReadOnlyArray<FileInfo> disks)
         {
-            using (var zipFile = new ZipFile(zipInputStream, true))
-            {
-                return
-                    zipFile.EnumerateZipEntry()
-                    .EnumerateZipArchiveEntry(zipInputStream);
-            }
+            throw new NotSupportedSpecificationException("Not supported \"Multi-Volume Zip File\".");
         }
     }
 }

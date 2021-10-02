@@ -2,9 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Utility;
 using Utility.FileWorker;
-using ZipUtility;
 using ZipUtility.ZipExtraField;
 
 namespace Support.CharacteristicZipFilesCollecter
@@ -66,33 +66,15 @@ namespace Support.CharacteristicZipFilesCollecter
                             _ok_hugeFile = true;
                         }
                     }
-                    foreach (var entry in sourceFile.EnumerateZipEntry())
+                    using (var zipFile = new ZipFile(sourceFile.FullName))
                     {
-                        if (((GeneralBitFlags)entry.Flags).HasFlag(GeneralBitFlags.Descriptor))
+                        foreach (var entry in zipFile.Cast<ZipEntry>())
                         {
-                            var targetFilePath = Path.Combine(@"D:\テストデータ", "データディスクリプタがあるZIPファイル.zip");
-                            lock (this)
+                            if (((GeneralBitFlags)entry.Flags).HasFlag(GeneralBitFlags.Descriptor))
                             {
-                                if (!File.Exists(targetFilePath))
-                                {
-                                    File.Delete(targetFilePath);
-                                    sourceFile.CopyTo(targetFilePath);
-                                    File.SetAttributes(targetFilePath, FileAttributes.ReadOnly);
-                                    RaiseInformationReportedEvent(
-                                        sourceFile,
-                                        string.Format("ファイルを見つけました。: {0}",
-                                            Path.GetFileNameWithoutExtension(targetFilePath)));
-                                }
-                                _ok_dataDescriptor = true;
-                            }
-                        }
-                        using (var extraData = new ZipExtraData(entry.ExtraData))
-                        {
-                            if (extraData.Find(1) || entry.Size > UInt32.MaxValue)
-                            {
+                                var targetFilePath = Path.Combine(@"D:\テストデータ", "データディスクリプタがあるZIPファイル.zip");
                                 lock (this)
                                 {
-                                    var targetFilePath = Path.Combine(@"D:\テストデータ", "Z64形式のZIPファイル.zip");
                                     if (!File.Exists(targetFilePath))
                                     {
                                         File.Delete(targetFilePath);
@@ -103,17 +85,16 @@ namespace Support.CharacteristicZipFilesCollecter
                                             string.Format("ファイルを見つけました。: {0}",
                                                 Path.GetFileNameWithoutExtension(targetFilePath)));
                                     }
-                                    _ok_zip64 = true;
+                                    _ok_dataDescriptor = true;
                                 }
                             }
-                            if (extraData.Find(0x5455) && !extraData.Find(10))
+                            using (var extraData = new ZipExtraData(entry.ExtraData))
                             {
-                                var unix = extraData.GetData<ExtendedUnixData>();
-                                if (unix.Include == (ExtendedUnixData.Flags.AccessTime | ExtendedUnixData.Flags.CreateTime | ExtendedUnixData.Flags.ModificationTime))
+                                if (extraData.Find(1) || entry.Size > UInt32.MaxValue)
                                 {
                                     lock (this)
                                     {
-                                        var targetFilePath = Path.Combine(@"D:\テストデータ", "UNIXタイムスタンプがあるZIPファイル.zip");
+                                        var targetFilePath = Path.Combine(@"D:\テストデータ", "Z64形式のZIPファイル.zip");
                                         if (!File.Exists(targetFilePath))
                                         {
                                             File.Delete(targetFilePath);
@@ -124,54 +105,36 @@ namespace Support.CharacteristicZipFilesCollecter
                                                 string.Format("ファイルを見つけました。: {0}",
                                                     Path.GetFileNameWithoutExtension(targetFilePath)));
                                         }
-                                        _ok_UT = true;
+                                        _ok_zip64 = true;
                                     }
                                 }
-                            }
-                            if (extraData.Find(10) && !extraData.Find(0x5455))
-                            {
-                                lock (this)
+                                if (extraData.Find(0x5455) && !extraData.Find(10))
                                 {
-                                    var targetFilePath = Path.Combine(@"D:\テストデータ", "NTFSタイムスタンプがあるZIPファイル.zip");
-                                    if (!File.Exists(targetFilePath))
+                                    var unix = extraData.GetData<ExtendedUnixData>();
+                                    if (unix.Include == (ExtendedUnixData.Flags.AccessTime | ExtendedUnixData.Flags.CreateTime | ExtendedUnixData.Flags.ModificationTime))
                                     {
-                                        File.Delete(targetFilePath);
-                                        sourceFile.CopyTo(targetFilePath);
-                                        File.SetAttributes(targetFilePath, FileAttributes.ReadOnly);
-                                        RaiseInformationReportedEvent(
-                                            sourceFile,
-                                            string.Format("ファイルを見つけました。: {0}",
-                                                Path.GetFileNameWithoutExtension(targetFilePath)));
+                                        lock (this)
+                                        {
+                                            var targetFilePath = Path.Combine(@"D:\テストデータ", "UNIXタイムスタンプがあるZIPファイル.zip");
+                                            if (!File.Exists(targetFilePath))
+                                            {
+                                                File.Delete(targetFilePath);
+                                                sourceFile.CopyTo(targetFilePath);
+                                                File.SetAttributes(targetFilePath, FileAttributes.ReadOnly);
+                                                RaiseInformationReportedEvent(
+                                                    sourceFile,
+                                                    string.Format("ファイルを見つけました。: {0}",
+                                                        Path.GetFileNameWithoutExtension(targetFilePath)));
+                                            }
+                                            _ok_UT = true;
+                                        }
                                     }
-                                    _ok_NTFS = true;
                                 }
-                            }
-                            if (extraData.Find(0x4453))
-                            {
-                                lock (this)
-                                {
-                                    var targetFilePath = Path.Combine(@"D:\テストデータ", "WindowsセキュリティディスクリプタがあるZIPファイル.zip");
-                                    if (!File.Exists(targetFilePath))
-                                    {
-                                        File.Delete(targetFilePath);
-                                        sourceFile.CopyTo(targetFilePath);
-                                        File.SetAttributes(targetFilePath, FileAttributes.ReadOnly);
-                                        RaiseInformationReportedEvent(
-                                            sourceFile,
-                                            string.Format("ファイルを見つけました。: {0}",
-                                                Path.GetFileNameWithoutExtension(targetFilePath)));
-                                    }
-                                    _ok_SD = true;
-                                }
-                            }
-                            if (extraData.Find(0x7075))
-                            {
-                                var extraField = extraData.GetData<UnicodePathExtraField>();
-                                if (extraField != null && !string.Equals(entry.Name, extraField.FullName, StringComparison.OrdinalIgnoreCase))
+                                if (extraData.Find(10) && !extraData.Find(0x5455))
                                 {
                                     lock (this)
                                     {
-                                        var targetFilePath = Path.Combine(@"D:\テストデータ", "UNICODEパス拡張があるZIPファイル.zip");
+                                        var targetFilePath = Path.Combine(@"D:\テストデータ", "NTFSタイムスタンプがあるZIPファイル.zip");
                                         if (!File.Exists(targetFilePath))
                                         {
                                             File.Delete(targetFilePath);
@@ -182,22 +145,62 @@ namespace Support.CharacteristicZipFilesCollecter
                                                 string.Format("ファイルを見つけました。: {0}",
                                                     Path.GetFileNameWithoutExtension(targetFilePath)));
                                         }
-                                        _ok_up = true;
+                                        _ok_NTFS = true;
+                                    }
+                                }
+                                if (extraData.Find(0x4453))
+                                {
+                                    lock (this)
+                                    {
+                                        var targetFilePath = Path.Combine(@"D:\テストデータ", "WindowsセキュリティディスクリプタがあるZIPファイル.zip");
+                                        if (!File.Exists(targetFilePath))
+                                        {
+                                            File.Delete(targetFilePath);
+                                            sourceFile.CopyTo(targetFilePath);
+                                            File.SetAttributes(targetFilePath, FileAttributes.ReadOnly);
+                                            RaiseInformationReportedEvent(
+                                                sourceFile,
+                                                string.Format("ファイルを見つけました。: {0}",
+                                                    Path.GetFileNameWithoutExtension(targetFilePath)));
+                                        }
+                                        _ok_SD = true;
+                                    }
+                                }
+                                if (extraData.Find(0x7075))
+                                {
+                                    var extraField = extraData.GetData<UnicodePathExtraField>();
+                                    if (extraField != null && !string.Equals(entry.Name, extraField.FullName, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        lock (this)
+                                        {
+                                            var targetFilePath = Path.Combine(@"D:\テストデータ", "UNICODEパス拡張があるZIPファイル.zip");
+                                            if (!File.Exists(targetFilePath))
+                                            {
+                                                File.Delete(targetFilePath);
+                                                sourceFile.CopyTo(targetFilePath);
+                                                File.SetAttributes(targetFilePath, FileAttributes.ReadOnly);
+                                                RaiseInformationReportedEvent(
+                                                    sourceFile,
+                                                    string.Format("ファイルを見つけました。: {0}",
+                                                        Path.GetFileNameWithoutExtension(targetFilePath)));
+                                            }
+                                            _ok_up = true;
+                                        }
                                     }
                                 }
                             }
-                        }
-                        UpdateProgress();
-                        if (_ok_hugeFile &&
-                            _ok_dataDescriptor &&
-                            _ok_zip64 &&
-                            _ok_UT &&
-                            _ok_SD &&
-                            _ok_up &&
-                            _ok_NTFS)
-                        {
-                            RaiseErrorReportedEvent("収集を完了したので捜索を中断します。");
-                            Abort();
+                            UpdateProgress();
+                            if (_ok_hugeFile &&
+                                _ok_dataDescriptor &&
+                                _ok_zip64 &&
+                                _ok_UT &&
+                                _ok_SD &&
+                                _ok_up &&
+                                _ok_NTFS)
+                            {
+                                RaiseErrorReportedEvent("収集を完了したので捜索を中断します。");
+                                Abort();
+                            }
                         }
                     }
                 }

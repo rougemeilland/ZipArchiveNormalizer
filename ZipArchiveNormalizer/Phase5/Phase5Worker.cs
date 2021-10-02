@@ -67,7 +67,7 @@ namespace ZipArchiveNormalizer.Phase5
                 var entry = zipFile.GetEntry("mimetype");
                 if (entry == null)
                     return sourceFile.Extension;
-                using (var inputStream = zipFile.GetInputStream(entry))
+                using (var inputStream = zipFile.GetInputStream(entry).AsInputByteStream())
                 {
                     var text = Encoding.ASCII.GetString(inputStream.ReadAllBytes());
                     return text == _epubMediaType ? ".epub" : sourceFile.Extension;

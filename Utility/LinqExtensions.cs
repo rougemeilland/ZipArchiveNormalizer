@@ -259,9 +259,9 @@ namespace Utility
             where KEY_T : IComparable<KEY_T>
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             if (keySekecter == null)
-                throw new ArgumentNullException("keySekecter");
+                throw new ArgumentNullException(nameof(keySekecter));
             source.QuickSort(keySekecter, 0, source.Length - 1);
 #if DEBUG
             for (int index = 0; index < source.Length - 1; index++)
@@ -276,11 +276,11 @@ namespace Utility
         public static ELEMENT_T[] QuickSort<ELEMENT_T, KEY_T>(this ELEMENT_T[] source, Func<ELEMENT_T, KEY_T> keySekecter, IComparer<KEY_T> keyComparer)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             if (keySekecter == null)
-                throw new ArgumentNullException("keySekecter");
+                throw new ArgumentNullException(nameof(keySekecter));
             if (keyComparer == null)
-                throw new ArgumentNullException("keyComparer");
+                throw new ArgumentNullException(nameof(keyComparer));
             source.QuickSort(keySekecter, keyComparer, 0, source.Length - 1);
 #if DEBUG
             for (int index = 0; index < source.Length - 1; index++)
@@ -296,9 +296,9 @@ namespace Utility
             where KEY_T : IComparable<KEY_T>
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             if (keySekecter == null)
-                throw new ArgumentNullException("keySekecter");
+                throw new ArgumentNullException(nameof(keySekecter));
             var array = source.ToArray();
             array.QuickSort(keySekecter, 0, array.Length - 1);
             return array.AsReadOnly();
@@ -307,11 +307,11 @@ namespace Utility
         public static IReadOnlyArray<ELEMENT_T> QuickSort<ELEMENT_T, KEY_T>(this IEnumerable<ELEMENT_T> source, Func<ELEMENT_T, KEY_T> keySekecter, IComparer<KEY_T> keyComparer)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             if (keySekecter == null)
-                throw new ArgumentNullException("keySekecter");
+                throw new ArgumentNullException(nameof(keySekecter));
             if (keyComparer == null)
-                throw new ArgumentNullException("keyComparer");
+                throw new ArgumentNullException(nameof(keyComparer));
             var array = source.ToArray();
             array.QuickSort(keySekecter, keyComparer, 0, array.Length - 1);
             return array.AsReadOnly();
@@ -320,39 +320,39 @@ namespace Utility
         public static bool None<ELEMENT_T>(this IEnumerable<ELEMENT_T> source)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             return !source.Any();
         }
 
         public static bool None<ELEMENT_T>(this IEnumerable<ELEMENT_T> source, Func<ELEMENT_T, bool> predicate)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             if (predicate == null)
-                throw new ArgumentNullException("predicate");
+                throw new ArgumentNullException(nameof(predicate));
             return !source.Any(predicate);
         }
 
         public static bool NotAll<ELEMENT_T>(this IEnumerable<ELEMENT_T> source, Func<ELEMENT_T, bool> predicate)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             if (predicate == null)
-                throw new ArgumentNullException("predicate");
+                throw new ArgumentNullException(nameof(predicate));
             return !source.All(predicate);
         }
 
         public static bool IsSingle<ELEMENT_T>(this IEnumerable<ELEMENT_T> source)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             return source.Take(2).Count() == 1;
         }
 
         public static IEnumerable<ELEMENT_T> GetSequence<ELEMENT_T>(this ELEMENT_T[] buffer)
         {
             if (buffer == null)
-                throw new ArgumentNullException("buffer");
+                throw new ArgumentNullException(nameof(buffer));
             return new ArrayEnumerable<ELEMENT_T>(buffer.AsReadOnly(), 0, buffer.Length);
         }
 
@@ -373,7 +373,7 @@ namespace Utility
         public static ELEMENT_T[] GetRawArray<ELEMENT_T>(this IReadOnlyArray<ELEMENT_T> array)
         {
             if (array == null)
-                throw new ArgumentNullException("array");
+                throw new ArgumentNullException(nameof(array));
             var o = array as IReadOnlyArrayInternalObject<ELEMENT_T>;
             return o?.InternalArray ?? array.DuplicateAsWritableArray();
         }
@@ -381,9 +381,9 @@ namespace Utility
         public static IEnumerable<ELEMENT_T> GetSequence<ELEMENT_T>(this ELEMENT_T[] buffer, int offset)
         {
             if (buffer == null)
-                throw new ArgumentNullException("buffer");
+                throw new ArgumentNullException(nameof(buffer));
             if (offset < 0)
-                throw new ArgumentException("'offset' must not be negative.", "offset");
+                throw new ArgumentException("'offset' must not be negative.", nameof(offset));
             if (offset > buffer.Length)
                 throw new IndexOutOfRangeException("'offset' is greater than 'buffer.Length'.");
             return new ArrayEnumerable<ELEMENT_T>(buffer.AsReadOnly(), offset, buffer.Length - offset);
@@ -392,11 +392,11 @@ namespace Utility
         public static IEnumerable<ELEMENT_T> GetSequence<ELEMENT_T>(this ELEMENT_T[] buffer, int offset, int count)
         {
             if (buffer == null)
-                throw new ArgumentNullException("buffer");
+                throw new ArgumentNullException(nameof(buffer));
             if (offset < 0)
-                throw new ArgumentException("'offset' must not be negative.", "offset");
+                throw new ArgumentException("'offset' must not be negative.", nameof(offset));
             if (count < 0)
-                throw new ArgumentException("'count' must not be negative.", "count");
+                throw new ArgumentException("'count' must not be negative.", nameof(count));
             if (offset + count > buffer.Length)
                 throw new IndexOutOfRangeException("'offset + count' is greater than 'buffer.Length'.");
             return new ArrayEnumerable<ELEMENT_T>(buffer.AsReadOnly(), offset, count);
@@ -405,16 +405,16 @@ namespace Utility
         public static IEnumerable<ELEMENT_T> GetSequence<ELEMENT_T>(this IReadOnlyArray<ELEMENT_T> buffer)
         {
             if (buffer == null)
-                throw new ArgumentNullException("buffer");
+                throw new ArgumentNullException(nameof(buffer));
             return new ArrayEnumerable<ELEMENT_T>(buffer, 0, buffer.Length);
         }
 
         public static IEnumerable<ELEMENT_T> GetSequence<ELEMENT_T>(this IReadOnlyArray<ELEMENT_T> buffer, int offset)
         {
             if (buffer == null)
-                throw new ArgumentNullException("buffer");
+                throw new ArgumentNullException(nameof(buffer));
             if (offset < 0)
-                throw new ArgumentException("'offset' must not be negative.", "offset");
+                throw new ArgumentException("'offset' must not be negative.", nameof(offset));
             if (offset > buffer.Length)
                 throw new IndexOutOfRangeException("'offset' is greater than 'buffer.Length'.");
             return new ArrayEnumerable<ELEMENT_T>(buffer, offset, buffer.Length - offset);
@@ -423,11 +423,11 @@ namespace Utility
         public static IEnumerable<ELEMENT_T> GetSequence<ELEMENT_T>(this IReadOnlyArray<ELEMENT_T> buffer, int offset, int count)
         {
             if (buffer == null)
-                throw new ArgumentNullException("buffer");
+                throw new ArgumentNullException(nameof(buffer));
             if (offset < 0)
-                throw new ArgumentException("'offset' must not be negative.", "offset");
+                throw new ArgumentException("'offset' must not be negative.", nameof(offset));
             if (count < 0)
-                throw new ArgumentException("'count' must not be negative.", "count");
+                throw new ArgumentException("'count' must not be negative.", nameof(count));
             if (offset + count > buffer.Length)
                 throw new IndexOutOfRangeException("'offset + count' is greater than 'buffer.Length'.");
             return new ArrayEnumerable<ELEMENT_T>(buffer, offset, count);
@@ -482,11 +482,11 @@ namespace Utility
             where KEY_T : IComparable<KEY_T>
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             if (other == null)
-                throw new ArgumentNullException("other");
+                throw new ArgumentNullException(nameof(other));
             if (keySelecter == null)
-                throw new ArgumentNullException("keySelecter");
+                throw new ArgumentNullException(nameof(keySelecter));
             var enumerator1 = (IEnumerator<ELEMENT_T>)null;
             var enumerator2 = (IEnumerator<ELEMENT_T>)null;
             try
@@ -518,13 +518,13 @@ namespace Utility
         public static int SequenceCompare<ELEMENT_T, KEY_T>(this IEnumerable<ELEMENT_T> source, IEnumerable<ELEMENT_T> other, Func<ELEMENT_T, KEY_T> keySelecter, IComparer<KEY_T> comparer)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             if (other == null)
-                throw new ArgumentNullException("other");
+                throw new ArgumentNullException(nameof(other));
             if (keySelecter == null)
-                throw new ArgumentNullException("keySelecter");
+                throw new ArgumentNullException(nameof(keySelecter));
             if (comparer == null)
-                throw new ArgumentNullException("comparer");
+                throw new ArgumentNullException(nameof(comparer));
             var enumerator1 = (IEnumerator<ELEMENT_T>)null;
             var enumerator2 = (IEnumerator<ELEMENT_T>)null;
             try
@@ -556,52 +556,52 @@ namespace Utility
         public static IComparer<VALUE_T> CreateComparer<VALUE_T>(this IEnumerable<VALUE_T> source, Func<VALUE_T, VALUE_T, int> comparer)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             if (comparer == null)
-                throw new ArgumentNullException("comparer");
+                throw new ArgumentNullException(nameof(comparer));
             return new CustomizableComparer<VALUE_T>(comparer);
         }
 
         public static IEqualityComparer<VALUE_T> CreateEqualityComparer<VALUE_T>(this IEnumerable<VALUE_T> source, Func<VALUE_T, VALUE_T, bool> equalityComparer, Func<VALUE_T, int> hashCalculater)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             if (equalityComparer == null)
-                throw new ArgumentNullException("equalityComparer");
+                throw new ArgumentNullException(nameof(equalityComparer));
             if (hashCalculater == null)
-                throw new ArgumentNullException("hashCalculater");
+                throw new ArgumentNullException(nameof(hashCalculater));
             return new CustomizableEqualityComparer<VALUE_T>(equalityComparer, hashCalculater);
         }
 
         public static IReadOnlyArray<ELEMENT_T> AsReadOnly<ELEMENT_T>(this ELEMENT_T[] source)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             return new ReadOnlyArrayWrapper<ELEMENT_T>(source);
         }
 
         public static IReadOnlyCollection<ELEMENT_T> ToReadOnlyCollection<ELEMENT_T>(this IEnumerable<ELEMENT_T> source)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             return new ReadOnlyCollectionWrapper<ELEMENT_T>(source.ToList());
         }
 
         public static IComparer<CAPSULE_T> Map<CAPSULE_T, VALUE_T>(this IComparer<VALUE_T> comparer, Func<CAPSULE_T, VALUE_T> selecter)
         {
             if (comparer == null)
-                throw new ArgumentNullException("comparer");
+                throw new ArgumentNullException(nameof(comparer));
             if (selecter == null)
-                throw new ArgumentNullException("selecter");
+                throw new ArgumentNullException(nameof(selecter));
             return new CustomizableComparer<CAPSULE_T>((value1, value2) => comparer.Compare(selecter(value1), selecter(value2)));
         }
 
         public static IEqualityComparer<CAPSULE_T> Map<CAPSULE_T, VALUE_T>(this IEqualityComparer<VALUE_T> equalityComparer, Func<CAPSULE_T, VALUE_T> selecter)
         {
             if (equalityComparer == null)
-                throw new ArgumentNullException("equalityComparer");
+                throw new ArgumentNullException(nameof(equalityComparer));
             if (selecter == null)
-                throw new ArgumentNullException("selecter");
+                throw new ArgumentNullException(nameof(selecter));
             return
                 new CustomizableEqualityComparer<CAPSULE_T>(
                     (value1, value2) => equalityComparer.Equals(selecter(value1), selecter(value2)),
@@ -611,25 +611,25 @@ namespace Utility
         public static IEnumerable<IReadOnlyArray<ELEMENT_T>> ToChunkOfReadOnlyArray<ELEMENT_T>(this IEnumerable<ELEMENT_T> source, int count)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             if (count <= 0)
-                throw new ArgumentException("'count' must not be less than or equal to zero.", "count");
+                throw new ArgumentException("'count' must not be less than or equal to zero.", nameof(count));
             return new ChunkOfArray<ELEMENT_T>(source, count).Select(array => array.AsReadOnly());
         }
 
         public static IEnumerable<ELEMENT_T[]> ToChunkOfArray<ELEMENT_T>(this IEnumerable<ELEMENT_T> source, int count)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             if (count <= 0)
-                throw new ArgumentException("'count' must not be less than or equal to zero.", "count");
+                throw new ArgumentException("'count' must not be less than or equal to zero.", nameof(count));
             return new ChunkOfArray<ELEMENT_T>(source, count);
         }
 
         public static IReadOnlyArray<ELEMENT_T> Duplicate<ELEMENT_T>(this IReadOnlyArray<ELEMENT_T> array)
         {
             if (array == null)
-                throw new ArgumentNullException("array");
+                throw new ArgumentNullException(nameof(array));
             var buffer = new ELEMENT_T[array.Length];
             array.CopyTo(buffer, 0);
             return buffer.AsReadOnly();
@@ -638,7 +638,7 @@ namespace Utility
         public static ELEMENT_T[] Duplicate<ELEMENT_T>(this ELEMENT_T[] array)
         {
             if (array == null)
-                throw new ArgumentNullException("array");
+                throw new ArgumentNullException(nameof(array));
             var buffer = new ELEMENT_T[array.Length];
             array.CopyTo(buffer, 0);
             return buffer;
@@ -655,10 +655,15 @@ namespace Utility
             return QuickDistinct(source, new Dictionary<ELEMENT_T, object>(equalityComparer));
         }
 
+        public static void CopyTo<ELEMENT_T>(this ELEMENT_T[] sourceArray, int sourceArrayOffset, ELEMENT_T[] destinationArray, int destinationArrayIndex, int count)
+        {
+            Array.Copy(sourceArray, sourceArrayOffset, destinationArray, destinationArrayIndex, count);
+        }
+
         public static void ForEach<ELEMENT_T>(this IEnumerable<ELEMENT_T> source, Action<ELEMENT_T> action)
         {
             if (source == null)
-                throw new ArgumentNullException("source");
+                throw new ArgumentNullException(nameof(source));
             foreach (var element in source)
                 action(element);
         }

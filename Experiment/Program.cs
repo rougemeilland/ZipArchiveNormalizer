@@ -1,12 +1,8 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-using Utility.IO;
-using Utility;
-using ZipUtility;
-using ZipUtility.Compression;
 
 namespace Experiment
 {
@@ -14,20 +10,60 @@ namespace Experiment
     {
         static void Main(string[] args)
         {
-            var factor1 = 2.0D;
-            var factor2 = 96.0D;
 
-            for (var n = 1; n < 20; ++n)
+            checked
             {
-                var x = Math.Log(factor2) * n / Math.Log(factor1);
-                var y = Math.Ceiling(x);
-                var percent = x * 100 / y;
-                if (y < 64.0)
-                    Console.WriteLine(string.Format("{0:d2}: x={1:F2}, bits={2:F0}, percentage={3:F0}", n, x, y, percent));
+                var x = (UInt64)uint.MaxValue;
+                var y = int.MinValue;
+                Console.WriteLine(x - (UInt64)(-(Int64)y));
             }
+
+
+            unchecked
+            {
+                Console.WriteLine((UInt64.MaxValue + (UInt64)Int64.MinValue).ToString("x"));
+            }
+            checked
+            {
+                var x = 0L;
+                Console.WriteLine(string.Format("-({0}) == {1}", x, Negate(x)));
+            }
+
+            checked
+            {
+                var x = 3L;
+                Console.WriteLine(string.Format("-({0}) == {1}", x, Negate(x)));
+            }
+
+            checked
+            {
+                var x = long.MaxValue;
+                Console.WriteLine(string.Format("-({0}) == {1}", x, Negate(x)));
+            }
+
+            checked
+            {
+                var x = long.MinValue;
+                Console.WriteLine(string.Format("-({0}) == {1}", x, Negate(x)));
+            }
+
+
             Console.WriteLine("OK");
             Console.Beep();
             Console.ReadLine();
+        }
+
+        private static long Negate(long x)
+        {
+            checked
+            {
+                if (x >= 0)
+                    return  -x;
+                else if (x != long.MinValue)
+                     return -x;
+                else
+                    return (-(x + 1)) + 1;
+            }
         }
     }
 }

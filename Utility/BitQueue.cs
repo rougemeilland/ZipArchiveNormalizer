@@ -78,7 +78,7 @@ namespace Utility
         public void Enqueue(TinyBitArray bitArray)
         {
             if (bitArray == null)
-                throw new ArgumentNullException("bitArray");
+                throw new ArgumentNullException(nameof(bitArray));
 #if DEBUG
             if (bitArray as IInternalBitArray == null)
                 throw new Exception();

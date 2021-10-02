@@ -102,10 +102,29 @@ namespace Utility
             return Finalize(crc);
         }
 
-        public IEnumerable<byte> GetSequenceWithCrc(IEnumerable<byte> source, ValueHolder<CRC_VALUE_T> result)
+        public CRC_VALUE_T Calculate(IEnumerable<byte> dataSequence, out ulong count)
         {
-            return
+            count = 0;
+            var crc = InitialValue;
+            foreach (var data in dataSequence)
+            {
+                crc = Update(crc, data);
+                ++count;
+            }
+            return Finalize(crc);
+        }
+
+        public IEnumerable<byte> GetSequenceWithCrc(IEnumerable<byte> source, ValueHolder<CRC_VALUE_T> result) =>
                 new PathThroughSequenceWithCrcCalculationEnumerable(source, this, result);
+
+        public CRC_VALUE_T Calculate(IReadOnlyArray<byte> array) => Calculate(array, 0, array.Length);
+
+        public CRC_VALUE_T Calculate(IReadOnlyArray<byte> array, int offset, int count)
+        {
+            var crc = InitialValue;
+            for (var index = 0; index < count; ++count)
+                crc = Update(crc, array[offset + index]);
+            return Finalize(crc);
         }
 
         protected abstract CRC_VALUE_T InitialValue { get; }

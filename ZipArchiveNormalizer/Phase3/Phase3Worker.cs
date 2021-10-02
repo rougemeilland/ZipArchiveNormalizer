@@ -36,11 +36,8 @@ namespace ZipArchiveNormalizer.Phase3
                     return false;
                 else
                 {
-                    // compareEntryName が true の場合はエントリ名の違いを無視するが、
-                    // エントリ名が違う場合にはオフセットの一致も期待できないので、オフセットも無視する
                     return
                         (_compareEntryName == false || string.Equals(x.FullName, y.FullName, StringComparison.OrdinalIgnoreCase)) &&
-                        (_compareEntryName == false || x.Offset.Equals(y.Offset)) &&
                         x.Size.Equals(y.Size) &&
                         x.Crc.Equals(y.Crc);
                 }
@@ -50,7 +47,6 @@ namespace ZipArchiveNormalizer.Phase3
             {
                 return
                     obj.FullName.GetHashCode() ^
-                    obj.Offset.GetHashCode() ^
                     obj.Size.GetHashCode() ^
                     obj.Crc.GetHashCode();
             }
@@ -120,20 +116,34 @@ namespace ZipArchiveNormalizer.Phase3
                     .CompareTo(y.ZipEntries.Max(entry => entry.CreationTimeUtc?.Ticks ?? long.MaxValue))) != 0)
                     return -c;
 
-                return _fileImportanceComparer.Compare(x.ZipFile, y.ZipFile);
+                return _fileImportanceComparer.Compare(x.File, y.File);
             }
+        }
+
+        private class ZipArchiveEntriesSummaryOfZipFile
+        {
+            public ZipArchiveEntriesSummaryOfZipFile(FileInfo file, ZipArchiveFile zipArchiveFile)
+            {
+                File = file;
+                ZipEntriesCount = zipArchiveFile.GetEntries().Count;
+            }
+
+            public FileInfo File { get; }
+            public long ZipEntriesCount { get; }
         }
 
         private class ZipArchiveEntriesOfZipFile
         {
-            public ZipArchiveEntriesOfZipFile(FileInfo zipFile)
+            public ZipArchiveEntriesOfZipFile(FileInfo file, ZipArchiveFile zipArchiveFile)
             {
-                ZipFile = zipFile;
-                ZipEntries = zipFile.EnumerateZipArchiveEntry().ToList().AsReadOnly();
+                File = File;
+                ZipFile = zipArchiveFile;
+                ZipEntries = zipArchiveFile.GetEntries();
             }
 
-            public FileInfo ZipFile { get; }
-            public IReadOnlyCollection<ZipArchiveEntry> ZipEntries { get; }
+            public FileInfo File { get; }
+            public ZipArchiveFile ZipFile { get; }
+            public ZipArchiveEntryCollection ZipEntries { get; }
         }
 
         private static IEqualityComparer<ZipArchiveEntry> _zipEntryMoreEasilyEqualityComparer;
@@ -174,18 +184,21 @@ namespace ZipArchiveNormalizer.Phase3
             foreach (var sourceFile in targetArchiveFiles)
                 destinationFiles[sourceFile.FullName] = sourceFile;
 
-            var totalCount = (long)targetArchiveFiles.Count * 2;
+            var totalCount = targetArchiveFiles.Sum(file => file.Length) * 2;
             var counrOfDone = 0L;
             var groupedArchiveFiles =
                 targetArchiveFiles
                 .Select(file =>
                 {
                     SafetyCancellationCheck();
-                    var o = new ZipArchiveEntriesOfZipFile(file);
-                    UpdateProgress(totalCount, Interlocked.Increment(ref counrOfDone));
-                    return o;
+                    using (var zipFile = file.OpenAsZipFile())
+                    {
+                        var o = new ZipArchiveEntriesSummaryOfZipFile(file, zipFile);
+                        UpdateProgress(totalCount, Interlocked.Add(ref counrOfDone, -file.Length));
+                        return o;
+                    }
                 })
-                .Select(archiveFile => new { archiveFile, entriesCount = archiveFile.ZipEntries.Count })
+                .Select(archiveFile => new { archiveFile, entriesCount = archiveFile.ZipEntriesCount })
                 .GroupBy(item => item.entriesCount)
                 .Select(g => g.ToReadOnlyCollection())
                 .ToReadOnlyCollection();
@@ -204,6 +217,7 @@ namespace ZipArchiveNormalizer.Phase3
                             return;
                         }
                         var archiveFiles = item.Select(item2 => item2.archiveFile).ToReadOnlyCollection();
+                        var sizeOfArchiveFiles = archiveFiles.Sum(item2 => item2.File.Length);
                         while (archiveFiles.Count >= 2)
                         {
                             try
@@ -221,13 +235,13 @@ namespace ZipArchiveNormalizer.Phase3
                                         string.Format(
                                             "並列処理中に例外が発生しました。: 処理クラス={0}, 対象ファイル={{{1}}}, message=\"{2}\", スタックトレース=>{3}",
                                             GetType().FullName,
-                                            string.Join(", ", archiveFiles.Select(file => string.Format("\"{0}\"", file.ZipFile.FullName))),
+                                            string.Join(", ", archiveFiles.Select(file => string.Format("\"{0}\"", file.File.FullName))),
                                             ex.Message,
                                             ex.StackTrace),
                                         ex);
                             }
                         }
-                        UpdateProgress(totalCount, Interlocked.Add(ref counrOfDone, item.Count));
+                        UpdateProgress(totalCount, Interlocked.Add(ref counrOfDone, -sizeOfArchiveFiles));
                     });
                 if (cancellationTokenSource.IsCancellationRequested)
                     throw new OperationCanceledException();
@@ -239,68 +253,77 @@ namespace ZipArchiveNormalizer.Phase3
             UpdateProgress();
         }
 
-        private IEnumerable<ZipArchiveEntriesOfZipFile> DeleteAndExcludeUselessArchiveFile(IEnumerable<ZipArchiveEntriesOfZipFile> zipArchives, Action<FileInfo> onDelete)
+        private IEnumerable<ZipArchiveEntriesSummaryOfZipFile> DeleteAndExcludeUselessArchiveFile(IEnumerable<ZipArchiveEntriesSummaryOfZipFile> zipArchives, Action<FileInfo> onDelete)
         {
             FileInfo fileToDelete = null;
             FileInfo otherFile = null;
-            var zipArchiveFileInfo1 = zipArchives.First();
-            foreach (var zipArchiveFileInfo2 in zipArchives.Skip(1))
+            var zipArchiveFileSummary1 = zipArchives.First();
+            foreach (var zipArchiveFileSummary2 in zipArchives.Skip(1))
             {
                 SafetyCancellationCheck();
                 UpdateProgress();
 
-                var isLikelyToBeEqual = EntriesEqualMoreEasily(zipArchiveFileInfo1, zipArchiveFileInfo2);
-                var isMostlyEqual = EntriesEqualEasily(zipArchiveFileInfo1, zipArchiveFileInfo2);
-
-                if (isMostlyEqual)
+                using (var zipFile1 = zipArchiveFileSummary1.File.OpenAsZipFile())
+                using (var zipFile2 = zipArchiveFileSummary2.File.OpenAsZipFile())
                 {
-                    // 全てのエントリの名前、オフセット、サイズ、CRCが等しい場合
-                    var isExactlyEqual = EntriesEqualStrictly(zipArchiveFileInfo1, zipArchiveFileInfo2);
-                    if (isExactlyEqual)
-                    {
-                        // 全てのエントリのデータが一致している場合
+                    var zipArchiveFileInfo1 = new ZipArchiveEntriesOfZipFile(zipArchiveFileSummary1.File, zipFile1);
+                    var zipArchiveFileInfo2 = new ZipArchiveEntriesOfZipFile(zipArchiveFileSummary2.File, zipFile2);
 
-                        // ファイルの重要度を比較する
-                        if (_archiveFileImportanceComparer.Compare(zipArchiveFileInfo1, zipArchiveFileInfo2) > 0)
-                        {
-                            fileToDelete = zipArchiveFileInfo2.ZipFile;
-                            otherFile = zipArchiveFileInfo1.ZipFile;
-                        }
-                        else
-                        {
-                            fileToDelete = zipArchiveFileInfo1.ZipFile;
-                            otherFile = zipArchiveFileInfo2.ZipFile;
-                        }
-                        break;
-                    }
-                }
-                else if (isLikelyToBeEqual)
-                {
-                    // 全てのエントリのオフセット、サイズ、CRCが等しい場合
-                    var isExactlyEqual = EntriesEqualStrictly(zipArchiveFileInfo1, zipArchiveFileInfo2);
-                    if (isExactlyEqual)
-                    {
-                        // 全てのエントリのデータが一致している場合
+                    var isLikelyToBeEqual = EntriesEqualMoreEasily(zipArchiveFileInfo1, zipArchiveFileInfo2);
+                    var isMostlyEqual = EntriesEqualEasily(zipArchiveFileInfo1, zipArchiveFileInfo2);
 
-                        if (_archiveFileImportanceComparer.Compare(zipArchiveFileInfo1, zipArchiveFileInfo2) > 0)
+                    if (isMostlyEqual)
+                    {
+                        // 全てのエントリの名前、オフセット、サイズ、CRCが等しい場合
+                        var isExactlyEqual = EntriesEqualStrictly(zipArchiveFileInfo1, zipArchiveFileInfo2);
+                        if (isExactlyEqual)
                         {
-                            RaiseWarningReportedEvent(
-                                zipArchiveFileInfo2.ZipFile,
-                                string.Format("エントリ名を除いて、エントリのデータがエントリの順番も含めて全て同一の別のアーカイブファイルが存在します。: \"{0}\"",
-                                    zipArchiveFileInfo1.ZipFile.FullName));
-                        }
-                        else
-                        {
-                            RaiseWarningReportedEvent(
-                                zipArchiveFileInfo1.ZipFile,
-                                string.Format("エントリ名を除いて、エントリのデータがエントリの順番も含めて全て同一の別のアーカイブファイルが存在します。: \"{0}\"",
-                                    zipArchiveFileInfo2.ZipFile.FullName));
+                            // 全てのエントリのデータが一致している場合
+
+                            // ファイルの重要度を比較する
+                            if (_archiveFileImportanceComparer.Compare(zipArchiveFileInfo1, zipArchiveFileInfo2) > 0)
+                            {
+                                fileToDelete = zipArchiveFileInfo2.File;
+                                otherFile = zipArchiveFileInfo1.File;
+                            }
+                            else
+                            {
+                                fileToDelete = zipArchiveFileInfo1.File;
+                                otherFile = zipArchiveFileInfo2.File;
+                            }
+                            break;
                         }
                     }
-                }
-                else
-                {
-                    // NOP
+                    else if (isLikelyToBeEqual)
+                    {
+                        // 全てのエントリのオフセット、サイズ、CRCが等しい場合
+                        var isExactlyEqual = EntriesEqualStrictly(zipArchiveFileInfo1, zipArchiveFileInfo2);
+                        if (isExactlyEqual)
+                        {
+                            // 全てのエントリのデータが一致している場合
+
+                            if (_archiveFileImportanceComparer.Compare(zipArchiveFileInfo1, zipArchiveFileInfo2) > 0)
+                            {
+                                RaiseWarningReportedEvent(
+                                    zipArchiveFileInfo2.File,
+                                    string.Format(
+                                        "エントリ名を除いて、エントリのデータがエントリの順番も含めて全て同一の別のアーカイブファイルが存在します。: \"{0}\"",
+                                        zipArchiveFileInfo1.File.FullName));
+                            }
+                            else
+                            {
+                                RaiseWarningReportedEvent(
+                                    zipArchiveFileInfo1.File,
+                                    string.Format(
+                                        "エントリ名を除いて、エントリのデータがエントリの順番も含めて全て同一の別のアーカイブファイルが存在します。: \"{0}\"",
+                                        zipArchiveFileInfo2.File.FullName));
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // NOP
+                    }
                 }
             }
             if (fileToDelete != null)
@@ -318,7 +341,7 @@ namespace ZipArchiveNormalizer.Phase3
                 IncrementChangedFileCount();
                 return
                     zipArchives
-                    .Where(item => !string.Equals(item.ZipFile.FullName, fileToDelete.FullName, StringComparison.OrdinalIgnoreCase));
+                    .Where(item => !string.Equals(item.File.FullName, fileToDelete.FullName, StringComparison.OrdinalIgnoreCase));
             }
             else
             {
@@ -359,17 +382,13 @@ namespace ZipArchiveNormalizer.Phase3
         {
             try
             {
-                using (var zipFile1 = new ZipFile(archiveFile1.ZipFile.FullName))
-                using (var zipFile2 = new ZipFile(archiveFile2.ZipFile.FullName))
-                {
-                    return
-                        archiveFile1.ZipEntries.Count == archiveFile2.ZipEntries.Count &&
-                        archiveFile1.ZipEntries
-                        .Zip(archiveFile2.ZipEntries, (entry1, entry2) => new { entry1, entry2 })
-                        .All(item =>
-                            zipFile1.GetInputStream(item.entry1)
-                            .StreamBytesEqual(zipFile2.GetInputStream(item.entry2), progressNotification: count => UpdateProgress()));
-                }
+                return
+                    archiveFile1.ZipEntries.Count == archiveFile2.ZipEntries.Count &&
+                    archiveFile1.ZipEntries
+                    .Zip(archiveFile2.ZipEntries, (entry1, entry2) => new { entry1, entry2 })
+                    .All(item =>
+                        archiveFile1.ZipFile.GetInputStream(item.entry1)
+                        .StreamBytesEqual(archiveFile2.ZipFile.GetInputStream(item.entry2), progressNotification: count => UpdateProgress()));
             }
             catch (Exception)
             {

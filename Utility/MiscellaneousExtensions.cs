@@ -153,6 +153,81 @@ namespace Utility
                 return BitConverter.GetBytes(value).ReverseArray().AsReadOnly();
         }
 
+        public static IReadOnlyArray<byte> GetBytesBE(this Int16 value) => ((UInt16)value).GetBytesBE();
+
+        public static IReadOnlyArray<byte> GetBytesBE(this UInt16 value)
+        {
+#if DEBUG
+            if (sizeof(UInt16) != 2)
+                throw new Exception();
+#endif
+            return
+                new[]
+                {
+                    (byte)((value >> 8) & 0xff),
+                    (byte)((value >> 0) & 0xff),
+                }
+                .AsReadOnly();
+        }
+
+        public static IReadOnlyArray<byte> GetBytesBE(this Int32 value) => ((UInt32)value).GetBytesBE();
+
+        public static IReadOnlyArray<byte> GetBytesBE(this UInt32 value)
+        {
+#if DEBUG
+            if (sizeof(UInt32) != 4)
+                throw new Exception();
+#endif
+            return
+                new[]
+                {
+                    (byte)((value >> 24) & 0xff),
+                    (byte)((value >> 16) & 0xff),
+                    (byte)((value >> 08) & 0xff),
+                    (byte)((value >> 00) & 0xff),
+                }
+                .AsReadOnly();
+        }
+
+        public static IReadOnlyArray<byte> GetBytesBE(this Int64 value) => ((UInt64)value).GetBytesBE();
+
+        public static IReadOnlyArray<byte> GetBytesBE(this UInt64 value)
+        {
+#if DEBUG
+            if (sizeof(UInt64) != 8)
+                throw new Exception();
+#endif
+            return
+                new[]
+                {
+                    (byte)((value >> 56) & 0xff),
+                    (byte)((value >> 48) & 0xff),
+                    (byte)((value >> 40) & 0xff),
+                    (byte)((value >> 32) & 0xff),
+                    (byte)((value >> 24) & 0xff),
+                    (byte)((value >> 16) & 0xff),
+                    (byte)((value >> 08) & 0xff),
+                    (byte)((value >> 00) & 0xff),
+                }
+                .AsReadOnly();
+        }
+
+        public static IReadOnlyArray<byte> GetBytesBE(this Single value)
+        {
+            if (BitConverter.IsLittleEndian)
+                return BitConverter.GetBytes(value).ReverseArray().AsReadOnly();
+            else
+                return BitConverter.GetBytes(value).AsReadOnly();
+        }
+
+        public static IReadOnlyArray<byte> GetBytesBE(this Double value)
+        {
+            if (BitConverter.IsLittleEndian)
+                return BitConverter.GetBytes(value).ReverseArray().AsReadOnly();
+            else
+                return BitConverter.GetBytes(value).AsReadOnly();
+        }
+
         internal static Byte ConvertBitOrder(this Byte value, int bitCount, BitPackingDirection packingDirection)
         {
 #if DEBUG

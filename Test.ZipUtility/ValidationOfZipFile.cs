@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using Utility;
 using Utility.FileWorker;
 using ZipUtility;
@@ -12,6 +13,13 @@ namespace Test.ZipUtility
         private class Walker
             : FileWorkerFromMainArgument
         {
+            private static Regex _zipFileNamePattern;
+
+            static Walker()
+            {
+                _zipFileNamePattern = new Regex(@"\.(zip|zipx|epub|exe|zip\.001)$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            }
+
             public Walker(IWorkerCancellable canceller)
                 : base(canceller, FileWorkerConcurrencyMode.ParallelProcessingForEachFile)
             {
@@ -22,7 +30,7 @@ namespace Test.ZipUtility
             protected override IFileWorkerActionFileParameter IsMatchFile(FileInfo sourceFile)
             {
                 return
-                    sourceFile.Extension.IsAnyOf(".zip", ".zipx", ".epub", StringComparison.OrdinalIgnoreCase)
+                    _zipFileNamePattern.IsMatch(sourceFile.Name)
                         ? base.IsMatchFile(sourceFile)
                         : null;
             }
@@ -35,7 +43,7 @@ namespace Test.ZipUtility
                     switch (sourceFile.CheckZipFile(s => detail = s, () => UpdateProgress()))
                     {
                         case ZipFileCheckResult.Ok:
-                            RaiseInformationReportedEvent(sourceFile, "正しいZIPファイルです。");
+                            RaiseInformationReportedEvent(sourceFile, string.Format("正しいZIPファイルです。: {0}", detail));
                             break;
                         case ZipFileCheckResult.Encrypted:
                             RaiseErrorReportedEvent(sourceFile, string.Format("暗号化されているZIPファイルです。: {0}", detail));
