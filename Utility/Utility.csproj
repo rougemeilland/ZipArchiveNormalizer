@@ -54,8 +54,16 @@
     <Compile Include="IInternalBitArray.cs" />
     <Compile Include="InternalBitQueue.cs" />
     <Compile Include="MiscellaneousExtensions.cs" />
+    <Compile Include="RandomAccessQueue.cs" />
     <Compile Include="RandomBytesSequence.cs" />
     <Compile Include="RandomSequence.cs" />
+    <Compile Include="Text\BadAozoraBunkoFormatException.cs" />
+    <Compile Include="Text\BadShiftJisEncodingException.cs" />
+    <Compile Include="Text\ReplaceImageTagEnumerable.cs" />
+    <Compile Include="Text\ShiftJisChar.cs" />
+    <Compile Include="Text\ShiftJisCharExtensions.cs" />
+    <Compile Include="Text\ShiftJIsCharSequenceFromByteSequenceEnumerable.cs" />
+    <Compile Include="Text\UnexpectedEndOfSequenceException.cs" />
     <Compile Include="TinyBitArray.cs" />
     <Compile Include="ByteArrayExtensions.cs" />
     <Compile Include="ConsoleWorker.cs" />

@@ -1,12 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using Utility;
 using Utility.FileWorker;
 using Utility.IO;
+using Utility.Text;
 using ZipUtility;
 
 namespace ZipArchiveNormalizer.Phase6
@@ -107,8 +108,9 @@ namespace ZipArchiveNormalizer.Phase6
                     new FileInfo(Path.Combine(Path.GetDirectoryName(localTextFilePath), "." + Path.GetFileName(localTextFilePath) + ".temp"));
                 try
                 {
-                    var newText =
-                        ReadTextEntry(
+                    tempFile.Directory.Create();
+                    tempFile.WriteAllBytes(
+                        ReadAozoraBunkoContentEntry(
                             zipFile,
                             mainContentTextEntry,
                             entries,
@@ -119,9 +121,7 @@ namespace ZipArchiveNormalizer.Phase6
                                 if (newLocalFileCreated)
                                     extracted = true;
                                 imageFileEntries.Remove(imageEntryName);
-                            });
-                    tempFile.Directory.Create();
-                    File.WriteAllText(tempFile.FullName, newText, _aozoraBunkoTextFileEncoding);
+                            }));
                     bool alreadyExistsTextFile;
                     var newContentTextFile = tempFile.RenameFile(Path.GetFileName(localTextFilePath), out alreadyExistsTextFile);
                     if (!alreadyExistsTextFile)
@@ -174,42 +174,26 @@ namespace ZipArchiveNormalizer.Phase6
             }
         }
 
-        private string ReadTextEntry(ZipArchiveFile zipFile, ZipArchiveEntry aozoraBunkoMainContentEntry, ZipArchiveEntryCollection zipArchiveEntries, string archiveDirectoryPath, string textFileEntrySubDirectory, Action<string, FileInfo, bool> actionOnImageExtracted)
+        private IEnumerable<byte> ReadAozoraBunkoContentEntry(ZipArchiveFile zipFile, ZipArchiveEntry aozoraBunkoMainContentEntry, ZipArchiveEntryCollection zipArchiveEntries, string archiveDirectoryPath, string textFileEntrySubDirectory, Action<string, FileInfo, bool> actionOnImageExtracted)
         {
-            using (var textEntryInputStream = zipFile.GetInputStream( aozoraBunkoMainContentEntry))
-            {
-                var contentText = ReadText(textEntryInputStream);
-                var newText =
-                    _aozoraBunkoImageLinkPattern.Replace(
-                        contentText,
-                        match =>
-                            AozoraBunkoTextImageLinkReplacer(
-                                zipFile,
-                                zipArchiveEntries,
-                                archiveDirectoryPath,
-                                textFileEntrySubDirectory,
-                                match,
-                                actionOnImageExtracted));
-                return newText;
-            }
+            return
+                zipFile.GetInputStream(aozoraBunkoMainContentEntry)
+                .GetByteSequence()
+                .DecodeAsShiftJisChar()
+                .ReplaceAozoraBunkoImageTag(
+                    imagePath =>
+                        AozoraBunkoTextImageLinkReplacer(
+                            zipFile,
+                            zipArchiveEntries,
+                            archiveDirectoryPath,
+                            textFileEntrySubDirectory,
+                            imagePath,
+                            actionOnImageExtracted))
+                .EncodeAsShiftJisChar();
         }
 
-        private static string ReadText(IInputByteStream<UInt64> textEntryInputStream)
+        private string AozoraBunkoTextImageLinkReplacer(ZipArchiveFile zipFile, ZipArchiveEntryCollection zipArchiveEntries, string archiveDirectoryPath, string textFileEntrySubDirectory, string imagePath, Action<string, FileInfo, bool> actionOnImageExtracted)
         {
-            using (var reader = new StreamReader(textEntryInputStream.AsStream(), _aozoraBunkoTextFileEncoding))
-            {
-                return reader.ReadToEnd();
-            }
-        }
-
-        private string AozoraBunkoTextImageLinkReplacer(ZipArchiveFile zipFile, ZipArchiveEntryCollection zipArchiveEntries, string archiveDirectoryPath, string textFileEntrySubDirectory, Match match, Action<string, FileInfo, bool> actionOnImageExtracted)
-        {
-            var type = match.Groups["type"].Value;
-            var prefix = match.Groups["prefix"].Value;
-            var imagePath = match.Groups["imagepath"].Value;
-            if (string.Equals(type, "img", StringComparison.OrdinalIgnoreCase))
-                imagePath = WebUtility.HtmlDecode(imagePath);
-            var suffix = match.Groups["suffix"].Value;
             var imageFileSubdirectory = Path.GetDirectoryName(imagePath);
             var imageFileName = Path.GetFileName(imagePath);
             if (string.IsNullOrEmpty(imageFileSubdirectory))
@@ -229,7 +213,7 @@ namespace ZipArchiveNormalizer.Phase6
             try
             {
                 if (!ExtractImageFile(zipFile, zipArchiveEntries, imageEntryName, imageTemporaryFile))
-                    return match.Value;
+                    return imagePath;
                 var foundImageArchiveEntry =
                     zipArchiveEntries
                     .Where(entry => string.Equals(entry.FullName, imageEntryName, StringComparison.OrdinalIgnoreCase))
@@ -251,17 +235,12 @@ namespace ZipArchiveNormalizer.Phase6
                     foundImageArchiveEntry.SeTimeStampToExtractedFile(newImageFile.FullName);
                 }
                 actionOnImageExtracted(imageEntryName, newImageFile, alreadyExistsImageFile ? false : true);
-                var tagSource = Path.Combine(imageFileSubdirectory, Path.GetFileName(newImageFile.FullName)).Replace('\\', '/');
-                var result =
-                    prefix +
-                    (string.Equals(type, "img", StringComparison.OrdinalIgnoreCase) ? WebUtility.HtmlEncode(tagSource) : tagSource) +
-                    suffix;
-                return result;
+                return Path.Combine(imageFileSubdirectory, Path.GetFileName(newImageFile.FullName)).Replace('\\', '/');
             }
             catch (Exception)
             {
                 // 何らかの異常が発生した場合には無置換で返す
-                return match.Value;
+                return imagePath;
             }
             finally
             {

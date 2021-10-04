@@ -42,6 +42,14 @@ namespace Utility.IO
             return File.ReadLines(file.FullName);
         }
 
+        public static void WriteAllBytes(this FileInfo file, IEnumerable<byte> data)
+        {
+            using (var stream = file.OpenWrite())
+            {
+                stream.Write(data);
+            }
+        }
+
         public static void WriteAllBytes(this FileInfo file, byte[] data)
         {
             File.WriteAllBytes(file.FullName, data);

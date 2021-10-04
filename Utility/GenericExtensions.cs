@@ -4,8 +4,8 @@ namespace Utility
 {
     public static class GenericExtensions
     {
-        public static bool IsBetween<VALUE_T>(this VALUE_T value, VALUE_T lowerValue, VALUE_T upperValue)
-            where VALUE_T : IComparable<VALUE_T>
+        public static bool IsBetween<VALUE1_T, VALUE2_T>(this VALUE1_T value, VALUE2_T lowerValue, VALUE2_T upperValue)
+            where VALUE1_T : IComparable<VALUE2_T>
         {
             if (value == null)
                 return lowerValue == null;
@@ -13,26 +13,53 @@ namespace Utility
                 return value.CompareTo(lowerValue) >= 0 && value.CompareTo(upperValue) <= 0;
         }
 
-        public static bool IsNoneOf<VALUE_T>(this VALUE_T value, VALUE_T value1, VALUE_T value2)
-            where VALUE_T : IEquatable<VALUE_T>
+        public static bool IsNoneOf<VALUE1_T, VALUE2_T>(this VALUE1_T value, VALUE2_T value1, VALUE2_T value2)
+            where VALUE1_T : IEquatable<VALUE2_T>
         {
-            return !value.IsAnyOf(value1, value2);
+            if (value == null)
+                return value1 != null && value2 != null;
+            else
+                return !value.Equals(value1) && !value.Equals(value2);
         }
 
-        public static bool IsNoneOf<VALUE_T>(this VALUE_T value, VALUE_T value1, VALUE_T value2, VALUE_T value3)
-            where VALUE_T : IEquatable<VALUE_T>
+        public static bool IsNoneOf<VALUE1_T, VALUE2_T>(this VALUE1_T value, VALUE2_T value1, VALUE2_T value2, VALUE2_T value3)
+            where VALUE1_T : IEquatable<VALUE2_T>
         {
-            return !value.IsAnyOf(value1, value2, value3);
+            if (value == null)
+                return value1 != null && value2 != null && value3 != null;
+            else
+                return !value.Equals(value1) && !value.Equals(value2) && !value.Equals(value3);
         }
 
-        public static bool IsNoneOf<VALUE_T>(this VALUE_T value, VALUE_T value1, VALUE_T value2, VALUE_T value3, VALUE_T value4)
-            where VALUE_T : IEquatable<VALUE_T>
+        public static bool IsNoneOf<VALUE1_T, VALUE2_T>(this VALUE1_T value, VALUE2_T value1, VALUE2_T value2, VALUE2_T value3, VALUE2_T value4)
+            where VALUE1_T : IEquatable<VALUE2_T>
         {
-            return !value.IsAnyOf(value1, value2, value3, value4);
+            if (value == null)
+                return value1 != null && value2 != null && value3 != null && value4 != null;
+            else
+                return !value.Equals(value1) && !value.Equals(value2) && !value.Equals(value3) && !value.Equals(value4);
         }
 
-        public static bool IsAnyOf<VALUE_T>(this VALUE_T value, VALUE_T value1, VALUE_T value2)
-            where VALUE_T : IEquatable<VALUE_T>
+        public static bool IsNoneOf<VALUE1_T, VALUE2_T>(this VALUE1_T value, VALUE2_T value1, VALUE2_T value2, VALUE2_T value3, VALUE2_T value4, VALUE2_T value5)
+            where VALUE1_T : IEquatable<VALUE2_T>
+        {
+            if (value == null)
+                return value1 != null && value2 != null && value3 != null && value4 != null && value5 != null;
+            else
+                return !value.Equals(value1) && !value.Equals(value2) && !value.Equals(value3) && !value.Equals(value4) && !value.Equals(value5);
+        }
+
+        public static bool IsNoneOf<VALUE1_T, VALUE2_T>(this VALUE1_T value, VALUE2_T value1, VALUE2_T value2, VALUE2_T value3, VALUE2_T value4, VALUE2_T value5, VALUE2_T value6)
+            where VALUE1_T : IEquatable<VALUE2_T>
+        {
+            if (value == null)
+                return value1 != null && value2 != null && value3 != null && value4 != null && value5 != null && value6 != null;
+            else
+                return !value.Equals(value1) && !value.Equals(value2) && !value.Equals(value3) && !value.Equals(value4) && !value.Equals(value5) && !value.Equals(value6);
+        }
+
+        public static bool IsAnyOf<VALUE1_T, VALUE2_T>(this VALUE1_T value, VALUE2_T value1, VALUE2_T value2)
+            where VALUE1_T : IEquatable<VALUE2_T>
         {
             if (value == null)
                 return value1 == null || value2 == null;
@@ -40,8 +67,8 @@ namespace Utility
                 return value.Equals(value1) || value.Equals(value2);
         }
 
-        public static bool IsAnyOf<VALUE_T>(this VALUE_T value, VALUE_T value1, VALUE_T value2, VALUE_T value3)
-            where VALUE_T : IEquatable<VALUE_T>
+        public static bool IsAnyOf<VALUE1_T, VALUE2_T>(this VALUE1_T value, VALUE2_T value1, VALUE2_T value2, VALUE2_T value3)
+            where VALUE1_T : IEquatable<VALUE2_T>
         {
             if (value == null)
                 return value1 == null || value2 == null || value3 == null;
@@ -49,13 +76,31 @@ namespace Utility
                 return value.Equals(value1) || value.Equals(value2) || value.Equals(value3);
         }
 
-        public static bool IsAnyOf<VALUE_T>(this VALUE_T value, VALUE_T value1, VALUE_T value2, VALUE_T value3, VALUE_T value4)
-            where VALUE_T : IEquatable<VALUE_T>
+        public static bool IsAnyOf<VALUE1_T, VALUE2_T>(this VALUE1_T value, VALUE2_T value1, VALUE2_T value2, VALUE2_T value3, VALUE2_T value4)
+            where VALUE1_T : IEquatable<VALUE2_T>
         {
             if (value == null)
                 return value1 == null || value2 == null || value3 == null || value4 == null;
             else
                 return value.Equals(value1) || value.Equals(value2) || value.Equals(value3) || value.Equals(value4);
+        }
+
+        public static bool IsAnyOf<VALUE1_T, VALUE2_T>(this VALUE1_T value, VALUE2_T value1, VALUE2_T value2, VALUE2_T value3, VALUE2_T value4, VALUE2_T value5)
+            where VALUE1_T : IEquatable<VALUE2_T>
+        {
+            if (value == null)
+                return value1 == null || value2 == null || value3 == null || value4 == null || value5 == null;
+            else
+                return value.Equals(value1) || value.Equals(value2) || value.Equals(value3) || value.Equals(value4) || value.Equals(value5);
+        }
+
+        public static bool IsAnyOf<VALUE1_T, VALUE2_T>(this VALUE1_T value, VALUE2_T value1, VALUE2_T value2, VALUE2_T value3, VALUE2_T value4, VALUE2_T value5, VALUE2_T value6)
+            where VALUE1_T : IEquatable<VALUE2_T>
+        {
+            if (value == null)
+                return value1 == null || value2 == null || value3 == null || value4 == null || value5 == null || value6 == null;
+            else
+                return value.Equals(value1) || value.Equals(value2) || value.Equals(value3) || value.Equals(value4) || value.Equals(value5) || value.Equals(value6);
         }
 
         public static VALUE_T Minimum<VALUE_T>(this VALUE_T x, VALUE_T y)
