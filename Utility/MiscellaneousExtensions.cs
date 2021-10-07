@@ -228,6 +228,280 @@ namespace Utility
                 return BitConverter.GetBytes(value).AsReadOnly();
         }
 
+        public static void CopyValueLE(this byte[] buffer, int startIndex, Int16 value) => buffer.CopyValueLE(startIndex, (UInt16)value);
+
+        public static void CopyValueLE(this byte[] buffer, int startIndex, UInt16 value)
+        {
+#if DEBUG
+            if (sizeof(UInt16) != 2)
+                throw new Exception();
+#endif
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            if (startIndex < 0)
+                throw new ArgumentException();
+            if (startIndex + sizeof(UInt16) > buffer.Length)
+                throw new ArgumentException();
+            buffer[startIndex + 0] = (byte)(value >> 0);
+            buffer[startIndex + 1] = (byte)(value >> 8);
+        }
+
+        public static void CopyValueLE(this byte[] buffer, int startIndex, Int32 value) => buffer.CopyValueLE(startIndex, (UInt32)value);
+
+        public static void CopyValueLE(this byte[] buffer, int startIndex, UInt32 value)
+        {
+#if DEBUG
+            if (sizeof(UInt32) != 4)
+                throw new Exception();
+#endif
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            if (startIndex < 0)
+                throw new ArgumentException();
+            if (startIndex + sizeof(UInt32) > buffer.Length)
+                throw new ArgumentException();
+            buffer[startIndex + 0] = (byte)(value >> 00);
+            buffer[startIndex + 1] = (byte)(value >> 08);
+            buffer[startIndex + 2] = (byte)(value >> 16);
+            buffer[startIndex + 3] = (byte)(value >> 24);
+        }
+
+        public static void CopyValueLE(this byte[] buffer, int startIndex, Int64 value) => buffer.CopyValueLE(startIndex, (UInt64)value);
+
+        public static void CopyValueLE(this byte[] buffer, int startIndex, UInt64 value)
+        {
+#if DEBUG
+            if (sizeof(UInt64) != 8)
+                throw new Exception();
+#endif
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            if (startIndex < 0)
+                throw new ArgumentException();
+            if (startIndex + sizeof(UInt64) > buffer.Length)
+                throw new ArgumentException();
+            buffer[startIndex + 0] = (byte)(value >> 00);
+            buffer[startIndex + 1] = (byte)(value >> 08);
+            buffer[startIndex + 2] = (byte)(value >> 16);
+            buffer[startIndex + 3] = (byte)(value >> 24);
+            buffer[startIndex + 4] = (byte)(value >> 32);
+            buffer[startIndex + 5] = (byte)(value >> 40);
+            buffer[startIndex + 6] = (byte)(value >> 48);
+            buffer[startIndex + 7] = (byte)(value >> 56);
+        }
+
+        public static void CopyValueLE(this byte[] buffer, int startIndex, Single value)
+        {
+#if DEBUG
+            if (sizeof(Single) != 4)
+                throw new Exception();
+#endif
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            if (startIndex < 0)
+                throw new ArgumentException();
+            if (startIndex + sizeof(Single) > buffer.Length)
+                throw new ArgumentException();
+            var array = BitConverter.GetBytes(value);
+#if DEBUG
+            if (array.Length != sizeof(Single))
+                throw new Exception();
+#endif
+            if (BitConverter.IsLittleEndian)
+            {
+                buffer[startIndex + 0] = array[0];
+                buffer[startIndex + 1] = array[1];
+                buffer[startIndex + 2] = array[2];
+                buffer[startIndex + 3] = array[3];
+            }
+            else
+            {
+                buffer[startIndex + 0] = array[3];
+                buffer[startIndex + 1] = array[2];
+                buffer[startIndex + 2] = array[1];
+                buffer[startIndex + 3] = array[0];
+            }
+        }
+
+        public static void CopyValueLE(this byte[] buffer, int startIndex, Double value)
+        {
+#if DEBUG
+            if (sizeof(Double) != 8)
+                throw new Exception();
+#endif
+
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            if (startIndex < 0)
+                throw new ArgumentException();
+            if (startIndex + sizeof(Double) > buffer.Length)
+                throw new ArgumentException();
+            var array = BitConverter.GetBytes(value);
+#if DEBUG
+            if (array.Length != sizeof(Double))
+                throw new Exception();
+#endif
+            if (BitConverter.IsLittleEndian)
+            {
+                buffer[startIndex + 0] = array[0];
+                buffer[startIndex + 1] = array[1];
+                buffer[startIndex + 2] = array[2];
+                buffer[startIndex + 3] = array[3];
+                buffer[startIndex + 4] = array[4];
+                buffer[startIndex + 5] = array[5];
+                buffer[startIndex + 6] = array[6];
+                buffer[startIndex + 7] = array[7];
+            }
+            else
+            {
+                buffer[startIndex + 0] = array[7];
+                buffer[startIndex + 1] = array[6];
+                buffer[startIndex + 2] = array[5];
+                buffer[startIndex + 3] = array[4];
+                buffer[startIndex + 4] = array[3];
+                buffer[startIndex + 5] = array[2];
+                buffer[startIndex + 6] = array[1];
+                buffer[startIndex + 7] = array[0];
+            }
+        }
+
+        public static void CopyValueBE(this byte[] buffer, int startIndex, Int16 value) => buffer.CopyValueBE(startIndex, (UInt16)value);
+
+        public static void CopyValueBE(this byte[] buffer, int startIndex, UInt16 value)
+        {
+#if DEBUG
+            if (sizeof(UInt16) != 2)
+                throw new Exception();
+#endif
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            if (startIndex < 0)
+                throw new ArgumentException();
+            if (startIndex + sizeof(UInt16) > buffer.Length)
+                throw new ArgumentException();
+            buffer[startIndex + 0] = (byte)(value >> 08);
+            buffer[startIndex + 1] = (byte)(value >> 00);
+        }
+
+        public static void CopyValueBE(this byte[] buffer, int startIndex, Int32 value) => buffer.CopyValueBE(startIndex, (UInt32)value);
+
+        public static void CopyValueBE(this byte[] buffer, int startIndex, UInt32 value)
+        {
+#if DEBUG
+            if (sizeof(UInt32) != 4)
+                throw new Exception();
+#endif
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            if (startIndex < 0)
+                throw new ArgumentException();
+            if (startIndex + sizeof(UInt32) > buffer.Length)
+                throw new ArgumentException();
+            buffer[startIndex + 0] = (byte)(value >> 24);
+            buffer[startIndex + 1] = (byte)(value >> 16);
+            buffer[startIndex + 2] = (byte)(value >> 08);
+            buffer[startIndex + 3] = (byte)(value >> 00);
+        }
+
+        public static void CopyValueBE(this byte[] buffer, int startIndex, Int64 value) => buffer.CopyValueBE(startIndex, (UInt64)value);
+
+        public static void CopyValueBE(this byte[] buffer, int startIndex, UInt64 value)
+        {
+#if DEBUG
+            if (sizeof(UInt64) != 8)
+                throw new Exception();
+#endif
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            if (startIndex < 0)
+                throw new ArgumentException();
+            if (startIndex + sizeof(UInt64) > buffer.Length)
+                throw new ArgumentException();
+            buffer[startIndex + 0] = (byte)(value >> 56);
+            buffer[startIndex + 1] = (byte)(value >> 48);
+            buffer[startIndex + 2] = (byte)(value >> 40);
+            buffer[startIndex + 3] = (byte)(value >> 32);
+            buffer[startIndex + 4] = (byte)(value >> 24);
+            buffer[startIndex + 5] = (byte)(value >> 16);
+            buffer[startIndex + 6] = (byte)(value >> 08);
+            buffer[startIndex + 7] = (byte)(value >> 00);
+        }
+
+        public static void CopyValueBE(this byte[] buffer, int startIndex, Single value)
+        {
+#if DEBUG
+            if (sizeof(Single) != 4)
+                throw new Exception();
+#endif
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            if (startIndex < 0)
+                throw new ArgumentException();
+            if (startIndex + sizeof(Single) > buffer.Length)
+                throw new ArgumentException();
+            var array = BitConverter.GetBytes(value);
+#if DEBUG
+            if (array.Length != sizeof(Single))
+                throw new Exception();
+#endif
+            if (BitConverter.IsLittleEndian)
+            {
+                buffer[startIndex + 0] = array[3];
+                buffer[startIndex + 1] = array[2];
+                buffer[startIndex + 2] = array[1];
+                buffer[startIndex + 3] = array[0];
+            }
+            else
+            {
+                buffer[startIndex + 0] = array[0];
+                buffer[startIndex + 1] = array[1];
+                buffer[startIndex + 2] = array[2];
+                buffer[startIndex + 3] = array[3];
+            }
+        }
+
+        public static void CopyValueBE(this byte[] buffer, int startIndex, Double value)
+        {
+#if DEBUG
+            if (sizeof(Double) != 8)
+                throw new Exception();
+#endif
+
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            if (startIndex < 0)
+                throw new ArgumentException();
+            if (startIndex + sizeof(Double) > buffer.Length)
+                throw new ArgumentException();
+            var array = BitConverter.GetBytes(value);
+#if DEBUG
+            if (array.Length != sizeof(Double))
+                throw new Exception();
+#endif
+            if (BitConverter.IsLittleEndian)
+            {
+                buffer[startIndex + 0] = array[7];
+                buffer[startIndex + 1] = array[6];
+                buffer[startIndex + 2] = array[5];
+                buffer[startIndex + 3] = array[4];
+                buffer[startIndex + 4] = array[3];
+                buffer[startIndex + 5] = array[2];
+                buffer[startIndex + 6] = array[1];
+                buffer[startIndex + 7] = array[0];
+            }
+            else
+            {
+                buffer[startIndex + 0] = array[0];
+                buffer[startIndex + 1] = array[1];
+                buffer[startIndex + 2] = array[2];
+                buffer[startIndex + 3] = array[3];
+                buffer[startIndex + 4] = array[4];
+                buffer[startIndex + 5] = array[5];
+                buffer[startIndex + 6] = array[6];
+                buffer[startIndex + 7] = array[7];
+            }
+        }
+
         internal static Byte ConvertBitOrder(this Byte value, int bitCount, BitPackingDirection packingDirection)
         {
 #if DEBUG

@@ -53,7 +53,9 @@ namespace ZipUtility
 
         public ZipStreamPosition Add(Int64 x)
         {
+#if DEBUG
             checked
+#endif
             {
                 if (x >= 0)
                     return Add((UInt64)x);
@@ -76,7 +78,9 @@ namespace ZipUtility
 
         public ZipStreamPosition Add(Int32 x)
         {
+#if DEBUG
             checked
+#endif
             {
                 if (x >= 0)
                     return Add((UInt64)x);
@@ -99,7 +103,9 @@ namespace ZipUtility
 
         public ZipStreamPosition Subtract(Int64 x)
         {
+#if DEBUG
             checked
+#endif
             {
                 if (x >= 0)
                     return Subtract((UInt64)x);
@@ -122,7 +128,9 @@ namespace ZipUtility
 
         public ZipStreamPosition Subtract(Int32 x)
         {
+#if DEBUG
             checked
+#endif
             {
                 if (x >= 0)
                     return Subtract((UInt64)x);

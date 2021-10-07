@@ -142,7 +142,9 @@ namespace ZipUtility
                 throw new Exception();
             if (rawPosition.DiskNumber > 0)
                 throw new BadZipFileFormatException("Invalid disk number");
+#if DEBUG
             checked
+#endif
             {
                 var newPosition = rawPosition.OffsetOnTheDisk + offset;
                 if (newPosition > _baseStream.Length)
@@ -158,7 +160,9 @@ namespace ZipUtility
                 throw new Exception();
             if (rawPosition.DiskNumber > 0)
                 throw new BadZipFileFormatException("Invalid disk number");
+#if DEBUG
             checked
+#endif
             {
                 return new ZipStreamPosition(0, rawPosition.OffsetOnTheDisk - offset, this);
             }
@@ -176,7 +180,9 @@ namespace ZipUtility
                 throw new Exception();
             if (rawPosition2.DiskNumber > 0)
                 throw new BadZipFileFormatException("Invalid disk number");
+#if DEBUG
             checked
+#endif
             {
                 return rawPosition1.OffsetOnTheDisk - rawPosition2.OffsetOnTheDisk;
             }

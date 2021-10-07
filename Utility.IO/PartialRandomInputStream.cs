@@ -147,7 +147,9 @@ namespace Utility.IO
                 if (BaseStream.Position.CompareTo(_startOfStream) < 0)
                     throw new IOException();
 
+#if DEBUG
                 checked
+#endif
                 {
                     return AddPosition(ZeroPositionValue, GetDistanceBetweenBasePositions(BaseStream.Position, _startOfStream));
                 }
@@ -159,7 +161,9 @@ namespace Utility.IO
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
 
+#if DEBUG
             checked
+#endif
             {
                 BaseStream.Seek(AddBasePosition(_startOfStream, GetDistanceBetweenPositions(offset, ZeroPositionValue)));
             }

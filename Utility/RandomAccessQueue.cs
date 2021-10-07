@@ -71,9 +71,13 @@ namespace Utility
             {
                 if (index < 0)
                     throw new IndexOutOfRangeException("'index' is a negative value.");
+                if (index >= _queue.Count)
+                    throw new IndexOutOfRangeException("'index' exceeds the upper limit.");
                 try
                 {
+#if DEBUG
                     checked
+#endif
                     {
                         return _queue[_indexOfStart + (uint)index];
 
@@ -210,7 +214,9 @@ namespace Utility
                     throw new Exception();
                 if (_queue.Keys.Last() + 1 != _indexOfEnd)
                     throw new Exception();
+#if DEBUG
                 checked
+#endif
                 {
                     if ((uint)_queue.Count != _indexOfEnd - _indexOfStart)
                         throw new Exception();

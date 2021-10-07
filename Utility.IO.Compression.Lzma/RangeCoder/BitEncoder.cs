@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Utility.IO.Compression.RangeCoder
+namespace Utility.IO.Compression.Lzma.RangeCoder
 {
     struct BitEncoder
     {

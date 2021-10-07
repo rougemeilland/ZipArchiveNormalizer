@@ -3,11 +3,11 @@ using Utility.IO;
 
 namespace ZipUtility.IO.Compression.BZIP2
 {
-    public class Bzip2OutputStream
+    class Bzip2EncodingStream
         : ZipContentOutputStream
     {
-        public Bzip2OutputStream(IOutputByteStream<UInt64> baseStream, int level, ulong? size)
-            : base(baseStream, size)
+        public Bzip2EncodingStream(IOutputByteStream<UInt64> baseStream, int level, ulong? size, ICodingProgressReportable progressReporter)
+            : base(baseStream, size, progressReporter)
         {
             try
             {
@@ -30,7 +30,7 @@ namespace ZipUtility.IO.Compression.BZIP2
             }
         }
 
-        protected override void FlushDestinationStream(IOutputByteStream<UInt64> destinationStream, bool isEndOfData)
+        protected override void FlushDestinationStream(IBasicOutputByteStream destinationStream, bool isEndOfData)
         {
             // Bzip2.BZip2OutputStream.Flush は例外を返すため、呼び出さない。
             //destinationStream.Flush();

@@ -31,7 +31,7 @@ namespace ZipUtility
                         progressAction();
                     foreach (var entry in zipFile.GetEntries())
                     {
-                        zipFile.CheckEntry(entry, progressAction != null ? count => progressAction() : (Action<int>)null);
+                        zipFile.CheckEntry(entry, progressAction != null ? count => progressAction() : (Action<UInt64>)null);
                         ++entryCount;
                         progressAction();
                     }

@@ -49,16 +49,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="LzmaOutputStream.cs" />
-    <Compile Include="LzmaInputStream.cs" />
+    <Compile Include="LzmaEncodingStream.cs" />
+    <Compile Include="LzmaDecodingStream.cs" />
     <Compile Include="LZMACompressionMethod.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\SevenZip.Lzma\SevenZip.Lzma.csproj">
-      <Project>{cc472154-944b-4e90-af9b-dc06bcb629bc}</Project>
-      <Name>SevenZip.Lzma</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Utility.IO.Compression.Lzma\Utility.IO.Compression.Lzma.csproj">
       <Project>{f918fdef-d8c1-4927-9c12-d4fccb12a1a6}</Project>
       <Name>Utility.IO.Compression.Lzma</Name>

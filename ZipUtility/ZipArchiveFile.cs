@@ -118,18 +118,18 @@ namespace ZipUtility
             return new ZipArchiveEntryCollection(entries);
         }
 
-        public IInputByteStream<UInt64> GetInputStream(ZipArchiveEntry entry)
+        public IInputByteStream<UInt64> GetInputStream(ZipArchiveEntry entry, Action<UInt64> progressAction = null)
         {
             if (entry.ZipFileInstanceId != _instanceId)
                 throw new ArgumentException();
-            return entry.GetInputStream(_zipStream);
+            return entry.GetInputStream(_zipStream, progressAction != null ? new CodingProgress(progressAction) : null);
         }
 
-        public void CheckEntry(ZipArchiveEntry entry, Action<int> progressAction = null)
+        public void CheckEntry(ZipArchiveEntry entry, Action<UInt64> progressAction = null)
         {
             if (entry.ZipFileInstanceId != _instanceId)
                 throw new ArgumentException();
-            entry.CheckData(_zipStream, progressAction);
+            entry.CheckData(_zipStream, progressAction != null ? new CodingProgress(progressAction) : null);
         }
 
         public void Dispose()

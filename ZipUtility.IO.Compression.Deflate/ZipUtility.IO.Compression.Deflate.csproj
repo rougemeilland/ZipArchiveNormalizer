@@ -49,8 +49,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DeflateInputStream.cs" />
-    <Compile Include="DeflateOutputStream.cs" />
+    <Compile Include="DeflateDecodingStream.cs" />
+    <Compile Include="DeflateEncodingStream.cs" />
     <Compile Include="DeflateCompressionMethod.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

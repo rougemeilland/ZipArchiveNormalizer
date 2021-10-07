@@ -10,14 +10,14 @@ namespace ZipUtility.IO.Compression.Stored
 
         public ICompressionOption CreateOptionFromGeneralPurposeFlag(bool bit1, bool bit2) => null;
 
-        public IInputByteStream<UInt64> GetInputStream(IInputByteStream<UInt64> baseStream, ICompressionOption option, ulong size)
+        public IInputByteStream<UInt64> GetDecodingStream(IInputByteStream<UInt64> baseStream, ICompressionOption option, ulong size, ICodingProgressReportable progressReporter)
         {
-            return baseStream;
+            return new StoredDecodingStream(baseStream, size, progressReporter);
         }
 
-        public IOutputByteStream<UInt64> GetOutputStream(IOutputByteStream<UInt64> baseStream, ICompressionOption option, ulong? size)
+        public IOutputByteStream<UInt64> GetEncodingStream(IOutputByteStream<UInt64> baseStream, ICompressionOption option, ulong? size, ICodingProgressReportable progressReporter)
         {
-            return baseStream;
+            return new StoredEncodingStream(baseStream, size, progressReporter);
         }
     }
 }

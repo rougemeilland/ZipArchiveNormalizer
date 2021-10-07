@@ -19,7 +19,9 @@ namespace Utility.IO
 
             protected override UInt64 AddPositionAndDistance(UInt64 position, UInt64 distance)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return position + distance;
                 }
@@ -27,7 +29,9 @@ namespace Utility.IO
 
             protected override int GetDistanceBetweenPositions(UInt64 position1, UInt64 distance2)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return (int)(position1 - distance2);
                 }
@@ -35,7 +39,9 @@ namespace Utility.IO
 
             protected override ulong SubtractBufferSizeFromPosition(ulong position, uint distance)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return position - distance;
                 }
@@ -59,7 +65,9 @@ namespace Utility.IO
 
             protected override ulong AddPosition(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x + y;
                 }
@@ -83,7 +91,9 @@ namespace Utility.IO
 
             protected override ulong AddPosition(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x + y;
                 }
@@ -106,7 +116,9 @@ namespace Utility.IO
 
             protected override ulong AddPosition(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x + y;
                 }
@@ -130,7 +142,9 @@ namespace Utility.IO
 
             protected override ulong AddPosition(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x + y;
                 }
@@ -164,7 +178,9 @@ namespace Utility.IO
 
             protected override ulong AddPosition(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x + y;
                 }
@@ -193,7 +209,9 @@ namespace Utility.IO
 
             protected override ulong AddPosition(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x + y;
                 }
@@ -235,7 +253,9 @@ namespace Utility.IO
 
             protected override ulong AddBasePosition(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x + y;
                 }
@@ -243,7 +263,9 @@ namespace Utility.IO
 
             protected override ulong AddPosition(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x + y;
                 }
@@ -251,7 +273,9 @@ namespace Utility.IO
 
             protected override ulong GetDistanceBetweenBasePositions(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x - y;
                 }
@@ -259,7 +283,9 @@ namespace Utility.IO
 
             protected override ulong GetDistanceBetweenPositions(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x - y;
                 }
@@ -295,7 +321,9 @@ namespace Utility.IO
 
             protected override ulong AddBasePosition(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x + y;
                 }
@@ -303,7 +331,9 @@ namespace Utility.IO
 
             protected override ulong AddPosition(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x + y;
                 }
@@ -311,7 +341,9 @@ namespace Utility.IO
 
             protected override ulong GetDistanceBetweenBasePositions(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x - y;
                 }
@@ -319,7 +351,9 @@ namespace Utility.IO
 
             protected override ulong GetDistanceBetweenPositions(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x - y;
                 }
@@ -1073,8 +1107,6 @@ namespace Utility.IO
                 throw new ArgumentNullException();
             if (bufferSize < 1)
                 throw new ArgumentException();
-            if (progressNotification == null)
-                throw new ArgumentNullException();
             var buffer = new byte[bufferSize];
             var progressCount = 0;
             while (true)

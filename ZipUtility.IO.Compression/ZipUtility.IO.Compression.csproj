@@ -52,6 +52,8 @@
     <Compile Include="LzmaCompressionOption.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Stored\StoredCompressionMethod.cs" />
+    <Compile Include="Stored\StoredDecodingStream.cs" />
+    <Compile Include="Stored\StoredEncodingStream.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Utility.IO\Utility.IO.csproj">

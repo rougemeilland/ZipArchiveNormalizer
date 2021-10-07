@@ -13,20 +13,20 @@ namespace ZipUtility.IO.Compression.Lzma
             return new LzmaCompressionOption { UseEndOfStreamMarker = bit1 };
         }
 
-        public IInputByteStream<UInt64> GetInputStream(IInputByteStream<UInt64> baseStream, ICompressionOption option, ulong size)
+        public IInputByteStream<UInt64> GetDecodingStream(IInputByteStream<UInt64> baseStream, ICompressionOption option, ulong size, ICodingProgressReportable progressReporter)
         {
             if (!(option is LzmaCompressionOption))
                 throw new ArgumentException();
             var useEndOfStreamMarker = (option as LzmaCompressionOption)?.UseEndOfStreamMarker ?? true;
-            return new LzmaInputStream(baseStream, size);
+            return new LzmaDecodingStream(baseStream, size, progressReporter);
         }
 
-        public IOutputByteStream<UInt64> GetOutputStream(IOutputByteStream<UInt64> baseStream, ICompressionOption option, ulong? size)
+        public IOutputByteStream<UInt64> GetEncodingStream(IOutputByteStream<UInt64> baseStream, ICompressionOption option, ulong? size, ICodingProgressReportable progressReporter)
         {
             if (!(option is LzmaCompressionOption))
                 throw new ArgumentException();
             var useEndOfStreamMarker = (option as LzmaCompressionOption)?.UseEndOfStreamMarker ?? true;
-            return new LzmaOutputStream(baseStream, useEndOfStreamMarker, size);
+            return new LzmaEncodingStream(baseStream, useEndOfStreamMarker, size, progressReporter);
         }
     }
 }

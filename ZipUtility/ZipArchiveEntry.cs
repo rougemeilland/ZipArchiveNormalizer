@@ -150,16 +150,17 @@ namespace ZipUtility
         internal ZipStreamPosition LocalFileHeaderPosition { get; }
         internal ZipStreamPosition DataPosition { get; }
 
-        internal IInputByteStream<UInt64> GetInputStream(IZipInputStream zipFileStream)
+        internal IInputByteStream<UInt64> GetInputStream(IZipInputStream zipFileStream, ICodingProgressReportable progressReporter)
         {
             return
-                _compressionMethod.GetInputStream(
+                _compressionMethod.GetDecodingStream(
                     zipFileStream
                         .AsPartial(DataPosition, PackedSize),
-                    Size);
+                    Size,
+                    progressReporter);
         }
 
-        internal void CheckData(IZipInputStream zipInputStream, Action<int> progressAction = null)
+        internal void CheckData(IZipInputStream zipInputStream, ICodingProgressReportable progressReporter)
         {
             if (IsFile == false)
                 return;
@@ -169,7 +170,7 @@ namespace ZipUtility
                 throw new BadZipFileFormatException(string.Format("Bad entry data: index={0}, name=\"{1}\"", Index, FullName));
             try
             {
-                var actualCrc = GetInputStream(zipInputStream).GetByteSequence(progressAction: progressAction).CalculateCrc32();
+                var actualCrc = GetInputStream(zipInputStream, progressReporter).GetByteSequence().CalculateCrc32();
                 if (actualCrc != Crc)
                     throw
                         new BadZipFileFormatException(

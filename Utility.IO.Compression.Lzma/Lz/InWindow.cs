@@ -1,10 +1,10 @@
 using System;
 
-namespace Utility.IO.Compression.Lz
+namespace Utility.IO.Compression.Lzma.Lz
 {
     class InWindow
     {
-        private IInputByteStream<UInt64> _stream;
+        private IInputBuffer _stream;
         private UInt32 _posLimit; // offset (from _buffer) of first byte when new block reading must be done
         private bool _streamEndWasReached; // if (true) then _streamPos shows real end of stream
 
@@ -16,7 +16,7 @@ namespace Utility.IO.Compression.Lz
 
         protected UInt32 Position; // offset (from _buffer) of curent byte
         protected Byte[] BufferBase; // pointer to buffer with data
-        protected UInt32 BufferOffset;
+        protected Int64 BufferOffset;
         protected UInt32 StreamPosition; // offset (from _buffer) of first not read byte from Stream
 
         public InWindow()
@@ -26,17 +26,22 @@ namespace Utility.IO.Compression.Lz
 
         public void MoveBlock()
         {
-            var offset = BufferOffset + Position - _keepSizeBefore;
-            // we need one additional byte, since MovePos moves on 1 byte.
-            if (offset > 0)
-                offset--;
-            
-            var numBytes = BufferOffset + StreamPosition - offset;
+#if DEBUG
+            checked
+#endif
+            {
+                if (BufferOffset + Position >= _keepSizeBefore)
+                {
+                    var offset = BufferOffset + Position - _keepSizeBefore;
+                    // we need one additional byte, since MovePos moves on 1 byte.
+                    if (offset > 0)
+                        offset--;
 
-            // check negative offset ????
-            for (var i = 0; i < numBytes; i++)
-                BufferBase[i] = BufferBase[offset + i];
-            BufferOffset -= offset;
+                    var numBytes = BufferOffset + StreamPosition - offset;
+                    BufferBase.CopyTo((int)offset, BufferBase, 0, (int)numBytes);
+                    BufferOffset -= offset;
+                }
+            }
         }
 
         public virtual void ReadBlock()
@@ -45,40 +50,50 @@ namespace Utility.IO.Compression.Lz
                 return;
             while (true)
             {
-                int size = (int)((0 - BufferOffset) + _blockSize - StreamPosition);
-                if (size == 0)
-                    return;
-                int numReadBytes = _stream.Read(BufferBase, (int)(BufferOffset + StreamPosition), size);
-                if (numReadBytes == 0)
+#if DEBUG
+                checked
+#endif
                 {
-                    _posLimit = StreamPosition;
-                    UInt32 pointerToPostion = BufferOffset + _posLimit;
-                    if (pointerToPostion > _pointerToLastSafePosition)
-                        _posLimit = (UInt32)(_pointerToLastSafePosition - BufferOffset);
+                    var offset = BufferOffset + StreamPosition;
+                    if (offset >= _blockSize)
+                        return;
+                    int numReadBytes = _stream.Read(BufferBase, (int)offset, (int)(_blockSize - offset));
+                    if (numReadBytes <= 0)
+                    {
+                        _posLimit = StreamPosition;
+                        var pointerToPostion = BufferOffset + _posLimit;
+                        if (pointerToPostion > _pointerToLastSafePosition)
+                            _posLimit = (UInt32)(_pointerToLastSafePosition - BufferOffset);
 
-                    _streamEndWasReached = true;
-                    return;
+                        _streamEndWasReached = true;
+                        return;
+                    }
+                    StreamPosition += (UInt32)numReadBytes;
+                    if (StreamPosition >= Position + _keepSizeAfter)
+                        _posLimit = StreamPosition - _keepSizeAfter;
                 }
-                StreamPosition += (UInt32)numReadBytes;
-                if (StreamPosition >= Position + _keepSizeAfter)
-                    _posLimit = StreamPosition - _keepSizeAfter;
             }
         }
 
         public void Create(UInt32 keepSizeBefore, UInt32 keepSizeAfter, UInt32 keepSizeReserv)
         {
-            _keepSizeBefore = keepSizeBefore;
-            _keepSizeAfter = keepSizeAfter;
-            UInt32 blockSize = keepSizeBefore + keepSizeAfter + keepSizeReserv;
-            if (BufferBase == null || _blockSize != blockSize)
+#if DEBUG
+            checked
+#endif
             {
-                _blockSize = blockSize;
-                BufferBase = new Byte[_blockSize];
+                _keepSizeBefore = keepSizeBefore;
+                _keepSizeAfter = keepSizeAfter;
+                var blockSize = keepSizeBefore + keepSizeAfter + keepSizeReserv;
+                if (BufferBase == null || _blockSize != blockSize)
+                {
+                    _blockSize = blockSize;
+                    BufferBase = new Byte[_blockSize];
+                }
+                _pointerToLastSafePosition = _blockSize - keepSizeAfter;
             }
-            _pointerToLastSafePosition = _blockSize - keepSizeAfter;
         }
 
-        public void SetStream(IInputByteStream<UInt64> stream)
+        public void SetStream(IInputBuffer stream)
         {
             _stream = stream;
         }
@@ -99,41 +114,73 @@ namespace Utility.IO.Compression.Lz
 
         public virtual void MovePos()
         {
-            Position++;
-            if (Position > _posLimit)
+#if DEBUG
+            checked
+#endif
             {
-                UInt32 pointerToPostion = BufferOffset + Position;
-                if (pointerToPostion > _pointerToLastSafePosition)
-                    MoveBlock();
-                ReadBlock();
+                Position++;
+                if (Position > _posLimit)
+                {
+                    var pointerToPostion = BufferOffset + Position;
+                    if (pointerToPostion > _pointerToLastSafePosition)
+                        MoveBlock();
+                    ReadBlock();
+                }
             }
         }
 
-        public Byte GetIndexByte(Int32 index) { return BufferBase[BufferOffset + Position + index]; }
+        public Byte GetIndexByte(Int32 index)
+        {
+#if DEBUG
+            checked
+#endif
+            {
+                return BufferBase[BufferOffset + Position + index];
+            }
+        }
 
         // index + limit have not to exceed _keepSizeAfter;
         public UInt32 GetMatchLen(Int32 index, UInt32 distance, UInt32 limit)
         {
-            if (_streamEndWasReached)
-                if ((Position + index) + limit > StreamPosition)
-                    limit = StreamPosition - (UInt32)(Position + index);
-            distance++;
-            // Byte *pby = _buffer + (size_t)_pos + index;
-            UInt32 pby = BufferOffset + Position + (UInt32)index;
-
-            UInt32 i;
-            for (i = 0; i < limit && BufferBase[pby + i] == BufferBase[pby + i - distance]; i++);
-            return i;
+#if DEBUG
+            checked
+#endif
+            {
+                if (_streamEndWasReached)
+                    if (Position + index + limit > StreamPosition)
+                        limit = StreamPosition - (UInt32)(Position + index);
+                distance++;
+                var pby = BufferOffset + Position + index;
+                var i = 0U;
+                while (i < limit && BufferBase[pby + i] == BufferBase[pby + i - distance])
+                    ++i;
+                return i;
+            }
         }
 
-        public UInt32 GetNumAvailableBytes() { return StreamPosition - Position; }
+        public UInt32 GetNumAvailableBytes()
+        {
+#if DEBUG
+            checked
+#endif
+            {
+                return StreamPosition - Position;
+            }
+        }
 
         public void ReduceOffsets(Int32 subValue)
         {
-            BufferOffset += (UInt32)subValue;
-            _posLimit -= (UInt32)subValue;
-            Position -= (UInt32)subValue;
-            StreamPosition -= (UInt32)subValue;
+#if DEBUG
+            checked
+#endif
+            {
+                BufferOffset += subValue;
+                _posLimit = (UInt32)(_posLimit - subValue);
+                Position = (UInt32)(Position - subValue);
+                StreamPosition = (UInt32)(StreamPosition - subValue);
+            }
         }
+
+        public UInt32 BlockSize => _blockSize;
     }
 }

@@ -46,9 +46,6 @@
     <Compile Include="CoderProperties.cs" />
     <Compile Include="CoderPropId.cs" />
     <Compile Include="DataErrorException.cs" />
-    <Compile Include="ISetCoderProperties.cs" />
-    <Compile Include="ISetDecoderProperties.cs" />
-    <Compile Include="IWriteCoderProperties.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

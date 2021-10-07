@@ -1,4 +1,4 @@
-﻿using Utility.IO.Compression.RangeCoder;
+﻿using Utility.IO.Compression.Lzma.RangeCoder;
 
 namespace Utility.IO.Compression.Lzma
 {

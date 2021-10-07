@@ -50,8 +50,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BZIP2CompressionMethod.cs" />
-    <Compile Include="Bzip2InputStream.cs" />
-    <Compile Include="Bzip2OutputStream.cs" />
+    <Compile Include="Bzip2DecodingStream.cs" />
+    <Compile Include="Bzip2EncodingStream.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

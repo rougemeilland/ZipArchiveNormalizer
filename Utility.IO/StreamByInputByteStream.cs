@@ -105,7 +105,9 @@ namespace Utility.IO
                 case SeekOrigin.Current:
                     try
                     {
+#if DEBUG
                         checked
+#endif
                         {
                             if (offset >= 0)
                                 absoluteOffset = _randomAccessStream.Position + (ulong)offset;
@@ -121,7 +123,9 @@ namespace Utility.IO
                 case SeekOrigin.End:
                     try
                     {
+#if DEBUG
                         checked
+#endif
                         {
                             if (offset >= 0)
                                 absoluteOffset = _randomAccessStream.Length + (ulong)offset;

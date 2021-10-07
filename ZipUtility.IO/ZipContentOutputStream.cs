@@ -8,22 +8,32 @@ namespace ZipUtility.IO
     public abstract class ZipContentOutputStream
         : IOutputByteStream<UInt64>
     {
+        private const UInt64 _PROGRESS_STEP = 80 * 1024;
         private bool _isDisposed;
         private ulong? _size;
-        private IOutputByteStream<UInt64> _destinationStream;
+        private ICodingProgressReportable _progressReporter;
+        private IBasicOutputByteStream _destinationStream;
         private ulong _position;
         private bool _isEndOfWriting;
+        private UInt64 _progressCount;
 
-        public ZipContentOutputStream(IOutputByteStream<UInt64> baseStream, ulong? size)
+        public ZipContentOutputStream(IBasicOutputByteStream baseStream, ulong? size)
+            : this(baseStream, size, null)
+        {
+        }
+
+        public ZipContentOutputStream(IBasicOutputByteStream baseStream, ulong? size, ICodingProgressReportable progressReporter)
         {
             if (baseStream == null)
                 throw new ArgumentNullException(nameof(baseStream));
 
             _isDisposed = false;
             _size = size;
+            _progressReporter = progressReporter;
             _destinationStream = null;
             _position = 0;
             _isEndOfWriting = false;
+            _progressCount = 0;
         }
 
         public ulong Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
@@ -46,7 +56,13 @@ namespace ZipUtility.IO
                 throw new InvalidOperationException("Can not write any more.");
 
             var written = WriteToDestinationStream(_destinationStream, buffer, offset, count);
-            _position += (ulong)written;
+            if (written > 0)
+            {
+                _position += (ulong)written;
+                _progressCount += (UInt64)written;
+                if (_progressCount >= _PROGRESS_STEP)
+                    ReportProgress();
+            }
             if (_size.HasValue && _position >= _size.Value)
             {
                 FlushDestinationStream(_destinationStream, true);
@@ -114,6 +130,7 @@ namespace ZipUtility.IO
                         catch (Exception)
                         {
                         }
+                        ReportProgress();
                         _destinationStream.Dispose();
                         _destinationStream = null;
                     }
@@ -123,19 +140,19 @@ namespace ZipUtility.IO
             }
         }
 
-        protected void SetDestinationStream(IOutputByteStream<UInt64> destinationStream)
+        protected void SetDestinationStream(IBasicOutputByteStream destinationStream)
         {
             if (destinationStream == null)
                 throw new ArgumentNullException(nameof(destinationStream));
             _destinationStream = destinationStream;
         }
 
-        protected virtual int WriteToDestinationStream(IOutputByteStream<UInt64> destinationStream, IReadOnlyArray<byte> buffer, int offset, int count)
+        protected virtual int WriteToDestinationStream(IBasicOutputByteStream destinationStream, IReadOnlyArray<byte> buffer, int offset, int count)
         {
             return destinationStream.Write(buffer, offset, count);
         }
 
-        protected virtual void FlushDestinationStream(IOutputByteStream<UInt64> destinationStream, bool isEndOfData)
+        protected virtual void FlushDestinationStream(IBasicOutputByteStream destinationStream, bool isEndOfData)
         {
             if (_isEndOfWriting == false)
                 destinationStream.Flush();
@@ -144,6 +161,21 @@ namespace ZipUtility.IO
         protected void CloseDestinationStream()
         {
             _destinationStream.Close();
+        }
+
+        private void ReportProgress()
+        {
+            if (_progressReporter != null && _progressCount > 0)
+            {
+                try
+                {
+                    _progressReporter.SetProgress(_progressCount);
+                }
+                catch (Exception)
+                {
+                }
+            }
+            _progressCount = 0;
         }
     }
 }

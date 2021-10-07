@@ -127,7 +127,9 @@ namespace Utility.IO
                 if (_isDisposed)
                     throw new ObjectDisposedException(GetType().FullName);
 
+#if DEBUG
                 checked
+#endif
                 {
                     var endOfStream = AddBasePosition(ZeroBasePositionValue, _baseStream.Length);
                     if (_limitOfStream.HasValue)
@@ -143,7 +145,9 @@ namespace Utility.IO
                 if (value < 0)
                     throw new ArgumentException();
 
+#if DEBUG
                 checked
+#endif
                 {
                     _baseStream.Length = value + GetDistanceBetweenBasePositions(_startOfStream, ZeroBasePositionValue);
                 }
@@ -157,7 +161,9 @@ namespace Utility.IO
                 if (_isDisposed)
                     throw new ObjectDisposedException(GetType().FullName);
 
+#if DEBUG
                 checked
+#endif
                 {
                     if (_baseStream.Position.CompareTo(_startOfStream) < 0)
                         throw new IOException();

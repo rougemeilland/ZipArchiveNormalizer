@@ -12,14 +12,14 @@ namespace ZipUtility.IO.Compression.BZIP2
 
         public ICompressionOption CreateOptionFromGeneralPurposeFlag(bool bit1, bool bit2) => null;
 
-        public IInputByteStream<UInt64> GetInputStream(IInputByteStream<UInt64> baseStream, ICompressionOption option, ulong size)
+        public IInputByteStream<UInt64> GetDecodingStream(IInputByteStream<UInt64> baseStream, ICompressionOption option, ulong size, ICodingProgressReportable progressReporter)
         {
-            return new Bzip2InputStream(baseStream, size);
+            return new Bzip2DecodingStream(baseStream, size, progressReporter);
         }
 
-        public IOutputByteStream<UInt64> GetOutputStream(IOutputByteStream<UInt64> baseStream, ICompressionOption option, ulong? size)
+        public IOutputByteStream<UInt64> GetEncodingStream(IOutputByteStream<UInt64> baseStream, ICompressionOption option, ulong? size, ICodingProgressReportable progressReporter)
         {
-            return new Bzip2OutputStream(baseStream, _compressionLevel, size);
+            return new Bzip2EncodingStream(baseStream, _compressionLevel, size, progressReporter);
         }
     }
 }

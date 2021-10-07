@@ -7,7 +7,7 @@ namespace ZipUtility.IO.Compression
     {
         CompressionMethodId CompressionMethodId { get; }
         ICompressionOption CreateOptionFromGeneralPurposeFlag(bool bit1, bool bit2);
-        IInputByteStream<UInt64> GetInputStream(IInputByteStream<UInt64> baseStream, ICompressionOption option, ulong size);
-        IOutputByteStream<UInt64> GetOutputStream(IOutputByteStream<UInt64> baseStream, ICompressionOption option, ulong? size);
+        IInputByteStream<UInt64> GetDecodingStream(IInputByteStream<UInt64> baseStream, ICompressionOption option, ulong size, ICodingProgressReportable progressReporter);
+        IOutputByteStream<UInt64> GetEncodingStream(IOutputByteStream<UInt64> baseStream, ICompressionOption option, ulong? size, ICodingProgressReportable progressReporter);
     }
 }

@@ -73,7 +73,9 @@ namespace Utility.IO
                 _isEndOfStream = true;
             else
             {
+#if DEBUG
                 checked
+#endif
                 {
                     _position += (uint)length;
                 }

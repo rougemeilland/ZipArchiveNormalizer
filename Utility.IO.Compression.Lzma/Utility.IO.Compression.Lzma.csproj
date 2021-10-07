@@ -43,16 +43,18 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Lzma\LzmaCoder.cs" />
-    <Compile Include="Lzma\LzmaDecoder.cs" />
-    <Compile Include="Lzma\LzmaEncoder.cs" />
-    <Compile Include="Lzma\LzmaLenDecoder.cs" />
-    <Compile Include="Lzma\LzmaLenEncoder.cs" />
-    <Compile Include="Lzma\LzmaLenPriceTableEncoder.cs" />
-    <Compile Include="Lzma\LzmaLiteralDecoder.cs" />
-    <Compile Include="Lzma\LzmaLiteralEncoder.cs" />
-    <Compile Include="Lzma\LzmaOptimal.cs" />
-    <Compile Include="Lzma\MatchFinderType.cs" />
+    <Compile Include="IInputBuffer.cs" />
+    <Compile Include="IOutputBuffer.cs" />
+    <Compile Include="LzmaCoder.cs" />
+    <Compile Include="LzmaDecodingStream.cs" />
+    <Compile Include="LzmaLenDecoder.cs" />
+    <Compile Include="LzmaLenEncoder.cs" />
+    <Compile Include="LzmaLenPriceTableEncoder.cs" />
+    <Compile Include="LzmaLiteralDecoder.cs" />
+    <Compile Include="LzmaLiteralEncoder.cs" />
+    <Compile Include="LzmaOptimal.cs" />
+    <Compile Include="LzmaEncodingStream.cs" />
+    <Compile Include="MatchFinderType.cs" />
     <Compile Include="Lz\BinTree.cs" />
     <Compile Include="Lz\IInWindowStream.cs" />
     <Compile Include="Lz\IMatchFinder.cs" />

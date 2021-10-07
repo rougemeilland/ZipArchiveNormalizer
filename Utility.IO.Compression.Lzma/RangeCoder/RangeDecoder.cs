@@ -1,15 +1,15 @@
 using System;
 
-namespace Utility.IO.Compression.RangeCoder
+namespace Utility.IO.Compression.Lzma.RangeCoder
 {
     class RangeDecoder
     {
         public const uint kTopValue = (1 << 24);
         public uint Range;
         public uint Code;
-        private IInputByteStream<UInt64> _stream;
+        private IBasicInputByteStream _stream;
 
-        public void Init(IInputByteStream<UInt64> stream)
+        public void Init(IBasicInputByteStream stream)
         {
             _stream = stream;
             Code = 0;

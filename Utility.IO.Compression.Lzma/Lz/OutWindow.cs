@@ -1,6 +1,6 @@
 using System;
 
-namespace Utility.IO.Compression.Lz
+namespace Utility.IO.Compression.Lzma.Lz
 {
     class OutWindow
     {
@@ -8,7 +8,7 @@ namespace Utility.IO.Compression.Lz
         private uint _pos;
         private uint _windowSize = 0;
         private uint _streamPos;
-        private IOutputByteStream<UInt64> _stream;
+        private IOutputBuffer _stream;
 
         public void Create(uint windowSize)
         {
@@ -19,7 +19,7 @@ namespace Utility.IO.Compression.Lz
             _streamPos = 0;
         }
 
-        public void Init(IOutputByteStream<UInt64> stream, bool solid)
+        public void Init(IOutputBuffer stream, bool solid)
         {
             ReleaseStream();
             _stream = stream;
@@ -38,27 +38,35 @@ namespace Utility.IO.Compression.Lz
 
         public void Flush()
         {
-            uint size = _pos - _streamPos;
-            if (size == 0)
-                return;
-            _stream.WriteBytes(_buffer.AsReadOnly(), (int)_streamPos, (int)size);
-            if (_pos >= _windowSize)
-                _pos = 0;
-            _streamPos = _pos;
+#if DEBUG
+            checked
+#endif
+            {
+                uint size = _pos - _streamPos;
+                if (size == 0)
+                    return;
+                _stream.Write(_buffer.AsReadOnly(), (int)_streamPos, (int)size);
+                if (_pos >= _windowSize)
+                    _pos = 0;
+                _streamPos = _pos;
+            }
         }
 
         public void CopyBlock(uint distance, uint len)
         {
-            uint pos = _pos - distance - 1;
-            if (pos >= _windowSize)
-                pos += _windowSize;
-            for (; len > 0; len--)
+#if DEBUG
+            checked
+#endif
             {
-                if (pos >= _windowSize)
-                    pos = 0;
-                _buffer[_pos++] = _buffer[pos++];
-                if (_pos >= _windowSize)
-                    Flush();
+                var pos = _pos >= distance + 1 ? _pos - distance - 1 : _windowSize + _pos - distance - 1;
+                for (; len > 0; len--)
+                {
+                    if (pos >= _windowSize)
+                        pos = 0;
+                    _buffer[_pos++] = _buffer[pos++];
+                    if (_pos >= _windowSize)
+                        Flush();
+                }
             }
         }
 
@@ -71,10 +79,15 @@ namespace Utility.IO.Compression.Lz
 
         public byte GetByte(uint distance)
         {
-            uint pos = _pos - distance - 1;
-            if (pos >= _windowSize)
-                pos += _windowSize;
-            return _buffer[pos];
+#if DEBUG
+            checked
+#endif
+            {
+                var pos = _pos >= distance + 1 ? _pos - distance - 1 : _windowSize + _pos - distance - 1;
+                return _buffer[pos];
+            }
         }
+
+        public UInt32 BlockSize => _windowSize;
     }
 }

@@ -1,5 +1,5 @@
 ﻿using System;
-using Utility.IO.Compression.RangeCoder;
+using Utility.IO.Compression.Lzma.RangeCoder;
 
 namespace Utility.IO.Compression.Lzma
 {
@@ -26,7 +26,7 @@ namespace Utility.IO.Compression.Lzma
 
             public void EncodeMatched(RangeCoder.RangeEncoder rangeEncoder, byte matchByte, byte symbol)
             {
-                var context = UInt32.MaxValue;
+                var context = 1U;
                 var same = true;
                 for (int i = 7; i >= 0; i--)
                 {

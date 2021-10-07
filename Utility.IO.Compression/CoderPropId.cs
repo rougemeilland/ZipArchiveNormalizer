@@ -3,7 +3,7 @@
     /// <summary>
     /// Provides the fields that represent properties idenitifiers for compressing.
     /// </summary>
-    public enum CoderPropId
+    internal enum CoderPropId
     {
         /// <summary>
         /// Specifies default property.

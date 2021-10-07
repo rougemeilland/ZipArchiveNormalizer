@@ -1,18 +1,18 @@
 ﻿using System;
 
-namespace Utility.IO.Compression.RangeCoder
+namespace Utility.IO.Compression.Lzma.RangeCoder
 {
     class RangeEncoder
     {
         public const UInt32 kTopValue = 1U << 24;
 
-        private  IOutputByteStream<UInt64> _stream;
+        private IBasicOutputByteStream _stream;
 
         public UInt64 Low;
-        public uint Range;
-        private uint _cacheSize;
+        public UInt32 Range;
+        private UInt32 _cacheSize;
         private byte _cache;
-        private long _writtenCount;
+        private UInt64 _writtenCount;
 
         public RangeEncoder()
         {
@@ -23,7 +23,7 @@ namespace Utility.IO.Compression.RangeCoder
             _writtenCount = 0;
         }
 
-        public void SetStream(IOutputByteStream<UInt64> stream)
+        public void SetStream(IBasicOutputByteStream stream)
         {
             _stream = stream;
         }
@@ -43,15 +43,15 @@ namespace Utility.IO.Compression.RangeCoder
 
         public void FlushData()
         {
-            for (int i = 0; i < 5; i++)
+            for (var i = 0; i < 5; i++)
                 ShiftLow();
         }
 
         public void ShiftLow()
         {
-            if ((uint)Low < 0xFF000000U || (uint)(Low >> 32) == 1)
+            if ((UInt32)Low < 0xFF000000U || (UInt32)(Low >> 32) == 1)
             {
-                byte temp = _cache;
+                var temp = _cache;
                 do
                 {
                     _stream.WriteBytes(new[] { (byte)(temp + (Low >> 32)) }.AsReadOnly(), 0, 1);
@@ -59,15 +59,15 @@ namespace Utility.IO.Compression.RangeCoder
                     temp = 0xFF;
                 }
                 while (--_cacheSize != 0);
-                _cache = (byte)(((uint)Low) >> 24);
+                _cache = (byte)(((UInt32)Low) >> 24);
             }
             _cacheSize++;
-            Low = ((uint)Low) << 8;
+            Low = ((UInt32)Low) << 8;
         }
 
-        public void EncodeDirectBits(uint v, int numTotalBits)
+        public void EncodeDirectBits(UInt32 v, int numTotalBits)
         {
-            for (int i = numTotalBits - 1; i >= 0; i--)
+            for (var i = numTotalBits - 1; i >= 0; i--)
             {
                 Range >>= 1;
                 if (((v >> i) & 1) == 1)
@@ -80,9 +80,14 @@ namespace Utility.IO.Compression.RangeCoder
             }
         }
 
-        public long GetProcessedSizeAdd()
+        public UInt64 GetProcessedSizeAdd()
         {
-            return _cacheSize + _writtenCount + 4;
+#if DEBUG
+            checked
+#endif
+            {
+                return _cacheSize + _writtenCount + 4;
+            }
         }
     }
 }

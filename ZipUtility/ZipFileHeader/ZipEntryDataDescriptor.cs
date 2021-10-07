@@ -32,10 +32,11 @@ namespace ZipUtility.ZipFileHeader
             var actualCrc =
                 compressionMethodId
                     .GetCompressionMethod(flag)
-                    .GetInputStream(
+                    .GetDecodingStream(
                         zipInputStrem
                             .AsPartial(dataPosition, packedSizeValueInCentralDirectoryHeader),
-                        sizeValueInCentralDirectoryHeader)
+                        sizeValueInCentralDirectoryHeader,
+                        null)
                 .GetByteSequence(false)
                 .CalculateCrc32(out actualSize);
             var actualPackedSize = zipInputStrem.Position - startPosition;

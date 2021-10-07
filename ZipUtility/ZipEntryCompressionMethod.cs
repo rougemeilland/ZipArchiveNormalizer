@@ -118,11 +118,11 @@ namespace ZipUtility
 
         public ZipEntryCompressionMethodId CompressionMethodId { get; }
 
-        public IInputByteStream<UInt64> GetInputStream(IInputByteStream<UInt64> baseStream, ulong size)
+        public IInputByteStream<UInt64> GetDecodingStream(IInputByteStream<UInt64> baseStream, ulong size, ICodingProgressReportable progressReporter)
         {
             try
             {
-                return _plugin.GetInputStream(baseStream, _option, size);
+                return _plugin.GetDecodingStream(baseStream, _option, size, progressReporter);
             }
             catch (IOException ex)
             {
@@ -130,11 +130,11 @@ namespace ZipUtility
             }
         }
 
-        public IOutputByteStream<UInt64> GetOutputStream(IOutputByteStream<UInt64> baseStream)
+        public IOutputByteStream<UInt64> GetEncodingStream(IOutputByteStream<UInt64> baseStream, ICodingProgressReportable progressReporter)
         {
             try
             {
-                return _plugin.GetOutputStream(baseStream, _option, null);
+                return _plugin.GetEncodingStream(baseStream, _option, null, progressReporter);
             }
             catch (IOException ex)
             {
@@ -142,11 +142,11 @@ namespace ZipUtility
             }
         }
 
-        public IOutputByteStream<UInt64> GetOutputStream(IOutputByteStream<UInt64> baseStream, ulong size)
+        public IOutputByteStream<UInt64> GetEncodingStream(IOutputByteStream<UInt64> baseStream, ulong size, ICodingProgressReportable progressReporter)
         {
             try
             {
-                return _plugin.GetOutputStream(baseStream, _option, size);
+                return _plugin.GetEncodingStream(baseStream, _option, size, progressReporter);
             }
             catch (IOException ex)
             {

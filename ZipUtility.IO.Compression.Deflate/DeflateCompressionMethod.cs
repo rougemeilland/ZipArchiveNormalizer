@@ -26,19 +26,19 @@ namespace ZipUtility.IO.Compression.Deflate
             }
         }
 
-        public IInputByteStream<UInt64> GetInputStream(IInputByteStream<UInt64> baseStream, ICompressionOption option, ulong size)
+        public IInputByteStream<UInt64> GetDecodingStream(IInputByteStream<UInt64> baseStream, ICompressionOption option, ulong size, ICodingProgressReportable progressReporter)
         {
-            return new DeflateInputStream(baseStream, size);
+            return new DeflateDecodingStream(baseStream, size, progressReporter);
         }
 
-        public IOutputByteStream<UInt64> GetOutputStream(IOutputByteStream<UInt64> baseStream, ICompressionOption option, ulong? size)
+        public IOutputByteStream<UInt64> GetEncodingStream(IOutputByteStream<UInt64> baseStream, ICompressionOption option, ulong? size, ICodingProgressReportable progressReporter)
         {
             if (!(option is DeflateCompressionOption))
                 throw new ArgumentException();
             var compressionLevel = (option as DeflateCompressionOption)?.CompressionLevel ?? DeflateCompressionLevel.Normal;
             if (compressionLevel < DeflateCompressionLevel.Minimum || compressionLevel > DeflateCompressionLevel.Maximum)
                 throw new ArgumentException();
-            return new InflateStream(baseStream, (int)compressionLevel, size);
+            return new DeflateEncodingStream(baseStream, (int)compressionLevel, size, progressReporter);
         }
     }
 }

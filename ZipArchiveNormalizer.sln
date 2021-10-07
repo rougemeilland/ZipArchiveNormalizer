@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.31515.178
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31717.71
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipArchiveNormalizer", "ZipArchiveNormalizer\ZipArchiveNormalizer.csproj", "{07435AB7-A490-4814-8D67-B349344725F7}"
 EndProject
@@ -31,8 +31,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtility.IO.Compression.D
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utility.IO", "Utility.IO\Utility.IO.csproj", "{1B07B24E-48AF-4A55-8B16-9936B2946372}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SevenZip.Lzma", "SevenZip.Lzma\SevenZip.Lzma.csproj", "{CC472154-944B-4E90-AF9B-DC06BCB629BC}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test.ZipUtility.IO.Compression", "Test.ZipUtility.IO.Compression\Test.ZipUtility.IO.Compression.csproj", "{889420C0-FB83-48F2-9215-7EB47DB51E10}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test.ZipUtility", "Test.ZipUtility\Test.ZipUtility.csproj", "{2B461D88-1B20-45F9-B2A4-9A6CC433E604}"
@@ -44,6 +42,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utility.IO.Compression.Lzma", "Utility.IO.Compression.Lzma\Utility.IO.Compression.Lzma.csproj", "{F918FDEF-D8C1-4927-9C12-D4FCCB12A1A6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utility.IO.Compression", "Utility.IO.Compression\Utility.IO.Compression.csproj", "{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SevenZip.Lzma", "SevenZip.Lzma\SevenZip.Lzma.csproj", "{CC472154-944B-4E90-AF9B-DC06BCB629BC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -223,18 +223,6 @@ Global
 		{1B07B24E-48AF-4A55-8B16-9936B2946372}.Release|x64.Build.0 = Release|Any CPU
 		{1B07B24E-48AF-4A55-8B16-9936B2946372}.Release|x86.ActiveCfg = Release|Any CPU
 		{1B07B24E-48AF-4A55-8B16-9936B2946372}.Release|x86.Build.0 = Release|Any CPU
-		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Debug|x64.Build.0 = Debug|Any CPU
-		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Debug|x86.Build.0 = Debug|Any CPU
-		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Release|Any CPU.Build.0 = Release|Any CPU
-		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Release|x64.ActiveCfg = Release|Any CPU
-		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Release|x64.Build.0 = Release|Any CPU
-		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Release|x86.ActiveCfg = Release|Any CPU
-		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Release|x86.Build.0 = Release|Any CPU
 		{889420C0-FB83-48F2-9215-7EB47DB51E10}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{889420C0-FB83-48F2-9215-7EB47DB51E10}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{889420C0-FB83-48F2-9215-7EB47DB51E10}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -307,6 +295,18 @@ Global
 		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Release|x64.Build.0 = Release|Any CPU
 		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Release|x86.ActiveCfg = Release|Any CPU
 		{97DC0073-E762-4D4C-B9C3-C460B1AC2B35}.Release|x86.Build.0 = Release|Any CPU
+		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Debug|x64.Build.0 = Debug|Any CPU
+		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Debug|x86.Build.0 = Debug|Any CPU
+		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Release|x64.ActiveCfg = Release|Any CPU
+		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Release|x64.Build.0 = Release|Any CPU
+		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Release|x86.ActiveCfg = Release|Any CPU
+		{CC472154-944B-4E90-AF9B-DC06BCB629BC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

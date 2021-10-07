@@ -1,10 +1,10 @@
 ﻿using System;
 
-namespace Utility.IO.Compression.Lz
+namespace Utility.IO.Compression.Lzma.Lz
 {
     interface IInWindowStream
     {
-        void SetStream(IInputByteStream<UInt64> inStream);
+        void SetStream(IInputBuffer inStream);
         void Init();
         void ReleaseStream();
         Byte GetIndexByte(Int32 index);

@@ -3,11 +3,11 @@ using Utility.IO;
 
 namespace ZipUtility.IO.Compression.BZIP2
 {
-    public class Bzip2InputStream
+    class Bzip2DecodingStream
         : ZipContentInputStream
     {
-        public Bzip2InputStream(IInputByteStream<UInt64> baseStream, ulong size)
-            : base(baseStream, size)
+        public Bzip2DecodingStream(IInputByteStream<UInt64> baseStream, ulong size, ICodingProgressReportable progressReporter)
+            : base(baseStream, size, progressReporter)
         {
             try
             {

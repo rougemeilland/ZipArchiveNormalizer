@@ -32,7 +32,9 @@ namespace ZipUtility
 
             protected override ulong AddPosition(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x + y;
                 }
@@ -75,7 +77,9 @@ namespace ZipUtility
 
             protected override ulong AddPosition(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x + y;
                 }
@@ -88,7 +92,9 @@ namespace ZipUtility
 
             protected override ulong GetDistanceBetweenPositions(ulong x, ulong y)
             {
+#if DEBUG
                 checked
+#endif
                 {
                     return x - y;
                 }

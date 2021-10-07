@@ -7,24 +7,34 @@ namespace ZipUtility.IO
     public abstract class ZipContentInputStream
         : IInputByteStream<UInt64>
     {
+        private const UInt64 _PROGRESS_STEP = 80 * 1024;
         private bool _isDisposed;
-        private ulong _size;
-        private ulong _position;
-        private IInputByteStream<UInt64> _sourceStream;
+        private UInt64 _size;
+        private ICodingProgressReportable _progressReporter;
+        private UInt64 _position;
+        private IBasicInputByteStream _sourceStream;
         private bool _isEndOfStream;
+        private UInt64 _progressCount;
 
-        public ZipContentInputStream(IInputByteStream<UInt64> baseStream, ulong size)
+        public ZipContentInputStream(IBasicInputByteStream baseStream, UInt64 size)
+            : this(baseStream, size, null)
+        {
+        }
+
+        public ZipContentInputStream(IBasicInputByteStream baseStream, UInt64 size, ICodingProgressReportable progressReporter)
         {
             if (baseStream == null)
                 throw new ArgumentNullException(nameof(baseStream));
 
             _isDisposed = false;
             _size = size;
+            _progressReporter = progressReporter;
             _sourceStream = null;
             _position = 0;
+            _progressCount = 0;
         }
 
-        public ulong Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
+        public UInt64 Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
 
         public int Read(byte[] buffer, int offset, int count)
         {
@@ -45,7 +55,12 @@ namespace ZipUtility.IO
 
             var length = ReadFromSourceStream(_sourceStream, buffer, offset, count);
             if (length > 0)
-                _position += (ulong)length;
+            {
+                _position += (UInt64)length;
+                _progressCount += (UInt64)length;
+                if ( _progressCount >= _PROGRESS_STEP)
+                    ReportProgress();
+            }
             else
             {
                 _isEndOfStream = true;
@@ -53,6 +68,7 @@ namespace ZipUtility.IO
                     throw new IOException("Size not match");
                 else
                     OnEndOfStream();
+                ReportProgress();
             }
             return length;
         }
@@ -63,14 +79,14 @@ namespace ZipUtility.IO
             GC.SuppressFinalize(this);
         }
 
-        protected void SetSourceStream(IInputByteStream<UInt64> sourceStream)
+        protected void SetSourceStream(IBasicInputByteStream sourceStream)
         {
             if (sourceStream == null)
                 throw new ArgumentNullException(nameof(sourceStream));
             _sourceStream = sourceStream;
         }
 
-        protected virtual int ReadFromSourceStream(IInputByteStream<UInt64> sourceStream, byte[] buffer, int offset, int count)
+        protected virtual int ReadFromSourceStream(IBasicInputByteStream sourceStream, byte[] buffer, int offset, int count)
         {
             return sourceStream.Read(buffer, offset, count);
         }
@@ -93,6 +109,21 @@ namespace ZipUtility.IO
                 }
                 _isDisposed = true;
             }
+        }
+
+        private void ReportProgress()
+        {
+            if (_progressReporter != null && _progressCount > 0)
+            {
+                try
+                {
+                    _progressReporter.SetProgress(_progressCount);
+                }
+                catch (Exception)
+                {
+                }
+            }
+            _progressCount = 0;
         }
     }
 }

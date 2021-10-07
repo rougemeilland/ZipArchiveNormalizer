@@ -3,24 +3,25 @@ using Utility.IO;
 
 namespace ZipUtility.IO.Compression.Deflate
 {
-    public class DeflateInputStream
-        : ZipContentInputStream
+    class DeflateEncodingStream
+        : ZipContentOutputStream
     {
-        public DeflateInputStream(IInputByteStream<UInt64> baseStream, ulong size)
-            : base(baseStream, size)
+        public DeflateEncodingStream(IOutputByteStream<UInt64> baseStream, int level, ulong? size, ICodingProgressReportable progressReporter)
+            : base(baseStream, size, progressReporter)
         {
             try
             {
                 if (baseStream == null)
                     throw new ArgumentNullException(nameof(baseStream));
 
-                SetSourceStream(
+                SetDestinationStream(
                     new Ionic.Zlib.DeflateStream(
                         baseStream
                             .AsStream(),
-                        Ionic.Zlib.CompressionMode.Decompress,
+                        Ionic.Zlib.CompressionMode.Compress,
+                        (Ionic.Zlib.CompressionLevel)level,
                         false)
-                    .AsInputByteStream());
+                    .AsOutputByteStream());
             }
             catch (Exception)
             {
