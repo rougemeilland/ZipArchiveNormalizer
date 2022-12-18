@@ -1,5 +1,8 @@
 ﻿using System;
 using System.IO;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Utility.IO
 {
@@ -9,25 +12,26 @@ namespace Utility.IO
     public abstract class PartialInputStream<POSITION_T, BASE_POSITION_T>
         : IInputByteStream<POSITION_T>
     {
+        private readonly IInputByteStream<BASE_POSITION_T> _baseStream;
+        private readonly UInt64? _size;
+        private readonly bool _leaveOpen;
+
         private bool _isDisposed;
-        private IInputByteStream<BASE_POSITION_T> _baseStream;
-        private UInt64? _size;
-        private bool _leaveOpen;
         private UInt64 _position;
 
         /// <summary>
         /// 元になるバイトストリームを使用して初期化するコンストラクタです。
         /// </summary>
         /// <param name="baseStream">
-        /// 元になるバイトストリームを示す<see cref="IInputByteStream{BASE_POSITION_T}"/>オブジェクトです。
+        /// 元になるバイトストリームを示す <see cref="IInputByteStream{BASE_POSITION_T}">IInputByteStream&lt;<typeparamref name="BASE_POSITION_T"/>&gt;</see> オブジェクトです。
         /// </param>
         /// <param name="leaveOpen">
-        /// コンストラクタによって初期化されたオブジェクトが破棄されるときに元になるバイトストリームもともに破棄するかどうかを示す<see cref="bool"/>値です。
+        /// コンストラクタによって初期化されたオブジェクトが破棄されるときに元になるバイトストリームもともに破棄するかどうかを示す <see cref="bool"/> 値です。
         /// true の場合は元のバイトストリームを破棄しません。
         /// false の場合は元のバイトストリームを破棄します。
         /// </param>
         /// <remarks>
-        /// このコンストラクタを使用した場合、元になったバイトストリーム上でアクセス可能な開始位置は、コンストラクタ呼び出し時点での<code>baseStream.Position</code>となり、
+        /// このコンストラクタを使用した場合、元になったバイトストリーム上でアクセス可能な開始位置は、コンストラクタ呼び出し時点での <code>baseStream.Position</code> となり、
         /// 元になったバイトストリームの終端までアクセス可能になります。
         /// </remarks>
         public PartialInputStream(IInputByteStream<BASE_POSITION_T> baseStream, bool leaveOpen)
@@ -39,18 +43,18 @@ namespace Utility.IO
         /// 元になるバイトストリームとアクセス可能な範囲(長さ)を使用して初期化するコンストラクタです。
         /// </summary>
         /// <param name="baseStream">
-        /// 元になるバイトストリームを示す<see cref="IInputByteStream{BASE_POSITION_T}"/>オブジェクトです。
+        /// 元になるバイトストリームを示す <see cref="IInputByteStream{BASE_POSITION_T}">IInputByteStream&lt;<typeparamref name="BASE_POSITION_T"/>&gt;</see> オブジェクトです。
         /// </param>
         /// <param name="size">
-        /// 元になるバイトストリームで、現在位置からアクセス可能なバイト数を示す<see cref="UInt64"/>値です。
+        /// 元になるバイトストリームで、現在位置からアクセス可能なバイト数を示す <see cref="UInt64"/> 値です。
         /// </param>
         /// <param name="leaveOpen">
-        /// コンストラクタによって初期化されたオブジェクトが破棄されるときに元になるバイトストリームもともに破棄するかどうかを示す<see cref="bool"/>値です。
+        /// コンストラクタによって初期化されたオブジェクトが破棄されるときに元になるバイトストリームもともに破棄するかどうかを示す <see cref="bool"/> 値です。
         /// true の場合は元のバイトストリームを破棄しません。
         /// false の場合は元のバイトストリームを破棄します。
         /// </param>
         /// <remarks>
-        /// このコンストラクタを使用した場合、元になったバイトストリーム上でアクセス可能な開始位置は、コンストラクタ呼び出し時点での<code>baseStream.Position</code>となります。
+        /// このコンストラクタを使用した場合、元になったバイトストリーム上でアクセス可能な開始位置は、コンストラクタ呼び出し時点での <code>baseStream.Position</code> となります。
         /// </remarks>
         public PartialInputStream(IInputByteStream<BASE_POSITION_T> baseStream, UInt64 size, bool leaveOpen)
             : this(baseStream, (UInt64?)size, leaveOpen)
@@ -61,14 +65,14 @@ namespace Utility.IO
         /// 元になるバイトストリームとアクセス可能な範囲(開始位置と長さ)を使用して初期化するコンストラクタです。
         /// </summary>
         /// <param name="baseStream">
-        /// 元になるバイトストリームを示す<see cref="IInputByteStream{BASE_POSITION_T}"/>オブジェクトです。
+        /// 元になるバイトストリームを示す <see cref="IInputByteStream{BASE_POSITION_T}">IInputByteStream&lt;<typeparamref name="BASE_POSITION_T"/>&gt;</see> オブジェクトです。
         /// </param>
         /// <param name="size">
-        /// 元になるバイトストリームで、最初の位置からアクセス可能なバイト数を示す<see cref="UInt64?"/>値です。
+        /// 元になるバイトストリームで、最初の位置からアクセス可能なバイト数を示す <see cref="UInt64?"/> 値です。
         /// nullの場合は、元になるバイトストリームの終端までアクセスが可能になります。
         /// </param>
         /// <param name="leaveOpen">
-        /// コンストラクタによって初期化されたオブジェクトが破棄されるときに元になるバイトストリームもともに破棄するかどうかを示す<see cref="bool"/>値です。
+        /// コンストラクタによって初期化されたオブジェクトが破棄されるときに元になるバイトストリームもともに破棄するかどうかを示す <see cref="bool"/> 値です。
         /// true の場合は元のバイトストリームを破棄しません。
         /// false の場合は元のバイトストリームを破棄します。
         /// </param>
@@ -76,7 +80,7 @@ namespace Utility.IO
         {
             try
             {
-                if (baseStream == null)
+                if (baseStream is null)
                     throw new ArgumentNullException(nameof(baseStream));
 
                 _isDisposed = false;
@@ -87,7 +91,7 @@ namespace Utility.IO
             }
             catch (Exception)
             {
-                if (leaveOpen == false)
+                if (!leaveOpen)
                     baseStream?.Dispose();
                 throw;
             }
@@ -104,43 +108,43 @@ namespace Utility.IO
             }
         }
 
-        public int Read(byte[] buffer, int offset, int count)
+        public Int32 Read(Span<byte> buffer)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
-            if (buffer == null)
-                throw new ArgumentNullException(nameof(buffer));
-            if (offset < 0)
-                throw new ArgumentException("'offset' must not be negative.", nameof(offset));
-            if (count < 0)
-                throw new ArgumentException("'count' must not be negative.", nameof(count));
-            if (offset + count > buffer.Length)
-                throw new IndexOutOfRangeException("'offset + count' is greater than 'buffer.Length'.");
 
-            var actualCount = count;
-            if (_size.HasValue)
-            {
-                actualCount =
-                    _size.Value > _position
-                    ? (int)((ulong)actualCount).Minimum(_size.Value - _position)
-                    : 0;
-            }
+            var actualCount = GetReadCount(buffer.Length);
             if (actualCount <= 0)
                 return 0;
-            var length = _baseStream.Read(buffer, offset, actualCount);
-            if (length > 0)
-                _position += (uint)length;
-            else
-            {
-                if (_size.HasValue && _size.Value != _position)
-                    throw new IOException("Size not match");
-            }
+            var length = _baseStream.Read(buffer[..actualCount]);
+            UpdatePosition(length);
+            return length;
+        }
+
+        public async Task<Int32> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_isDisposed)
+                throw new ObjectDisposedException(GetType().FullName);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var actualCount = GetReadCount(buffer.Length);
+            if (actualCount <= 0)
+                return 0;
+            var length = await _baseStream.ReadAsync(buffer[..actualCount], cancellationToken).ConfigureAwait(false);
+            UpdatePosition(length);
             return length;
         }
 
         public void Dispose()
         {
             Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await DisposeAsyncCore().ConfigureAwait(false);
+            Dispose(disposing: false);
             GC.SuppressFinalize(this);
         }
 
@@ -153,15 +157,42 @@ namespace Utility.IO
             {
                 if (disposing)
                 {
-                    if (_baseStream != null)
-                    {
-                        if (_leaveOpen == false)
-                            _baseStream.Dispose();
-                        _baseStream = null;
-                    }
+                    if (!_leaveOpen)
+                        _baseStream.Dispose();
                 }
                 _isDisposed = true;
             }
+        }
+
+        protected async Task DisposeAsyncCore()
+        {
+            if (!_isDisposed)
+            {
+                if (!_leaveOpen)
+                    await _baseStream.DisposeAsync().ConfigureAwait(false);
+                _isDisposed = true;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private Int32 GetReadCount(Int32 bufferLength)
+        {
+            if (bufferLength <= 0)
+                return 0;
+            else if (!_size.HasValue)
+                return bufferLength;
+            else if (_position > _size.Value)
+                throw new IOException("Size not match");
+            else if (_position == _size.Value)
+                return 0;
+            else
+                return (Int32)((UInt64)bufferLength).Minimum(_size.Value - _position);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void UpdatePosition(Int32 length)
+        {
+            _position += (UInt32)length;
         }
     }
 }

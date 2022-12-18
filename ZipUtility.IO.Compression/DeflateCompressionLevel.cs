@@ -1,8 +1,11 @@
-﻿namespace ZipUtility.IO.Compression
+﻿using System;
+
+namespace ZipUtility.IO.Compression
 {
     public enum DeflateCompressionLevel
-        : int
+        : Int32
     {
+        Level0 = 0,
         Level1 = 1,
         Level2 = 2,
         Level3 = 3,
@@ -12,10 +15,10 @@
         Level7 = 7,
         Level8 = 8,
         Level9 = 9,
-        SuperFast = 1,
-        Fast = 3,
-        Normal = 6,
-        Minimum = 1,
-        Maximum = 9,
+        SuperFast = Level0,
+        Fast = Level3,
+        Normal = Level5,
+        Minimum = Level0,
+        Maximum = Level9,
     }
 }

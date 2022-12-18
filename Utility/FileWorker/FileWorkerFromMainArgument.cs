@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Utility.FileWorker
 {
@@ -12,14 +13,14 @@ namespace Utility.FileWorker
         private class ActionParameter
             : IFileWorkerActionParameter
         {
-            public ActionParameter(int fileIndexOnSameDirectory, IFileWorkerActionDirectoryParameter directoryParameter, IFileWorkerActionFileParameter fileParameter)
+            public ActionParameter(Int32 fileIndexOnSameDirectory, IFileWorkerActionDirectoryParameter directoryParameter, IFileWorkerActionFileParameter fileParameter)
             {
                 FileIndexOnSameDirectory = fileIndexOnSameDirectory;
                 DirectoryParameter = directoryParameter;
                 FileParameter = fileParameter;
             }
 
-            public int FileIndexOnSameDirectory { get; }
+            public Int32 FileIndexOnSameDirectory { get; }
 
             public IFileWorkerActionDirectoryParameter DirectoryParameter { get; }
 
@@ -38,20 +39,35 @@ namespace Utility.FileWorker
 
         private class FileWorkerItem
         {
-            public FileInfo SourceFile { get; set; }
-            public int Index { get; set; }
-            public IFileWorkerActionFileParameter FileParameter { get; set; }
+            public FileWorkerItem(FileInfo sourceFile, Int32 index, IFileWorkerActionFileParameter fileParameter)
+            {
+                SourceFile = sourceFile;
+                Index = index;
+                FileParameter = fileParameter;
+            }
+
+            public FileInfo SourceFile { get; }
+            public Int32 Index { get; }
+            public IFileWorkerActionFileParameter FileParameter { get; }
         }
 
         private class DirectoryWorkerItem
         {
-            public DirectoryInfo SourceFileDirectory { get; set; }
-            public IFileWorkerActionDirectoryParameter DirectoryParameter { get; set; }
-            public ICollection<FileWorkerItem> FileItems { get; set; }
+            public DirectoryWorkerItem(DirectoryInfo sourceFileDirectory, IFileWorkerActionDirectoryParameter directoryParameter, ICollection<FileWorkerItem> fileItems)
+            {
+                SourceFileDirectory = sourceFileDirectory;
+                DirectoryParameter = directoryParameter;
+                FileItems = fileItems;
+            }
+
+            public DirectoryInfo SourceFileDirectory { get; }
+            public IFileWorkerActionDirectoryParameter DirectoryParameter { get; }
+            public ICollection<FileWorkerItem> FileItems { get; }
         }
 
-        private FileWorkerConcurrencyMode _concurrencyMode;
-        private int _suffixCount;
+        private readonly FileWorkerConcurrencyMode _concurrencyMode;
+
+        private Int32 _suffixCount;
         private string _previousFileName;
 
         protected FileWorkerFromMainArgument(IWorkerCancellable canceller, FileWorkerConcurrencyMode concurrencyMode)
@@ -62,13 +78,16 @@ namespace Utility.FileWorker
             _previousFileName = "";
         }
 
-        protected override void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult previousWorkerResult)
+        protected override void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult? previousWorkerResult)
         {
+            if (sourceFiles is null)
+                throw new ArgumentNullException(nameof(sourceFiles));
+
             var sourceFileItems = GetWorkingSource(sourceFiles);
             SetToSourceFiles(sourceFileItems.SelectMany(sourceFileItem => sourceFileItem.FileItems).Select(fileItem => fileItem.SourceFile));
             SafetyCancellationCheck();
-            var totalCount = sourceFileItems.Sum(item => item.FileItems.Sum(fileItem => fileItem.SourceFile.Length));
-            long countOfDone = 0;
+            var totalCount = (UInt64)sourceFileItems.Sum(item => item.FileItems.Sum(fileItem => fileItem.SourceFile.Length));
+            UInt64 countOfDone = 0;
             UpdateProgress(totalCount, countOfDone);
 
             using (var cancellationTokenSource = new CancellationTokenSource())
@@ -164,7 +183,7 @@ namespace Utility.FileWorker
                             });
                         break;
                     default:
-                        throw new Exception();
+                        throw new InternalLogicalErrorException();
                 }
                 if (cancellationTokenSource.IsCancellationRequested)
                     throw new OperationCanceledException();
@@ -172,28 +191,51 @@ namespace Utility.FileWorker
             SafetyCancellationCheck();
         }
 
-        protected virtual IFileWorkerActionFileParameter IsMatchFile(FileInfo sourceFile)
+        protected virtual IFileWorkerActionFileParameter? IsMatchFile(FileInfo sourceFile)
         {
+            if (sourceFile is null)
+                throw new ArgumentNullException(nameof(sourceFile));
+
             return new EmptyFileParameter();
         }
 
-        protected virtual IFileWorkerActionDirectoryParameter IsMatchDirectory(DirectoryInfo directory, IEnumerable<string> fileNames)
+        protected virtual IFileWorkerActionDirectoryParameter? IsMatchDirectory(DirectoryInfo directory, IEnumerable<string> fileNames)
         {
+            if (directory is null)
+                throw new ArgumentNullException(nameof(directory));
+            if (fileNames is null)
+                throw new ArgumentNullException(nameof(fileNames));
+
             return new EmptyDirectoryParameter();
         }
 
-        protected virtual IComparer<FileInfo> FileComparer => null;
+        protected virtual IComparer<FileInfo> FileComparer => StringComparer.OrdinalIgnoreCase.MapComparer<FileInfo, string>(file => file.FullName);
 
-        protected virtual IEqualityComparer<DirectoryInfo> DirectoryEqualityComparer =>
-            new CustomizableEqualityComparer<DirectoryInfo>(
-                (dir1, dir2) => StringComparer.OrdinalIgnoreCase.Equals(dir1.FullName, dir2.FullName),
-                dir => dir.FullName.ToUpper().GetHashCode());
+        protected virtual IEqualityComparer<DirectoryInfo?> DirectoryEqualityComparer =>
+            new CustomizableEqualityComparer<DirectoryInfo?>(
+                (dir1, dir2) => StringComparer.OrdinalIgnoreCase.Equals(dir1?.FullName, dir2?.FullName),
+                dir => dir?.FullName.ToUpper().GetHashCode() ?? 0);
 
         protected abstract void ActionForFile(FileInfo sourceFile, IFileWorkerActionParameter parameter);
 
-        protected string GetUniqueFileNameFromTimeStamp()
+        protected string GetUniqueFileNameFromTimeStamp(DateTime dateTime, Int32 index)
         {
-            return GetUniqueFileNameFromTimeStamp(DateTime.Now);
+            if (dateTime.Kind == DateTimeKind.Unspecified)
+                throw new ArgumentException($"Unexpected {nameof(DateTime.Kind)} value", nameof(dateTime));
+
+            dateTime = dateTime.ToLocalTime();
+            var newFileName = string.Format($"{index:D4}{dateTime.Year:D4}{dateTime.Month:D2}{dateTime.Day:D2}{dateTime.Hour:D2}{dateTime.Minute:D2}{dateTime.Second:D2}{dateTime.Millisecond:D3}");
+            lock (this)
+            {
+                if (_previousFileName == newFileName)
+                    ++_suffixCount;
+                else
+                {
+                    _suffixCount = 0;
+                    _previousFileName = newFileName;
+                }
+                return newFileName + _suffixCount.ToString("D4");
+            }
         }
 
         private IEnumerable<DirectoryWorkerItem> GetWorkingSource(IEnumerable<FileInfo> sourceFiles)
@@ -205,7 +247,8 @@ namespace Utility.FileWorker
                     SafetyCancellationCheck();
                     try
                     {
-                        return new { sourceFile = sourceFile, fileParameter = IsMatchFile(sourceFile) };
+                        var fileParameter = IsMatchFile(sourceFile);
+                        return fileParameter is null ? null : new { sourceFile, fileParameter };
                     }
                     catch (OperationCanceledException)
                     {
@@ -220,30 +263,37 @@ namespace Utility.FileWorker
                         UpdateProgress();
                     }
                 })
-                .Where(item => item != null && item.fileParameter != null)
+                .WhereNotNull()
                 .GroupBy(item => item.sourceFile.Directory, DirectoryEqualityComparer)
                 .Select(g =>
                 {
                     var directory = g.First().sourceFile.Directory;
                     var groupedItems = g.AsEnumerable();
                     var fileComparer = FileComparer;
-                    if (fileComparer != null)
+                    if (fileComparer is not null)
                         groupedItems = groupedItems.OrderBy(groupedItem => groupedItem.sourceFile, fileComparer);
-                    return new
+                    if (directory is null)
+                        return null;
+                    else
                     {
-                        directory,
-                        fileItems =
-                            groupedItems
-                            .Select((item, index) => new FileWorkerItem { SourceFile = item.sourceFile, Index = index, FileParameter = item.fileParameter })
-                            .ToList()
-                    };
+                        return new
+                        {
+                            directory,
+                            fileItems =
+                                groupedItems
+                                .Select((item, index) => new FileWorkerItem(item.sourceFile, index, item.fileParameter))
+                                .ToList()
+                        };
+                    }
                 })
+                .WhereNotNull()
                 .Select(item =>
                 {
                     SafetyCancellationCheck();
                     try
                     {
-                        return new DirectoryWorkerItem { SourceFileDirectory = item.directory, FileItems = item.fileItems, DirectoryParameter = IsMatchDirectory(item.directory, item.fileItems.Select(fileItem => fileItem.SourceFile.Name)) };
+                        var directoryParameter = IsMatchDirectory(item.directory, item.fileItems.Select(fileItem => fileItem.SourceFile.Name));
+                        return directoryParameter is null ? null : new DirectoryWorkerItem(item.directory, directoryParameter, item.fileItems);
                     }
                     catch (OperationCanceledException)
                     {
@@ -258,13 +308,13 @@ namespace Utility.FileWorker
                         UpdateProgress();
                     }
                 })
-                .Where(item => item != null && item.DirectoryParameter != null)
+                .WhereNotNull()
                 .ToList();
         }
 
-        private void ExecuteAction(FileInfo sourceFile, int index, IFileWorkerActionDirectoryParameter directoryParameter, IFileWorkerActionFileParameter fileParameter, long totalCount, ref long countOfDone)
+        private void ExecuteAction(FileInfo sourceFile, Int32 index, IFileWorkerActionDirectoryParameter directoryParameter, IFileWorkerActionFileParameter fileParameter, UInt64 totalCount, ref UInt64 countOfDone)
         {
-            var sourceFileSize = sourceFile.Length;
+            var sourceFileSize = (UInt64)sourceFile.Length;
             SafetyCancellationCheck();
             try
             {
@@ -284,25 +334,6 @@ namespace Utility.FileWorker
             finally
             {
                 UpdateProgress(totalCount, Interlocked.Add(ref countOfDone, sourceFileSize));
-            }
-        }
-
-        private string GetUniqueFileNameFromTimeStamp(DateTime now)
-        {
-            if (now.Kind == DateTimeKind.Unspecified)
-                throw new ArgumentException();
-            now = now.ToLocalTime();
-            var newFileName = string.Format("{0:D4}{1:D2}{2:D2}{3:D2}{4:D2}{5:D2}{6:D3}", now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second, now.Millisecond);
-            lock (this)
-            {
-                if (_previousFileName == newFileName)
-                    ++_suffixCount;
-                else
-                {
-                    _suffixCount = 0;
-                    _previousFileName = newFileName;
-                }
-                return newFileName + _suffixCount.ToString("D4");
             }
         }
     }

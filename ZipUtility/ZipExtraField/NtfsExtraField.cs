@@ -1,7 +1,5 @@
 ﻿using System;
-using Utility;
 using Utility.IO;
-using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -18,19 +16,19 @@ namespace ZipUtility.ZipExtraField
 
         public const ushort ExtraFieldId = 10;
 
-        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
+        public override ReadOnlyMemory<byte>? GetData(ZipEntryHeaderType headerType)
         {
             var ok = false;
-            var writer = new ByteArrayOutputStream();
+            var writer = new ByteArrayRenderer();
 
             writer.WriteUInt32LE(0); //Reserved
 
             var dataOfSubTag0001 = GetDataForSubTag0001();
-            if (dataOfSubTag0001 != null)
+            if (dataOfSubTag0001.HasValue)
             {
                 writer.WriteUInt16LE(0x0001);
-                writer.WriteUInt16LE((UInt16)dataOfSubTag0001.Length);
-                writer.WriteBytes(dataOfSubTag0001);
+                writer.WriteUInt16LE((UInt16)dataOfSubTag0001.Value.Length);
+                writer.WriteBytes(dataOfSubTag0001.Value);
                 ok = true;
             }
             if (!ok)
@@ -38,17 +36,17 @@ namespace ZipUtility.ZipExtraField
             return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> data)
         {
             LastWriteTimeUtc = null;
             LastAccessTimeUtc = null;
             CreationTimeUtc = null;
-            var reader = new ByteArrayInputStream(data, index, count);
+            var reader = new ByteArrayParser(data);
             var success = false;
             try
             {
                 reader.ReadUInt32LE(); //Reserved
-                while (!reader.IsEndOfStream())
+                while (!reader.IsEmpty)
                 {
                     var subTagId = reader.ReadUInt16LE();
                     var subTagLength = reader.ReadUInt16LE();
@@ -64,12 +62,12 @@ namespace ZipUtility.ZipExtraField
                     }
                 }
                 if (reader.ReadAllBytes().Length > 0)
-                    throw GetBadFormatException(headerType, data, index, count);
+                    throw GetBadFormatException(headerType, data);
                 success = true;
             }
             catch (UnexpectedEndOfStreamException)
             {
-                throw GetBadFormatException(headerType, data, index, count);
+                throw GetBadFormatException(headerType, data);
             }
             finally
             {
@@ -82,25 +80,25 @@ namespace ZipUtility.ZipExtraField
             }
         }
 
-        private IReadOnlyArray<byte> GetDataForSubTag0001()
+        private ReadOnlyMemory<byte>? GetDataForSubTag0001()
         {
             // 最終更新日時/最終アクセス日時/作成日時のいずれかが未設定の場合は、この拡張フィールドは無効とする。
-            if (LastWriteTimeUtc == null ||
-                LastAccessTimeUtc == null ||
-                CreationTimeUtc == null)
+            if (LastWriteTimeUtc is null ||
+                LastAccessTimeUtc is null ||
+                CreationTimeUtc is null)
             {
                 return null;
             }
-            var writer = new ByteArrayOutputStream();
+            var writer = new ByteArrayRenderer();
             writer.WriteUInt64LE((UInt64)LastWriteTimeUtc.Value.ToFileTimeUtc());
             writer.WriteUInt64LE((UInt64)LastAccessTimeUtc.Value.ToFileTimeUtc());
             writer.WriteUInt64LE((UInt64)CreationTimeUtc.Value.ToFileTimeUtc());
             return writer.ToByteArray();
         }
 
-        private void SetDataForSubTag0001(IReadOnlyArray<byte> data)
+        private void SetDataForSubTag0001(ReadOnlyMemory<byte> data)
         {
-            var reader = new ByteArrayInputStream(data, 0, data.Length);
+            var reader = new ByteArrayParser(data);
             LastWriteTimeUtc = DateTime.FromFileTimeUtc((Int64)reader.ReadUInt64LE());
             LastAccessTimeUtc = DateTime.FromFileTimeUtc((Int64)reader.ReadUInt64LE());
             CreationTimeUtc = DateTime.FromFileTimeUtc((Int64)reader.ReadUInt64LE());

@@ -1,7 +1,5 @@
 ﻿using System;
-using Utility;
 using Utility.IO;
-using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -13,6 +11,7 @@ namespace ZipUtility.ZipExtraField
         private byte? _version;
         private ZipEntryCompressionMethodId? _compressionType;
         private UInt32? _crc;
+        private ReadOnlyMemory<byte>? _compressedSD;
 
         public WindowsSecurityDescriptorExtraField()
             : base(ExtraFieldId)
@@ -21,32 +20,32 @@ namespace ZipUtility.ZipExtraField
             _version = null;
             _compressionType = null;
             _crc = null;
-            CompressedSD = null;
+            _compressedSD = null;
         }
 
 
         public const UInt16 ExtraFieldId = 0x4453;
 
-        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
+        public override ReadOnlyMemory<byte>? GetData(ZipEntryHeaderType headerType)
         {
             switch (headerType)
             {
                 case ZipEntryHeaderType.LocalFileHeader:
-                    if (_uncompressedSDSize == null |
-                        _version == null ||
-                        _compressionType == null ||
-                        _crc == null ||
-                        CompressedSD == null)
+                    if (_uncompressedSDSize is null |
+                        _version is null ||
+                        _compressionType is null ||
+                        _crc is null ||
+                        _compressedSD is null)
                         return null;
                     break;
                 case ZipEntryHeaderType.CentralDirectoryHeader:
-                    if (_uncompressedSDSize == null)
+                    if (_uncompressedSDSize is null)
                         return null;
                     break;
                 default:
                     return null;
             }
-            var writer = new ByteArrayOutputStream();
+            var writer = new ByteArrayRenderer();
             writer.WriteUInt32LE(UncompressedSDSize);
             if (headerType == ZipEntryHeaderType.LocalFileHeader)
             {
@@ -58,14 +57,15 @@ namespace ZipUtility.ZipExtraField
             return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> data)
         {
             _uncompressedSDSize = null;
             _version = null;
             _compressionType = null;
             _crc = null;
-            CompressedSD = null;
-            var reader = new ByteArrayInputStream(data, index, count);
+            _compressedSD = null;
+            Array.AsReadOnly(new byte[10]);
+            var reader = new ByteArrayParser(data);
             var success = false;
             try
             {
@@ -77,22 +77,22 @@ namespace ZipUtility.ZipExtraField
                         return;
                     CompressionType = (ZipEntryCompressionMethodId)reader.ReadUInt16LE();
                     Crc = reader.ReadUInt32LE();
-                    CompressedSD = reader.ReadAllBytes();
+                    _compressedSD = reader.ReadAllBytes();
                 }
                 else
                 {
                     _version = null;
                     _compressionType = null;
                     _crc = null;
-                    CompressedSD = null;
+                    _compressedSD = null;
                 }
                 if (reader.ReadAllBytes().Length > 0)
-                    throw GetBadFormatException(headerType, data, index, count);
+                    throw GetBadFormatException(headerType, data);
                 success = true;
             }
             catch (UnexpectedEndOfStreamException)
             {
-                throw GetBadFormatException(headerType, data, index, count);
+                throw GetBadFormatException(headerType, data);
             }
             finally
             {
@@ -102,15 +102,39 @@ namespace ZipUtility.ZipExtraField
                     _version = null;
                     _compressionType = null;
                     _crc = null;
-                    CompressedSD = null;
+                    _compressedSD = null;
                 }
             }
         }
 
-        public UInt32 UncompressedSDSize { get => _uncompressedSDSize.Value; set => _uncompressedSDSize = value; }
-        public byte Version { get => _version.Value; set => _version = value; }
-        public ZipEntryCompressionMethodId CompressionType { get => _compressionType.Value; set => _compressionType = value; }
-        public UInt32 Crc { get => _crc.Value; set => _crc = value; }
-        public IReadOnlyArray<byte> CompressedSD { get; set; }
+        public UInt32 UncompressedSDSize
+        {
+            get => _uncompressedSDSize ?? throw new InvalidOperationException();
+            set => _uncompressedSDSize = value;
+        }
+
+        public byte Version
+        {
+            get => _version ?? throw new InvalidOperationException();
+            set => _version = value;
+        }
+
+        public ZipEntryCompressionMethodId CompressionType
+        {
+            get => _compressionType ?? throw new InvalidOperationException();
+            set => _compressionType = value;
+        }
+
+        public UInt32 Crc
+        {
+            get => _crc ?? throw new InvalidOperationException();
+            set => _crc = value;
+        }
+
+        public ReadOnlyMemory<byte> CompressedSD
+        {
+            get => _compressedSD ?? throw new InvalidOperationException();
+            set => _compressedSD = value;
+        }
     }
 }

@@ -1,9 +1,10 @@
-﻿using ICSharpCode.SharpZipLib.Zip;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Utility;
 using Utility.FileWorker;
 using Utility.IO;
@@ -24,22 +25,22 @@ namespace ZipArchiveNormalizer.Phase4
                     .Where(entry => entry.IsFile)
                     .ToReadOnlyCollection();
                 TotalOfEntryCount = entries.Count;
-                TotalOfExtraFieldCount = entries.Sum(entry => (long)entry.ExtraFields.Count);
-                TotalOfEntryNameLength = entries.Sum(entry => (long)entry.FullName.Length);
-                NewestWriteTimeTicks = entries.Max(entry => entry.LastWriteTimeUtc?.Ticks ?? long.MinValue);
+                TotalOfExtraFieldCount = entries.Sum(entry => (Int64)entry.ExtraFields.Count);
+                TotalOfEntryNameLength = entries.Sum(entry => (Int64)entry.FullName.Length);
+                NewestWriteTimeTicks = entries.Max(entry => entry.LastWriteTimeUtc?.Ticks ?? Int64.MinValue);
             }
 
             public FileInfo File { get; }
-            public int TotalOfEntryCount { get; }
-            public long TotalOfExtraFieldCount { get; }
-            public long TotalOfEntryNameLength { get; }
-            public long NewestWriteTimeTicks { get; }
+            public Int32 TotalOfEntryCount { get; }
+            public Int64 TotalOfExtraFieldCount { get; }
+            public Int64 TotalOfEntryNameLength { get; }
+            public Int64 NewestWriteTimeTicks { get; }
         }
 
         private class ZipArchiveFileDetail
         {
-            private ZipArchiveFile _zipFile;
-            private IDictionary<long, IReadOnlyCollection<ZipArchiveEntry>> _entries;
+            private readonly ZipArchiveFile _zipFile;
+            private readonly IDictionary<Int64, IReadOnlyCollection<ZipArchiveEntry>> _entries;
 
             public ZipArchiveFileDetail(FileInfo file, ZipArchiveFile zipFile)
             {
@@ -53,40 +54,38 @@ namespace ZipArchiveNormalizer.Phase4
             }
 
             public FileInfo File { get; }
-            public IEnumerable<long> Crcs => _entries.Keys;
+            public IEnumerable<Int64> Crcs => _entries.Keys;
 
-            public IReadOnlyCollection<ZipArchiveEntry> FindEntriesByCrc(long crc)
+            public IReadOnlyCollection<ZipArchiveEntry> FindEntriesByCrc(Int64 crc)
             {
-                IReadOnlyCollection<ZipArchiveEntry> entries;
-                if (_entries.TryGetValue(crc, out entries))
-                    return entries.ToList();
-                else
-                    return null;
+                if (!_entries.TryGetValue(crc, out IReadOnlyCollection<ZipArchiveEntry>? entries))
+                    throw new InternalLogicalErrorException();
+                return entries.ToList();
             }
 
-            public bool ContainsCrc(long crc) => _entries.ContainsKey(crc);
-            public IInputByteStream<UInt64> GetInputStream(ZipArchiveEntry entry) => _zipFile.GetInputStream(entry);
+            public bool ContainsCrc(Int64 crc) => _entries.ContainsKey(crc);
+            public IInputByteStream<UInt64> GetInputStream(ZipArchiveEntry entry) => _zipFile.GetContentStream(entry);
         }
 
         private class ZipArchiveFileSummaryImportanceComparer
             : IComparer<ZipArchiveFileSummary>
         {
-            private static IComparer<FileInfo> _fileImportanceComparer;
+            private static readonly IComparer<FileInfo> _fileImportanceComparer;
 
             static ZipArchiveFileSummaryImportanceComparer()
             {
                 _fileImportanceComparer = new FileImportanceComparer();
             }
 
-            public int Compare(ZipArchiveFileSummary x, ZipArchiveFileSummary y)
+            public Int32 Compare(ZipArchiveFileSummary? x, ZipArchiveFileSummary? y)
             {
-                if (x == null)
-                    return y == null ? 0 : -1;
-                else if (y == null)
+                if (x is null)
+                    return y is null ? 0 : -1;
+                else if (y is null)
                     return 1;
                 else
                 {
-                    int c;
+                    Int32 c;
                     if ((c = x.TotalOfEntryCount.CompareTo(y.TotalOfEntryCount)) != 0)
                         return c;
                     if ((c = x.TotalOfExtraFieldCount.CompareTo(y.TotalOfExtraFieldCount)) != 0)
@@ -107,10 +106,11 @@ namespace ZipArchiveNormalizer.Phase4
             ContansAndAllDataMatched,
         }
 
-        private static IComparer<ZipArchiveFileSummary> _zipArchiveFileSummaryImportanceComparer;
-        private Func<FileInfo, bool> _isBadFileSelecter;
+        private static readonly IComparer<ZipArchiveFileSummary> _zipArchiveFileSummaryImportanceComparer;
 
-        public event EventHandler<BadFileFoundEventArgs> BadFileFound;
+        private readonly Func<FileInfo, bool> _isBadFileSelecter;
+
+        public event EventHandler<BadFileFoundEventArgs>? BadFileFound;
 
         static Phase4Worker()
         {
@@ -125,20 +125,20 @@ namespace ZipArchiveNormalizer.Phase4
 
         public override string Description => "似た内容のZIPファイルがないか調べます。";
 
-        protected override void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult previousWorkerResult)
+        protected override void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult? previousWorkerResult)
         {
             UpdateProgress();
 
             var archiveFiles =
                 sourceFiles
                 .Where(file =>
-                    _isBadFileSelecter(file) == false &&
+                    !_isBadFileSelecter(file) &&
                     file.Extension.IsAnyOf(".zip", ".epub", StringComparison.OrdinalIgnoreCase))
                 .ToReadOnlyCollection();
             SetToSourceFiles(archiveFiles);
 
-            var totalCount = archiveFiles.Count + archiveFiles.Count * (archiveFiles.Count - 1) / 2;
-            var counrOfDone = 0L;
+            var totalCount = (UInt64)archiveFiles.Count + (UInt64)archiveFiles.Count * ((UInt64)archiveFiles.Count - 1) / 2;
+            var counrOfDone = 0UL;
             UpdateProgress(totalCount, counrOfDone);
 
             var archiveFileSummaries =
@@ -146,69 +146,63 @@ namespace ZipArchiveNormalizer.Phase4
                 .Select(file =>
                 {
                     SafetyCancellationCheck();
-                    using (var zipFile = file.OpenAsZipFile())
-                    {
-                        var summary = new ZipArchiveFileSummary(file, zipFile);
-                        UpdateProgress(totalCount, Interlocked.Increment(ref counrOfDone));
-                        return summary;
-                    }
+                    using var zipFile = file.OpenAsZipFile();
+                    var summary = new ZipArchiveFileSummary(file, zipFile);
+                    UpdateProgress(totalCount, Interlocked.Increment(ref counrOfDone));
+                    return summary;
                 })
                 .QuickSort(item => item, _zipArchiveFileSummaryImportanceComparer);
 
             if (archiveFileSummaries.Length > 0)
             {
-                using (var cancellationTokenSource = new CancellationTokenSource())
-                {
-                    Enumerable.Range(0, archiveFileSummaries.Length - 1)
-                    .SelectMany(
-                        index1 => Enumerable.Range(index1 + 1, archiveFileSummaries.Length - index1 - 1).Where(index2 => index1 != index2),
-                            (index1, index2) => new { index1, index2 })
-                        .Select(item => new { summary1 = archiveFileSummaries[item.index1], summary2 = archiveFileSummaries[item.index2] })
-                        .AsParallel()
-                        .WithDegreeOfParallelism(Environment.ProcessorCount)
-                        .WithCancellation(cancellationTokenSource.Token)
-                        .ForAll(item =>
+                using var cancellationTokenSource = new CancellationTokenSource();
+                Enumerable.Range(0, archiveFileSummaries.Length - 1)
+                .SelectMany(
+                    index1 => Enumerable.Range(index1 + 1, archiveFileSummaries.Length - index1 - 1).Where(index2 => index1 != index2),
+                        (index1, index2) => new { index1, index2 })
+                    .Select(item => new { summary1 = archiveFileSummaries.Span[item.index1], summary2 = archiveFileSummaries.Span[item.index2] })
+                    .AsParallel()
+                    .WithDegreeOfParallelism(Environment.ProcessorCount)
+                    .WithCancellation(cancellationTokenSource.Token)
+                    .ForAll(item =>
+                    {
+                        if (IsRequestedToCancel)
                         {
-                            if (IsRequestedToCancel)
-                            {
-                                cancellationTokenSource.Cancel();
-                                return;
-                            }
-                            try
-                            {
-                                using (var zipFile1 = item.summary1.File.OpenAsZipFile())
-                                using (var zipFile2 = item.summary2.File.OpenAsZipFile())
-                                {
-                                    var detail1 = new ZipArchiveFileDetail(item.summary1.File, zipFile1);
-                                    var detail2 = new ZipArchiveFileDetail(item.summary2.File, zipFile2);
-                                    SearchSimilarFiles(detail1, detail2, () => UpdateProgress());
-                                }
-                            }
-                            catch (OperationCanceledException)
-                            {
-                                cancellationTokenSource.Cancel();
-                            }
-                            catch (Exception ex)
-                            {
-                                throw
-                                    new Exception(
-                                        string.Format(
-                                            "並列処理中に例外が発生しました。: 処理クラス={0}, 対象ファイル1=\"{1}\", 対象ファイル2=\"{2}\", message=\"{3}\", スタックトレース=>{4}",
-                                            GetType().FullName,
-                                            item.summary1.File.FullName,
-                                            item.summary2.File.FullName,
-                                            ex.Message,
-                                            ex.StackTrace),
-                                        ex);
-                            }
-                            UpdateProgress(totalCount, Interlocked.Increment(ref counrOfDone));
-                        });
-                    if (cancellationTokenSource.IsCancellationRequested)
-                        throw new OperationCanceledException();
-                }
+                            cancellationTokenSource.Cancel();
+                            return;
+                        }
+                        try
+                        {
+                            using var zipFile1 = item.summary1.File.OpenAsZipFile();
+                            using var zipFile2 = item.summary2.File.OpenAsZipFile();
+                            var detail1 = new ZipArchiveFileDetail(item.summary1.File, zipFile1);
+                            var detail2 = new ZipArchiveFileDetail(item.summary2.File, zipFile2);
+                            SearchSimilarFiles(detail1, detail2, () => UpdateProgress());
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            cancellationTokenSource.Cancel();
+                        }
+                        catch (Exception ex)
+                        {
+                            throw
+                                new Exception(
+                                    string.Format(
+                                        "並列処理中に例外が発生しました。: 処理クラス={0}, 対象ファイル1=\"{1}\", 対象ファイル2=\"{2}\", message=\"{3}\", スタックトレース=>{4}",
+                                        GetType().FullName,
+                                        item.summary1.File.FullName,
+                                        item.summary2.File.FullName,
+                                        ex.Message,
+                                        ex.StackTrace),
+                                    ex);
+                        }
+                        UpdateProgress(totalCount, Interlocked.Increment(ref counrOfDone));
+                    });
+                if (cancellationTokenSource.IsCancellationRequested)
+                    throw new OperationCanceledException();
             }
             SafetyCancellationCheck();
-            foreach (var archiveFileSummary in archiveFileSummaries)
+            foreach (var archiveFileSummary in archiveFileSummaries.Span)
                 AddToDestinationFiles(archiveFileSummary.File);
         }
 
@@ -220,12 +214,7 @@ namespace ZipArchiveNormalizer.Phase4
             var crcAndEntryCount2 =
                 detail2.Crcs
                 .Select(crc => new { crc, entryCount = detail2.FindEntriesByCrc(crc).Count });
-            var equalCrcAndEntryCount =
-                crcAndEntryCount1.SequenceEqual(
-                    crcAndEntryCount2,
-                    crcAndEntryCount2.CreateEqualityComparer(
-                        (x, y) => x.crc == y.crc && x.entryCount == y.entryCount,
-                        x => x.crc.GetHashCode() ^ x.entryCount.GetHashCode()));
+            var equalCrcAndEntryCount = crcAndEntryCount1.SequenceEqual(crcAndEntryCount2);
             var result1 = CheckIfEntriesAreIncludedInOtherEntries(detail1, detail2, progressUpdater);
             var result2 = CheckIfEntriesAreIncludedInOtherEntries(detail2, detail1, progressUpdater);
             if (result1 == EntriesContaininfType.ContansAndAllDataMatched)
@@ -334,14 +323,14 @@ namespace ZipArchiveNormalizer.Phase4
 
         private EntriesContaininfType CheckIfEntriesAreIncludedInOtherEntries(ZipArchiveFileDetail detail1, ZipArchiveFileDetail detail2, Action progressUpdater)
         {
-            if (detail1.Crcs.All(crc => detail2.ContainsCrc(crc)) == false)
+            if (detail1.Crcs.NotAll(crc => detail2.ContainsCrc(crc)))
                 return EntriesContaininfType.NotContains;
-            if (detail1.Crcs.All(crc => EqualsArchiveFileEntryOfCrc(detail1, detail2, crc, progressUpdater) == true) == false)
+            if (detail1.Crcs.NotAll(crc => EqualsArchiveFileEntryOfCrc(detail1, detail2, crc, progressUpdater) == true))
                 return EntriesContaininfType.ContansAndOnlyCrcMatched;
             return EntriesContaininfType.ContansAndAllDataMatched;
         }
 
-        private bool? EqualsArchiveFileEntryOfCrc(ZipArchiveFileDetail detail1, ZipArchiveFileDetail detail2, long crc, Action progressUpdater)
+        private bool? EqualsArchiveFileEntryOfCrc(ZipArchiveFileDetail detail1, ZipArchiveFileDetail detail2, Int64 crc, Action progressUpdater)
         {
             try
             {
@@ -355,7 +344,7 @@ namespace ZipArchiveNormalizer.Phase4
                     return null;
                 return
                     detail1.GetInputStream(entries1.Single())
-                    .StreamBytesEqual(detail2.GetInputStream(entries2.Single()), progressNotification: count => UpdateProgress());
+                    .StreamBytesEqual(detail2.GetInputStream(entries2.Single()), progress: new Progress<UInt64>(_ => UpdateProgress()));
             }
             finally
             {
@@ -363,10 +352,13 @@ namespace ZipArchiveNormalizer.Phase4
             }
         }
 
+        [SuppressMessage("CodeQuality", "IDE0051:使用されていないプライベート メンバーを削除する", Justification = "<保留中>")]
         private void RaiseBadFileFoundEvent(FileInfo targetFile)
         {
-            if (BadFileFound != null)
+            if (BadFileFound is not null)
+            {
                 BadFileFound(this, new BadFileFoundEventArgs(targetFile));
+            }
         }
     }
 }

@@ -28,7 +28,7 @@ namespace Test.Utility
                 .ForEach(item =>
                 {
                     var actual = TinyBitArray.FromBoolean(item.value).ToString("R");
-                    if (string.Equals(actual, item.desired, StringComparison.Ordinal) == false)
+                    if (!string.Equals(actual, item.desired, StringComparison.Ordinal))
                         Console.WriteLine(string.Format("TestTinyBitArray.TestFrom.FromBoolean: 処理結果が一致しません。: value={0}, actual={1}, desired={2}", item.value, actual, item.desired));
                 });
 
@@ -42,13 +42,13 @@ namespace Test.Utility
                     item.direction,
                     desired =
                         item.direction == BitPackingDirection.MsbToLsb
-                        ? Convert.ToString(item.value, 2).PadLeft(8, '0').Substring(8 - item.count)
-                        : new string(Convert.ToString(item.value, 2).PadLeft(8, '0').Substring(8 - item.count).ToCharArray().Reverse().ToArray())
+                        ? Convert.ToString(item.value, 2).PadLeft(8, '0')[(8 - item.count)..]
+                        : new string(Convert.ToString(item.value, 2).PadLeft(8, '0')[(8 - item.count)..].ToCharArray().Reverse().ToArray())
                 })
                 .ForEach(item =>
                 {
                     var actual = TinyBitArray.FromByte(item.value, item.count, item.direction).ToString("R");
-                    if (string.Equals(actual, item.desired, StringComparison.Ordinal) == false)
+                    if (!string.Equals(actual, item.desired, StringComparison.Ordinal))
                         Console.WriteLine(string.Format("TestTinyBitArray.TestFrom.FromByte: 処理結果が一致しません。: value=0x{0:x2}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
                 });
 
@@ -62,13 +62,13 @@ namespace Test.Utility
                     item.direction,
                     desired =
                         item.direction == BitPackingDirection.MsbToLsb
-                        ? Convert.ToString(item.value, 2).PadLeft(16, '0').Substring(16 - item.count)
-                        : new string(Convert.ToString(item.value, 2).PadLeft(16, '0').Substring(16 - item.count).ToCharArray().Reverse().ToArray())
+                        ? Convert.ToString(item.value, 2).PadLeft(16, '0')[(16 - item.count)..]
+                        : new string(Convert.ToString(item.value, 2).PadLeft(16, '0')[(16 - item.count)..].ToCharArray().Reverse().ToArray())
                 })
                 .ForEach(item =>
                 {
                     var actual = TinyBitArray.FromUInt16(item.value, item.count, item.direction).ToString("R");
-                    if (string.Equals(actual, item.desired, StringComparison.Ordinal) == false)
+                    if (!string.Equals(actual, item.desired, StringComparison.Ordinal))
                         Console.WriteLine(string.Format("TestTinyBitArray.TestFrom.FromUint16: 処理結果が一致しません。: value=0x{0:x4}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
                 });
 
@@ -82,13 +82,13 @@ namespace Test.Utility
                     item.direction,
                     desired =
                         item.direction == BitPackingDirection.MsbToLsb
-                        ? Convert.ToString(item.value, 2).PadLeft(32, '0').Substring(32 - item.count)
-                        : new string(Convert.ToString(item.value, 2).PadLeft(32, '0').Substring(32 - item.count).ToCharArray().Reverse().ToArray())
+                        ? Convert.ToString(item.value, 2).PadLeft(32, '0')[(32 - item.count)..]
+                        : new string(Convert.ToString(item.value, 2).PadLeft(32, '0')[(32 - item.count)..].ToCharArray().Reverse().ToArray())
                 })
                 .ForEach(item =>
                 {
                     var actual = TinyBitArray.FromUInt32(item.value, item.count, item.direction).ToString("R");
-                    if (string.Equals(actual, item.desired, StringComparison.Ordinal) == false)
+                    if (!string.Equals(actual, item.desired, StringComparison.Ordinal))
                         Console.WriteLine(string.Format("TestTinyBitArray.TestFrom.FromUInt32: 処理結果が一致しません。: value=0x{0:x8}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
                 });
 
@@ -102,13 +102,13 @@ namespace Test.Utility
                     item.direction,
                     desired =
                         item.direction == BitPackingDirection.MsbToLsb
-                        ? Convert.ToString((long)item.value, 2).PadLeft(64, '0').Substring(64 - item.count)
-                        : new string(Convert.ToString((long)item.value, 2).PadLeft(64, '0').Substring(64 - item.count).ToCharArray().Reverse().ToArray())
+                        ? Convert.ToString((Int64)item.value, 2).PadLeft(64, '0')[(64 - item.count)..]
+                        : new string(Convert.ToString((Int64)item.value, 2).PadLeft(64, '0')[(64 - item.count)..].ToCharArray().Reverse().ToArray())
                 })
                 .ForEach(item =>
                 {
                     var actual = TinyBitArray.FromUInt64(item.value, item.count, item.direction).ToString("R");
-                    if (string.Equals(actual, item.desired, StringComparison.Ordinal) == false)
+                    if (!string.Equals(actual, item.desired, StringComparison.Ordinal))
                         Console.WriteLine(string.Format("TestTinyBitArray.TestFrom.FromUInt64: 処理結果が一致しません。: value=0x{0:x16}, bitCount={1}, direction={2}, actual={3}, desired={4}", item.value, item.count, item.direction, actual, item.desired));
                 });
         }
@@ -203,7 +203,7 @@ namespace Test.Utility
                 .Select(item => new
                 {
                     bitArray = new TinyBitArray(item.bitPattern),
-                    value = item.value,
+                    item.value,
                     desired = item.bitPattern + (item.value ? "1" : "0"),
                 })
                 .AsParallel()
@@ -229,12 +229,12 @@ namespace Test.Utility
                 {
                     bitArray = new TinyBitArray(item.bitPattern1),
                     value = Convert.ToByte(item.bitPattern2, 2),
-                    count = item.count,
+                    item.count,
                     item.direction,
                     desired = item.bitPattern1 +
                         (item.direction == BitPackingDirection.MsbToLsb
-                            ? item.bitPattern2.PadLeft(8, '0').Substring(8 - item.count)
-                            : new string(item.bitPattern2.PadLeft(8, '0').Substring(8 - item.count).Reverse().ToArray())),
+                            ? item.bitPattern2.PadLeft(8, '0')[(8 - item.count)..]
+                            : new string(item.bitPattern2.PadLeft(8, '0')[(8 - item.count)..].Reverse().ToArray())),
                 })
                 .AsParallel()
                 .WithDegreeOfParallelism(Environment.ProcessorCount)
@@ -259,12 +259,12 @@ namespace Test.Utility
                 {
                     bitArray = new TinyBitArray(item.bitPattern1),
                     value = Convert.ToUInt16(item.bitPattern2, 2),
-                    count = item.count,
+                    item.count,
                     item.direction,
                     desired = item.bitPattern1 +
                         (item.direction == BitPackingDirection.MsbToLsb
-                            ? item.bitPattern2.PadLeft(16, '0').Substring(16 - item.count)
-                            : new string(item.bitPattern2.PadLeft(16, '0').Substring(16 - item.count).Reverse().ToArray())),
+                            ? item.bitPattern2.PadLeft(16, '0')[(16 - item.count)..]
+                            : new string(item.bitPattern2.PadLeft(16, '0')[(16 - item.count)..].Reverse().ToArray())),
                 })
                 .AsParallel()
                 .WithDegreeOfParallelism(Environment.ProcessorCount)
@@ -289,12 +289,12 @@ namespace Test.Utility
                 {
                     bitArray = new TinyBitArray(item.bitPattern1),
                     value = Convert.ToUInt32(item.bitPattern2, 2),
-                    count = item.count,
+                    item.count,
                     item.direction,
                     desired = item.bitPattern1 +
                         (item.direction == BitPackingDirection.MsbToLsb
-                            ? item.bitPattern2.PadLeft(32, '0').Substring(32 - item.count)
-                            : new string(item.bitPattern2.PadLeft(32, '0').Substring(32 - item.count).Reverse().ToArray())),
+                            ? item.bitPattern2.PadLeft(32, '0')[(32 - item.count)..]
+                            : new string(item.bitPattern2.PadLeft(32, '0')[(32 - item.count)..].Reverse().ToArray())),
                 })
                 .AsParallel()
                 .WithDegreeOfParallelism(Environment.ProcessorCount)
@@ -319,12 +319,12 @@ namespace Test.Utility
                 {
                     bitArray = new TinyBitArray(item.bitPattern1),
                     value = Convert.ToUInt64(item.bitPattern2, 2),
-                    count = item.count,
+                    item.count,
                     item.direction,
                     desired = item.bitPattern1 +
                         (item.direction == BitPackingDirection.MsbToLsb
-                            ? item.bitPattern2.PadLeft(64, '0').Substring(64 - item.count)
-                            : new string(item.bitPattern2.PadLeft(64, '0').Substring(64 - item.count).Reverse().ToArray())),
+                            ? item.bitPattern2.PadLeft(64, '0')[(64 - item.count)..]
+                            : new string(item.bitPattern2.PadLeft(64, '0')[(64 - item.count)..].Reverse().ToArray())),
                 })
                 .AsParallel()
                 .WithDegreeOfParallelism(Environment.ProcessorCount)
@@ -375,17 +375,17 @@ namespace Test.Utility
                 {
                     item.bitPattern,
                     bitArray = new TinyBitArray(item.bitPattern),
-                    count = item.count,
-                    desired1 = item.bitPattern.Substring(0, item.count),
-                    desired2 = item.bitPattern.Substring(item.count),
+                    item.count,
+                    desired1 = item.bitPattern[..item.count],
+                    desired2 = item.bitPattern[item.count..],
                 })
                 .AsParallel()
                 .WithDegreeOfParallelism(Environment.ProcessorCount)
                 .ForAll(item =>
                 {
-                    TinyBitArray remain;
-                    var actual1 = item.bitArray.Divide(item.count, out remain).ToString("R");
-                    var actual2 = remain.ToString("R");
+                    var (part1, part2) = item.bitArray.Divide(item.count);
+                    var actual1 = part1.ToString("R");
+                    var actual2 = part2.ToString("R");
                     if (!string.Equals(actual1, item.desired1, StringComparison.Ordinal) || !string.Equals(actual2, item.desired2, StringComparison.Ordinal))
                     {
                         lock (lockObject)
@@ -404,8 +404,8 @@ namespace Test.Utility
                 .SelectMany(bitPattern1 => BitPatternDataSource, (bitPattern1, bitPattern2) => bitPattern1 + bitPattern2)
                 .Where(bitPattern => bitPattern.Length % 8 == 0)
                 .QuickDistinct(StringComparer.Ordinal)
-                .SelectMany(bitPattern => BitCountDataSource.Where(bitCount => bitCount > 0), (bitPattern, bitCount) => new { bitPattern = bitPattern, bitCount })
-                .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { bitPatterns = item.bitPattern.ToChunkOfArray(8).ToArray(), item.bitCount, direction })
+                .SelectMany(bitPattern => BitCountDataSource.Where(bitCount => bitCount > 0), (bitPattern, bitCount) => new { bitPattern, bitCount })
+                .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { bitPatterns = item.bitPattern.ChunkAsArray(8).ToArray(), item.bitCount, direction })
                 .Select(item => new
                 {
                     byteArray = item.bitPatterns.Select(bitPattern => Convert.ToByte(new string(bitPattern), 2)),
@@ -419,7 +419,7 @@ namespace Test.Utility
                                 item.direction == BitPackingDirection.MsbToLsb
                                 ? bitPattern
                                 : bitPattern.Reverse().ToArray())
-                            .ToChunkOfArray(item.bitCount)
+                            .ChunkAsArray(item.bitCount)
                             .Select(element => new string(element))),
                 })
                 .AsParallel()
@@ -443,10 +443,10 @@ namespace Test.Utility
                 .QuickDistinct(StringComparer.Ordinal)
                 .SelectMany(bitPattern => new[] { 1, 2 }, (bitPattern, byteCount) => new { bitPattern, byteCount })
                 .SelectMany(item => BitCountDataSource.Where(bitCount => bitCount > 0), (item, bitCount) => new { item.bitPattern, item.byteCount, bitCount })
-                .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { bitPatterns = item.bitPattern.ToChunkOfArray(8).ToArray(), item.byteCount, item.bitCount, direction })
+                .SelectMany(item => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (item, direction) => new { bitPatterns = item.bitPattern.ChunkAsArray(8).ToArray(), item.byteCount, item.bitCount, direction })
                 .Select(item => new
                 {
-                    byteArray = item.bitPatterns.Select(bitPattern => Convert.ToByte(new string(bitPattern), 2)).ToChunkOfArray(item.byteCount),
+                    byteArray = item.bitPatterns.Select(bitPattern => Convert.ToByte(new string(bitPattern), 2)).ChunkAsArray(item.byteCount),
                     item.bitCount,
                     item.direction,
                     desired =
@@ -457,7 +457,7 @@ namespace Test.Utility
                                 item.direction == BitPackingDirection.MsbToLsb
                                 ? bitPattern
                                 : bitPattern.Reverse().ToArray())
-                            .ToChunkOfArray(item.bitCount)
+                            .ChunkAsArray(item.bitCount)
                             .Select(element => new string(element))),
                 })
                 .AsParallel()
@@ -481,8 +481,8 @@ namespace Test.Utility
             var lockObject = new object();
 
             BitPatternDataSource
-                .SelectMany(bitPattern1 => BitPatternDataSource.Concat(new[] { (string)null }), (bitPattern1, bitPattern2) => string.Join("-", new[] { bitPattern1, bitPattern2 }.Where(bitPattern => bitPattern != null)))
-                .SelectMany(bitPattern1 => BitPatternDataSource.Concat(new[] { (string)null }), (bitPattern1, bitPattern2) => string.Join("-", new[] { bitPattern1, bitPattern2 }.Where(bitPattern => bitPattern != null)))
+                .SelectMany(bitPattern1 => BitPatternDataSource.Concat(new[] { (string?)null }), (bitPattern1, bitPattern2) => string.Join("-", new[] { bitPattern1, bitPattern2 }.WhereNotNull()))
+                .SelectMany(bitPattern1 => BitPatternDataSource.Concat(new[] { (string?)null }), (bitPattern1, bitPattern2) => string.Join("-", new[] { bitPattern1, bitPattern2 }.WhereNotNull()))
                 .QuickDistinct(StringComparer.Ordinal)
                 .SelectMany(bitPatterns => new[] { BitPackingDirection.LsbToMsb, BitPackingDirection.MsbToLsb }, (bitPatterns, direction) => new { bitPatterns, direction })
                 .Select(item => new
@@ -492,7 +492,7 @@ namespace Test.Utility
                     desired =
                         item.bitPatterns
                         .Where(c => c != '-')
-                        .ToChunkOfArray(8)
+                        .ChunkAsArray(8)
                         .Select(charArray =>
                             new string(
                                 item.direction == BitPackingDirection.MsbToLsb
@@ -510,18 +510,13 @@ namespace Test.Utility
                         lock (lockObject)
                         {
                             Console.WriteLine(
-                                string.Format(
-                                    "TestTinyBitArray.TestGetByteSequence.GetByteSequence: 処理結果が一致しません。: bitArray={{{0}}}, direction={1}, actual={{{2}}}, desired={{{3}}}",
-                                    string.Join(", ", item.bitArrays),
-                                    item.direction,
-                                    string.Join(", ", actual.Select(value => string.Format("0x{0:x2}", value)),
-                                    string.Join(", ", item.desired.Select(value => string.Format("0x{0:x2}", value))))));
+                                $"TestTinyBitArray.TestGetByteSequence.GetByteSequence: 処理結果が一致しません。: bitArray={{{string.Join(", ", item.bitArrays)}}}, direction={item.direction}, actual={{{string.Join(", ", actual.Select(value => $"0x{value:x2}"), string.Join(", ", item.desired.Select(value => $"0x{value:x2}")))}}}, desired={{{3}}}");
                         }
                     }
                 });
         }
 
-        private static IEnumerable<int> BitCountDataSource =>
+        private static IEnumerable<Int32> BitCountDataSource =>
             new[] { 0, 1, 2, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 30, 31, 32, 33, 34, 62, 63, 64, 65, 66, 126, 127, 128, 129, 130 };
 
         private static IEnumerable<string> BitPatternDataSource
@@ -545,7 +540,7 @@ namespace Test.Utility
                 }
                 .SelectMany(
                     bitArray => BitCountDataSource,
-                    (bitArray, length) => bitArray.Substring(0, length));
+                    (bitArray, length) => bitArray[..length]);
             }
         }
     }

@@ -11,7 +11,7 @@ namespace ImageFileRenumber
         private class Worker
             : ConsoleWorker
         {
-            private IReadOnlyCollection<IFileWorker> _workers;
+            private readonly IReadOnlyCollection<IFileWorker> _workers;
 
             public Worker(IWorkerCancellable canceller)
                 : base(canceller)

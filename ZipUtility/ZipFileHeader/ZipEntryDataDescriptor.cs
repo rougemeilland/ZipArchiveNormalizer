@@ -7,11 +7,11 @@ namespace ZipUtility.ZipFileHeader
 {
     class ZipEntryDataDescriptor
     {
-        private static byte[] _dataDescriptorSignature;
+        private static readonly ReadOnlyMemory<byte> _dataDescriptorSignature;
 
         static ZipEntryDataDescriptor()
         {
-            _dataDescriptorSignature = new byte[] { 0x50, 0x4b, 0x07, 0x08 };
+            _dataDescriptorSignature = new byte[] { 0x50, 0x4b, 0x07, 0x08 }.AsReadOnly();
         }
 
         private ZipEntryDataDescriptor(UInt32 crc, UInt64 packedSize, UInt64 size)
@@ -28,60 +28,53 @@ namespace ZipUtility.ZipFileHeader
         public static ZipEntryDataDescriptor Parse(IZipInputStream zipInputStrem, ZipStreamPosition dataPosition, UInt64 packedSizeValueInCentralDirectoryHeader, UInt64 sizeValueInCentralDirectoryHeader, bool isZip64, ZipEntryCompressionMethodId compressionMethodId, ZipEntryGeneralPurposeBitFlag flag)
         {
             var startPosition = zipInputStrem.Position;
-            var actualSize = 0UL;
-            var actualCrc =
+            var (actualCrc, actualSize) =
                 compressionMethodId
                     .GetCompressionMethod(flag)
-                    .GetDecodingStream(
-                        zipInputStrem
-                            .AsPartial(dataPosition, packedSizeValueInCentralDirectoryHeader),
-                        sizeValueInCentralDirectoryHeader,
-                        null)
-                .GetByteSequence(false)
-                .CalculateCrc32(out actualSize);
+                    .CalculateCrc32(zipInputStrem, dataPosition, sizeValueInCentralDirectoryHeader, packedSizeValueInCentralDirectoryHeader, null);
             var actualPackedSize = zipInputStrem.Position - startPosition;
             //zipFileInputStrem.Seek(dataOffset + packedSizeValueInCentralDirectoryHeader, RandomByteStreamSeekType.FromStart);
             var sourceData = zipInputStrem.ReadBytes(isZip64 ? 24 : 16);
             var foundDataDescriptor =
-                new Func<ZipEntryDataDescriptor>[]
+                new Func<ZipEntryDataDescriptor?>[]
                 {
                     () => Create(sourceData, true, isZip64),
                     () => Create(sourceData, false, isZip64),
                 }
                 .Select(creater => creater())
                 .Where(dataDescriptor =>
-                    dataDescriptor != null &&
+                    dataDescriptor is not null &&
                     dataDescriptor.Check(actualCrc, packedSizeValueInCentralDirectoryHeader, sizeValueInCentralDirectoryHeader) &&
                     dataDescriptor.PackedSize == actualPackedSize &&
                     dataDescriptor.Size == actualSize)
                 .FirstOrDefault();
-            if (foundDataDescriptor == null)
+            if (foundDataDescriptor is null)
                 throw new BadZipFileFormatException("Not found data descriptor.");
             return foundDataDescriptor;
         }
 
-        private static ZipEntryDataDescriptor Create(IReadOnlyArray<byte> source, bool containsSignature, bool isZip64)
+        private static ZipEntryDataDescriptor? Create(ReadOnlyMemory<byte> source, bool containsSignature, bool isZip64)
         {
             if (containsSignature)
             {
                 if (isZip64)
                 {
-                    var signature = source.GetSequence(0, _dataDescriptorSignature.Length);
-                    if (!signature.SequenceEqual(_dataDescriptorSignature))
+                    var signature = source[.._dataDescriptorSignature.Length];
+                    if (!signature.Span.SequenceEqual(_dataDescriptorSignature.Span))
                         return null;
-                    var crc = source.ToUInt32LE(4);
-                    var packedSize = source.ToUInt64LE(8);
-                    var size = source.ToUInt64LE(16);
+                    var crc = source[4..].ToUInt32LE();
+                    var packedSize = source[8..].ToUInt64LE();
+                    var size = source[16..].ToUInt64LE();
                     return new ZipEntryDataDescriptor(crc, packedSize, size);
                 }
                 else
                 {
-                    var signature = source.GetSequence(0, _dataDescriptorSignature.Length);
-                    if (!signature.SequenceEqual(_dataDescriptorSignature))
+                    var signature = source[.._dataDescriptorSignature.Length];
+                    if (!signature.Span.SequenceEqual(_dataDescriptorSignature.Span))
                         return null;
-                    var crc = source.ToUInt32LE(4);
-                    var packedSize = source.ToUInt32LE(8);
-                    var size = source.ToUInt32LE(12);
+                    var crc = source[4..].ToUInt32LE();
+                    var packedSize = source[8..].ToUInt32LE();
+                    var size = source[12..].ToUInt32LE();
                     return new ZipEntryDataDescriptor(crc, packedSize, size);
                 }
             }
@@ -89,16 +82,16 @@ namespace ZipUtility.ZipFileHeader
             {
                 if (isZip64)
                 {
-                    var crc = source.ToUInt32LE(0);
-                    var packedSize = source.ToUInt64LE(4);
-                    var size = source.ToUInt64LE(12);
+                    var crc = source.ToUInt32LE();
+                    var packedSize = source[4..].ToUInt64LE();
+                    var size = source[12..].ToUInt64LE();
                     return new ZipEntryDataDescriptor(crc, packedSize, size);
                 }
                 else
                 {
-                    var crc = source.ToUInt32LE(0);
-                    var packedSize = source.ToUInt32LE(4);
-                    var size = source.ToUInt32LE(8);
+                    var crc = source.ToUInt32LE();
+                    var packedSize = source[4..].ToUInt32LE();
+                    var size = source[8..].ToUInt32LE();
                     return new ZipEntryDataDescriptor(crc, packedSize, size);
                 }
             }

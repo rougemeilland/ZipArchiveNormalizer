@@ -1,38 +1,46 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Utility.IO
 {
-    class RandomOutputByteStreamByStream
+    class RandomOutputByteStreamByStream<BASE_STREAM_T>
         : IRandomOutputByteStream<UInt64>
+        where BASE_STREAM_T :Stream
     {
-        private bool _isDisposed;
-        private Stream _baseStream;
-        private bool _leaveOpen;
+        private readonly BASE_STREAM_T _baseStream;
+        private readonly Action<BASE_STREAM_T> _finishAction;
+        private readonly bool _leaveOpen;
 
-        public RandomOutputByteStreamByStream(Stream baseStream, bool leaveOpen)
+        private bool _isDisposed;
+
+        public RandomOutputByteStreamByStream(BASE_STREAM_T baseStream, Action<BASE_STREAM_T> finishAction, bool leaveOpen)
         {
             try
             {
-                if (baseStream == null)
+                if (baseStream is null)
                     throw new ArgumentNullException(nameof(baseStream));
-                if (baseStream.CanWrite == false)
-                    throw new ArgumentException();
-                if (baseStream.CanSeek == false)
-                    throw new ArgumentException();
+                if (finishAction is null)
+                    throw new ArgumentNullException(nameof(finishAction));
+                if (!baseStream.CanWrite)
+                    throw new NotSupportedException();
+                if (!baseStream.CanSeek)
+                    throw new NotSupportedException();
 
                 _baseStream = baseStream;
+                _finishAction = finishAction;
                 _leaveOpen = leaveOpen;
             }
             catch (Exception)
             {
-                if (leaveOpen == false)
+                if (!leaveOpen)
                     baseStream?.Dispose();
                 throw;
             }
         }
 
-        public ulong Position
+        public UInt64 Position
         {
             get
             {
@@ -41,11 +49,11 @@ namespace Utility.IO
                 if (_baseStream.Position < 0)
                     throw new IOException();
 
-                return (ulong)_baseStream.Position;
+                return (UInt64)_baseStream.Position;
             }
         }
 
-        public ulong Length
+        public UInt64 Length
         {
             get
             {
@@ -54,37 +62,42 @@ namespace Utility.IO
                 if (_baseStream.Length < 0)
                     throw new IOException();
 
-                return (ulong)_baseStream.Length;
+                return (UInt64)_baseStream.Length;
             }
 
             set
             {
                 if (_isDisposed)
                     throw new ObjectDisposedException(GetType().FullName);
-                if (value > long.MaxValue)
+                if (value > Int64.MaxValue)
                     throw new IOException();
 
-                _baseStream.SetLength((long)value);
+                _baseStream.SetLength((Int64)value);
             }
         }
 
-        public void Seek(ulong offset)
+        public void Seek(UInt64 offset)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
-            if (offset > long.MaxValue)
+            if (offset > Int64.MaxValue)
                 throw new IOException();
 
-            _baseStream.Seek((long)offset, SeekOrigin.Begin);
+            _baseStream.Seek((Int64)offset, SeekOrigin.Begin);
         }
 
-        public int Write(IReadOnlyArray<byte> buffer, int offset, int count)
+        public Int32 Write(ReadOnlySpan<byte> buffer)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
 
-            _baseStream.Write(buffer?.GetRawArray(), offset, count);
-            return count;
+            _baseStream.Write(buffer);
+            return buffer.Length;
+        }
+
+        public Task<Int32> WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
         }
 
         public void Flush()
@@ -95,17 +108,24 @@ namespace Utility.IO
             _baseStream.Flush();
         }
 
-        public void Close()
+        public async Task FlushAsync(CancellationToken cancellationToken = default)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
 
-            Dispose();
+            await _baseStream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public void Dispose()
         {
             Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await DisposeAsyncCore().ConfigureAwait(false);
+            Dispose(disposing: false);
             GC.SuppressFinalize(this);
         }
 
@@ -115,13 +135,33 @@ namespace Utility.IO
             {
                 if (disposing)
                 {
-                    if (_baseStream != null)
+                    try
                     {
-                        if (_leaveOpen == false)
-                            _baseStream.Dispose();
-                        _baseStream = null;
+                        _finishAction(_baseStream);
                     }
+                    catch (Exception)
+                    {
+                    }
+                    if (!_leaveOpen)
+                        _baseStream.Dispose();
                 }
+                _isDisposed = true;
+            }
+        }
+
+        protected virtual async ValueTask DisposeAsyncCore()
+        {
+            if (!_isDisposed)
+            {
+                try
+                {
+                    _finishAction(_baseStream);
+                }
+                catch (Exception)
+                {
+                }
+                if (!_leaveOpen)
+                    await _baseStream.DisposeAsync().ConfigureAwait(false);
                 _isDisposed = true;
             }
         }

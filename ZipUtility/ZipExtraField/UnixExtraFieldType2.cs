@@ -1,7 +1,5 @@
 ﻿using System;
-using Utility;
 using Utility.IO;
-using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -17,9 +15,9 @@ namespace ZipUtility.ZipExtraField
 
         public const ushort ExtraFieldId = 0x7855;
 
-        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
+        public override ReadOnlyMemory<byte>? GetData(ZipEntryHeaderType headerType)
         {
-            var writer = new ByteArrayOutputStream();
+            var writer = new ByteArrayRenderer();
             if (headerType == ZipEntryHeaderType.LocalFileHeader)
             {
                 writer.WriteUInt16LE(UserId);
@@ -28,11 +26,11 @@ namespace ZipUtility.ZipExtraField
             return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> data)
         {
             UserId = UInt16.MaxValue;
             GroupId = UInt16.MaxValue;
-            var reader = new ByteArrayInputStream(data, index, count);
+            var reader = new ByteArrayParser(data);
             var success = false;
             try
             {
@@ -42,12 +40,12 @@ namespace ZipUtility.ZipExtraField
                     GroupId = reader.ReadUInt16LE();
                 }
                 if (reader.ReadAllBytes().Length > 0)
-                    throw GetBadFormatException(headerType, data, index, count);
+                    throw GetBadFormatException(headerType, data);
                 success = true;
             }
             catch (UnexpectedEndOfStreamException)
             {
-                throw GetBadFormatException(headerType, data, index, count);
+                throw GetBadFormatException(headerType, data);
             }
             finally
             {

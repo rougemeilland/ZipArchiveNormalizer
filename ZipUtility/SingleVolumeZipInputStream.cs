@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Utility.IO;
 
 namespace ZipUtility
@@ -7,8 +10,9 @@ namespace ZipUtility
     class SingleVolumeZipInputStream
         : IZipInputStream, IVirtualZipFile
     {
+        private readonly IRandomInputByteStream<UInt64> _baseStream;
+
         private bool _isDisposed;
-        private IRandomInputByteStream<UInt64> _baseStream;
 
         public SingleVolumeZipInputStream(FileInfo file)
         {
@@ -17,20 +21,20 @@ namespace ZipUtility
             var stream = file.OpenRead().AsInputByteStream();
             try
             {
-                _baseStream = stream as IRandomInputByteStream<UInt64>;
-                if (_baseStream == null)
+                if (stream is not IRandomInputByteStream<UInt64> randomAccessStream)
                     throw new NotSupportedException();
+                _baseStream = randomAccessStream;
 
                 success = true;
             }
             finally
             {
                 if (!success)
-                    stream?.Dispose();
+                    stream.Dispose();
             }
         }
 
-        public ulong Length
+        public UInt64 Length
         {
             get
             {
@@ -65,25 +69,31 @@ namespace ZipUtility
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
 
-            var rawOffset = offset as IZipStreamPositionValue;
-            if (rawOffset == null)
-                throw new Exception();
+            var rawOffset = (IZipStreamPositionValue)offset;
             if (rawOffset.DiskNumber > 0)
                 throw new BadZipFileFormatException("Invalid disk number");
             _baseStream.Seek(rawOffset.OffsetOnTheDisk);
         }
 
-        public int Read(byte[] buffer, int offset, int count)
+        public Int32 Read(Span<byte> buffer)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
 
-            return _baseStream.Read(buffer, offset, count);
+            return _baseStream.Read(buffer);
+        }
+
+        public Task<Int32> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_isDisposed)
+                throw new ObjectDisposedException(GetType().FullName);
+
+            return _baseStream.ReadAsync(buffer, cancellationToken);
         }
 
         public bool IsMultiVolumeZipStream => false;
 
-        public ZipStreamPosition GetPosition(uint diskNumber, ulong offset)
+        public ZipStreamPosition GetPosition(UInt32 diskNumber, UInt64 offset)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
@@ -102,7 +112,7 @@ namespace ZipUtility
             }
         }
 
-        public ulong LastDiskSize
+        public UInt64 LastDiskSize
         {
             get
             {
@@ -113,38 +123,13 @@ namespace ZipUtility
             }
         }
 
-        public void Dispose()
+        ZipStreamPosition? IVirtualZipFile.Add(ZipStreamPosition position, UInt64 offset)
         {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_isDisposed)
-            {
-                if (disposing)
-                {
-                    if (_baseStream != null)
-                    {
-                        _baseStream.Dispose();
-                        _baseStream = null;
-                    }
-                }
-                _isDisposed = true;
-            }
-        }
-
-        ZipStreamPosition? IVirtualZipFile.Add(ZipStreamPosition position, ulong offset)
-        {
-            var rawPosition = position as IZipStreamPositionValue;
-            if (rawPosition == null)
-                throw new Exception();
+            var rawPosition = (IZipStreamPositionValue)position;
             if (rawPosition.DiskNumber > 0)
                 throw new BadZipFileFormatException("Invalid disk number");
-#if DEBUG
+
             checked
-#endif
             {
                 var newPosition = rawPosition.OffsetOnTheDisk + offset;
                 if (newPosition > _baseStream.Length)
@@ -153,38 +138,62 @@ namespace ZipUtility
             }
         }
 
-        ZipStreamPosition? IVirtualZipFile.Subtract(ZipStreamPosition position, ulong offset)
+        ZipStreamPosition? IVirtualZipFile.Subtract(ZipStreamPosition position, UInt64 offset)
         {
-            var rawPosition = position as IZipStreamPositionValue;
-            if (rawPosition == null)
-                throw new Exception();
+            var rawPosition = (IZipStreamPositionValue)position;
             if (rawPosition.DiskNumber > 0)
                 throw new BadZipFileFormatException("Invalid disk number");
-#if DEBUG
+
             checked
-#endif
             {
                 return new ZipStreamPosition(0, rawPosition.OffsetOnTheDisk - offset, this);
             }
         }
 
-        ulong IVirtualZipFile.Subtract(ZipStreamPosition position1, ZipStreamPosition position2)
+        UInt64 IVirtualZipFile.Subtract(ZipStreamPosition position1, ZipStreamPosition position2)
         {
-            var rawPosition1 = position1 as IZipStreamPositionValue;
-            if (rawPosition1 == null)
-                throw new Exception();
+            var rawPosition1 = (IZipStreamPositionValue)position1;
             if (rawPosition1.DiskNumber > 0)
                 throw new BadZipFileFormatException("Invalid disk number");
-            var rawPosition2 = position2 as IZipStreamPositionValue;
-            if (rawPosition2 == null)
-                throw new Exception();
+            var rawPosition2 = (IZipStreamPositionValue)position2;
             if (rawPosition2.DiskNumber > 0)
                 throw new BadZipFileFormatException("Invalid disk number");
-#if DEBUG
+
             checked
-#endif
             {
                 return rawPosition1.OffsetOnTheDisk - rawPosition2.OffsetOnTheDisk;
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await DisposeAsyncCore().ConfigureAwait(false);
+            Dispose(disposing: false);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_isDisposed)
+            {
+                if (disposing)
+                    _baseStream.Dispose();
+                _isDisposed = true;
+            }
+        }
+
+        protected virtual async ValueTask DisposeAsyncCore()
+        {
+            if (!_isDisposed)
+            {
+                await _baseStream.DisposeAsync().ConfigureAwait(false);
+                _isDisposed = true;
             }
         }
     }

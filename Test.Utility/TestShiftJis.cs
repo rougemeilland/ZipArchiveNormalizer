@@ -10,26 +10,27 @@ namespace Test.Utility
     {
         public static void Test()
         {
-#if true
             TestAozoraBunkoImageTagReplacement(
                 new FileInfo(@"D:\テストデータ\SHIFT-JISのドキュメント1.txt"),
                 new FileInfo(@"D:\テストデータ\更新されたSHIFT-JISのドキュメント1.txt"));
+#if true
             TestAozoraBunkoImageTagReplacement(
                 new FileInfo(@"D:\テストデータ\SHIFT-JISのドキュメント2.txt"),
                 new FileInfo(@"D:\テストデータ\更新されたSHIFT-JISのドキュメント2.txt"));
-#endif
             TestAozoraBunkoImageTagReplacement(
                 new FileInfo(@"D:\テストデータ\SHIFT-JISのドキュメント3.txt"),
                 new FileInfo(@"D:\テストデータ\更新されたSHIFT-JISのドキュメント3.txt"));
+#endif
         }
 
         private static void TestAozoraBunkoImageTagReplacement(FileInfo sourceFile, FileInfo destinationFile)
         {
+            destinationFile.Delete();
             destinationFile.WriteAllBytes(
                 sourceFile.OpenRead()
                 .GetByteSequence()
                 .DecodeAsShiftJisChar()
-                .ReplaceAozoraBunkoImageTag(path =>path)
+                .ReplaceAozoraBunkoImageTag(path => path)
                 .EncodeAsShiftJisChar());
 
             var result = sourceFile.OpenRead().StreamBytesEqual(destinationFile.OpenRead());

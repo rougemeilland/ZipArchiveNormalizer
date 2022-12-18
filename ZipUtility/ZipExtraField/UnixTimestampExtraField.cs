@@ -6,7 +6,7 @@ namespace ZipUtility.ZipExtraField
     public abstract class UnixTimestampExtraField
         : TimestampExtraField
     {
-        private static DateTime _baseTime;
+        private static readonly DateTime _baseTime;
 
         static UnixTimestampExtraField()
         {
@@ -18,8 +18,8 @@ namespace ZipUtility.ZipExtraField
         {
         }
 
-        public override abstract IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType);
-        public override abstract void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int offset, int count);
+        public override abstract ReadOnlyMemory<byte>? GetData(ZipEntryHeaderType headerType);
+        public override abstract void SetData(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> data);
 
         protected static DateTime? FromUnixTimeStamp(Int32 timeStamp)
         {
@@ -36,9 +36,9 @@ namespace ZipUtility.ZipExtraField
         protected static Int32 ToUnixTimeStamp(DateTime dateTime)
         {
             if (dateTime.Kind == DateTimeKind.Unspecified)
-                throw new Exception();
+                throw new InternalLogicalErrorException();
             var timeStamp = (dateTime.ToUniversalTime() - _baseTime).TotalSeconds;
-            if (timeStamp.IsBetween((double)Int32.MinValue, Int32.MaxValue) == false)
+            if (!timeStamp.IsBetween((double)Int32.MinValue, Int32.MaxValue))
                 throw new OverflowException();
             return (Int32)timeStamp;
         }

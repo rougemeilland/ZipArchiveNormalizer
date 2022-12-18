@@ -1,15 +1,16 @@
 ﻿using System;
 using System.Text;
-using Utility;
 using Utility.IO;
-using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
     public abstract class UnicodeStringExtraField
         : ExtraField
     {
-        private static Encoding _utf8Encoding;
+        private static readonly Encoding _utf8Encoding;
+
+        private UInt32? _crc;
+        private string? _unicodeString;
 
         static UnicodeStringExtraField()
         {
@@ -20,26 +21,26 @@ namespace ZipUtility.ZipExtraField
         protected UnicodeStringExtraField(UInt16 extraFieldId)
             : base(extraFieldId)
         {
-            Crc = 0;
-            UnicodeString = null;
+            _crc = null;
+            _unicodeString = null;
         }
 
-        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
+        public override ReadOnlyMemory<byte>? GetData(ZipEntryHeaderType headerType)
         {
-            if (UnicodeString == null)
+            if (_crc is null || _unicodeString is null)
                 return null;
-            var writer = new ByteArrayOutputStream();
+            var writer = new ByteArrayRenderer();
             writer.WriteByte(SupportedVersion);
             writer.WriteUInt32LE(Crc);
             writer.WriteBytes(_utf8Encoding.GetBytes(UnicodeString));
             return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> data)
         {
-            UnicodeString = null;
-            Crc = 0;
-            var reader = new ByteArrayInputStream(data, index, count);
+            _unicodeString = null;
+            _crc = null;
+            var reader = new ByteArrayParser(data);
             var success = false;
             try
             {
@@ -51,26 +52,35 @@ namespace ZipUtility.ZipExtraField
                 if (string.IsNullOrEmpty(UnicodeString))
                     return;
                 if (reader.ReadAllBytes().Length > 0)
-                    throw GetBadFormatException(headerType, data, index, count);
+                    throw GetBadFormatException(headerType, data);
                 success = true;
             }
             catch (UnexpectedEndOfStreamException)
             {
-                throw GetBadFormatException(headerType, data, index, count);
+                throw GetBadFormatException(headerType, data);
             }
             finally
             {
                 if (!success)
                 {
-                    UnicodeString = null;
-                    Crc = 0;
+                    _unicodeString = null;
+                    _crc = null;
                 }
             }
         }
 
-        public UInt32 Crc { get; set; }
-        public int CodePage => _utf8Encoding.CodePage;
+        public UInt32 Crc
+        {
+            get => _crc ?? throw new InvalidOperationException();
+            set => _crc = value;
+        }
+
         protected abstract byte SupportedVersion { get; }
-        protected string UnicodeString { get; set; }
+
+        protected string UnicodeString
+        {
+            get => _unicodeString ?? throw new InvalidOperationException();
+            set => _unicodeString = value;
+        }
     }
 }

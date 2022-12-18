@@ -8,7 +8,7 @@ namespace Test.Utility
 {
     static class TestFilePathNameComparer
     {
-        private static Regex _digitsPattern = new Regex(@"(?<digits>[0-9]+)", RegexOptions.Compiled);
+        private static readonly Regex _digitsPattern = new(@"(?<digits>[0-9]+)", RegexOptions.Compiled);
 
         public static void Test()
         {
@@ -68,7 +68,7 @@ namespace Test.Utility
 
             var lockObject = new object();
 
-            var totalCount = (long)testOptionPatterns.Count * testCulturePatterns.Length * testStringPatterns.Count * testStringPatterns.Count;
+            var totalCount = (Int64)testOptionPatterns.Count * testCulturePatterns.Length * testStringPatterns.Count * testStringPatterns.Count;
             var count = 0L;
             var previousText = "";
             var startTime = DateTime.Now;
@@ -136,7 +136,7 @@ namespace Test.Utility
                 });
         }
 
-        private static int GetDesiredResult(string s1, string s2, FilePathNameComparerrOption option, CultureInfo culture)
+        private static Int32 GetDesiredResult(string s1, string s2, FilePathNameComparerrOption option, CultureInfo? culture)
         {
             if (option.HasFlag(FilePathNameComparerrOption.ConsiderContentFile))
             {
@@ -195,7 +195,7 @@ namespace Test.Utility
                         new CustomizableComparer<string>(
                             (x, y) =>
                             {
-                                if (culture == null)
+                                if (culture is null)
                                     return string.Compare(x, y, ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
                                 else
                                     return string.Compare(x, y, ignoreCase, culture);
@@ -203,7 +203,7 @@ namespace Test.Utility
             }
             else
             {
-                if (culture == null)
+                if (culture is null)
                     return string.Compare(s1, s2, ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
                 else
                     return string.Compare(s1, s2, ignoreCase, culture);

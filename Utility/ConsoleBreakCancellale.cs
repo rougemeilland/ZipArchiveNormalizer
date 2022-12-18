@@ -46,10 +46,11 @@ namespace Utility
             }
         }
 
-        private void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e)
+        private void Console_CancelKeyPress(object? sender, ConsoleCancelEventArgs e)
         {
             _canceled = true;
             e.Cancel = true;
         }
+
     }
 }

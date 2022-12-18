@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Utility;
 using Utility.IO;
-using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -11,7 +10,7 @@ namespace ZipUtility.ZipExtraField
     {
         private class InternalExtraFieldItem
         {
-            public InternalExtraFieldItem(UInt16 extraFieldId, ZipEntryHeaderType appliedHeaderType, IReadOnlyArray<byte> extraFieldBody)
+            public InternalExtraFieldItem(UInt16 extraFieldId, ZipEntryHeaderType appliedHeaderType, ReadOnlyMemory<byte> extraFieldBody)
             {
                 ExtraFieldId = extraFieldId;
                 AppliedHeaderType = appliedHeaderType;
@@ -20,18 +19,18 @@ namespace ZipUtility.ZipExtraField
 
             public UInt16 ExtraFieldId { get; }
             public ZipEntryHeaderType AppliedHeaderType { get; }
-            public IReadOnlyArray<byte> ExtraFieldBody { get; }
+            public ReadOnlyMemory<byte> ExtraFieldBody { get; }
         }
 
 
-        private ZipEntryHeaderType _headerType;
-        private IDictionary<UInt16, InternalExtraFieldItem> _extraFields;
+        private readonly ZipEntryHeaderType _headerType;
+        private readonly IDictionary<UInt16, InternalExtraFieldItem> _extraFields;
 
         /// <summary>
         /// 指定されたヘッダの拡張フィールドを保持し、拡張フィールドの初期値のデータソースとして空のデータが与えられたコンストラクタ
         /// </summary>
         /// <param name="headerType">
-        /// 対応するヘッダのIDを表す<see cref="ZipEntryHeaderType"/>値
+        /// 対応するヘッダのIDを表す <see cref="ZipEntryHeaderType"/> 値
         /// </param>
         public ExtraFieldStorage(ZipEntryHeaderType headerType)
             : this(headerType, new Dictionary<UInt16, InternalExtraFieldItem>())
@@ -39,10 +38,10 @@ namespace ZipUtility.ZipExtraField
         }
 
         /// <summary>
-        /// 指定された<see cref="ExtraFieldStorage"/>オブジェクトを複製するコンストラクタ
+        /// 指定された <see cref="ExtraFieldStorage"/> オブジェクトを複製するコンストラクタ
         /// </summary>
         /// <param name="source">
-        /// 複製元の<see cref="ExtraFieldStorage"/>オブジェクト
+        /// 複製元の <see cref="ExtraFieldStorage"/> オブジェクト
         /// </param>
         public ExtraFieldStorage(ExtraFieldStorage source)
             : this(source._headerType, source._extraFields.ToDictionary(item => item.Key, item => item.Value))
@@ -53,35 +52,35 @@ namespace ZipUtility.ZipExtraField
         /// 指定されたヘッダの拡張フィールドを保持し、拡張フィールドの初期値のデータソースとしてバイトシーケンスが与えられたコンストラクタ
         /// </summary>
         /// <param name="headerType">
-        /// 対応するヘッダのIDを表す<see cref="ZipEntryHeaderType"/>値
+        /// 対応するヘッダのIDを表す <see cref="ZipEntryHeaderType"/> 値
         /// </param>
         /// <param name="extraFieldsSource">
-        /// 拡張フィールドの初期値のデータソースとして与えられた<see cref="IEnumerable{byte}"/>オブジェクト。
+        /// 拡張フィールドの初期値のデータソースとして与えられた <see cref="ReadOnlyMemory{byte}">ReadOnlyMemory&lt;<see cref="byte"/>&gt;</see> オブジェクト。
         /// </param>
-        public ExtraFieldStorage(ZipEntryHeaderType headerType, IEnumerable<byte> extraFieldsSource)
+        public ExtraFieldStorage(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> extraFieldsSource)
             : this(headerType, new Dictionary<UInt16, InternalExtraFieldItem>())
         {
             AppendExtraFields(extraFieldsSource);
         }
 
         /// <summary>
-        /// 指定されたヘッダの拡張フィールドを保持し、拡張フィールドの初期値のデータソースとして<see cref="ExtraFieldStorage"/>オブジェクトと<see cref="IEnumerable{byte}"/>が与えられたコンストラクタ
+        /// 指定されたヘッダの拡張フィールドを保持し、拡張フィールドの初期値のデータソースとして <see cref="ExtraFieldStorage"/> オブジェクトと <see cref="ReadOnlyMemory{byte}">ReadOnlyMemory&lt;<see cref="byte"/>&gt;</see> が与えられたコンストラクタ
         /// </summary>
         /// <param name="headerType">
-        /// 対応するヘッダのIDを表す<see cref="ZipEntryHeaderType"/>値
+        /// 対応するヘッダのIDを表す <see cref="ZipEntryHeaderType"/> 値
         /// </param>
         /// <param name="source">
-        /// 拡張フィールドの初期値のデータソースとして与えられた<see cref="ExtraFieldStorage"/>オブジェクト。
+        /// 拡張フィールドの初期値のデータソースとして与えられた <see cref="ExtraFieldStorage"/> オブジェクト。
         /// </param>
         /// <param name="additionalExtraFieldsSource">
-        /// 拡張フィールドの初期値のデータソースとして与えられた<see cref="IEnumerable{byte}"/>オブジェクト。
+        /// 拡張フィールドの初期値のデータソースとして与えられた <see cref="ReadOnlyMemory{byte}">ReadOnlyMemory&lt;<see cref="byte"/>&gt;</see> オブジェクト。
         /// </param>
         /// <remarks>
         /// source で与えられた拡張フィールドと同じIDの拡張フィールドが additionalExtraFieldsSource にも存在していた場合は、additionalExtraFieldsSource の内容が優先される。
-        /// また、source に存在していて additionalExtraFieldsSource に存在していない拡張フィールドを <see cref="GetData{EXTRA_FIELD_T}"/> メソッドで取得した場合、
-        /// その際に適用されるヘッダの種類は headerType ではなく source で与えられた<see cref="ExtraFieldStorage"/>オブジェクトに依存する。
+        /// また、source に存在していて additionalExtraFieldsSource に存在していない拡張フィールドを <see cref="GetData{EXTRA_FIELD_T}">GetData&lt;<typeparamref name="EXTRA_FIELD_T"/>&gt;</see> メソッドで取得した場合、
+        /// その際に適用されるヘッダの種類は headerType ではなく source で与えられた <see cref="ExtraFieldStorage"/> オブジェクトに依存する。
         /// </remarks>
-        public ExtraFieldStorage(ZipEntryHeaderType headerType, ExtraFieldStorage source, IEnumerable<byte> additionalExtraFieldsSource)
+        public ExtraFieldStorage(ZipEntryHeaderType headerType, ExtraFieldStorage source, ReadOnlyMemory<byte> additionalExtraFieldsSource)
             : this(headerType, source._extraFields.ToDictionary(item => item.Key, item => item.Value))
         {
             AppendExtraFields(additionalExtraFieldsSource);
@@ -97,7 +96,7 @@ namespace ZipUtility.ZipExtraField
         /// 拡張フィールドを追加する
         /// </summary>
         /// <typeparam name="EXTRA_FIELD_T">
-        /// 追加する拡張フィールドのクラス。このクラスは<see cref="IExtraField"/>を実装している必要がある。
+        /// 追加する拡張フィールドのクラス。このクラスは <see cref="IExtraField"/> を実装している必要がある。
         /// </typeparam>
         /// <param name="extraField">
         /// 追加する拡張フィールドのオブジェクト。
@@ -106,11 +105,11 @@ namespace ZipUtility.ZipExtraField
             where EXTRA_FIELD_T : IExtraField
         {
             var body = extraField.GetData(_headerType);
-            if (body == null)
+            if (!body.HasValue)
                 return;
-            if (body.Length > UInt16.MaxValue)
+            if (body.Value.Length > UInt16.MaxValue)
                 throw new OverflowException(string.Format("Too large extra field data in {0}", extraField.GetType().FullName));
-            _extraFields[extraField.ExtraFieldId] = new InternalExtraFieldItem(extraField.ExtraFieldId, _headerType, body);
+            _extraFields[extraField.ExtraFieldId] = new InternalExtraFieldItem(extraField.ExtraFieldId, _headerType, body.Value);
         }
 
         /// <summary>
@@ -156,14 +155,13 @@ namespace ZipUtility.ZipExtraField
         /// EXTRA_FIELD_T 型パラメタで与えられた拡張フィールドがコレクションに含まれていればそのオブジェクトを返す。
         /// 含まれていなかった場合は null を返す。
         /// </returns>
-        public EXTRA_FIELD_T GetData<EXTRA_FIELD_T>()
+        public EXTRA_FIELD_T? GetData<EXTRA_FIELD_T>()
             where EXTRA_FIELD_T : class, IExtraField, new()
         {
             var extraField = new EXTRA_FIELD_T();
-            InternalExtraFieldItem sourceData;
-            if (!_extraFields.TryGetValue(extraField.ExtraFieldId, out sourceData))
+            if (!_extraFields.TryGetValue(extraField.ExtraFieldId, out InternalExtraFieldItem? sourceData))
                 return null;
-            extraField.SetData(sourceData.AppliedHeaderType, sourceData.ExtraFieldBody, 0, sourceData.ExtraFieldBody.Length);
+            extraField.SetData(sourceData.AppliedHeaderType, sourceData.ExtraFieldBody);
             return extraField;
         }
 
@@ -171,11 +169,11 @@ namespace ZipUtility.ZipExtraField
         /// 拡張フィールドのコレクションのバイト配列表現を表すバイトシーケンスを返す。
         /// </summary>
         /// <returns>
-        /// 拡張フィールドのコレクションのバイト配列表現を表す<see cref="IEnumerable{byte}"/>オブジェクト。
+        /// 拡張フィールドのコレクションのバイト配列表現を表す <see cref="ReadOnlyMemory{Byte}">ReadOnlyMemory&lt;<see cref="Byte"/>&gt;</see> オブジェクト。
         /// </returns>
-        public IReadOnlyArray<byte> ToByteArray()
+        public ReadOnlyMemory<Byte> ToByteArray()
         {
-            var writer = new ByteArrayOutputStream();
+            var writer = new ByteArrayRenderer();
             foreach (var extraFieldItem in _extraFields.Values)
             {
                 writer.WriteUInt16LE(extraFieldItem.ExtraFieldId);
@@ -189,7 +187,7 @@ namespace ZipUtility.ZipExtraField
         /// 拡張フィールドのコレクションに含まれる拡張フィールドのIDのシーケンスを取得する。
         /// </summary>
         /// <returns>
-        /// 拡張フィールドのIDのシーケンスを表す <see cref="IEnumerable{UInt16}"/> オブジェクト。
+        /// 拡張フィールドのIDのシーケンスを表す <see cref="IEnumerable{UInt16}">IEnumerable&lt;<see cref="UInt16"/>&gt;</see> オブジェクト。
         /// </returns>
         public IEnumerable<UInt16> EnumerateExtraFieldIds()
         {
@@ -199,12 +197,12 @@ namespace ZipUtility.ZipExtraField
         /// <summary>
         /// コレクションに含まれている拡張属性の種類の数
         /// </summary>
-        public int Count => _extraFields.Count;
+        public Int32 Count => _extraFields.Count;
 
-        private void AppendExtraFields(IEnumerable<byte> extraFieldsSource)
+        private void AppendExtraFields(ReadOnlyMemory<byte> extraFieldsSource)
         {
-            var reader = new ByteArrayInputStream(extraFieldsSource);
-            while (!reader.IsEndOfStream())
+            var reader = new ByteArrayParser(extraFieldsSource);
+            while (!reader.IsEmpty)
             {
                 try
                 {

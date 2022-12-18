@@ -6,32 +6,30 @@ namespace Test.Utility.IO
 {
     static class TestBufferedInputStream
     {
-        private static FileInfo _testFile = new FileInfo(Path.Combine(Path.GetDirectoryName(typeof(TestBufferedInputStream).Assembly.Location), "testData.txt"));
+        private static readonly FileInfo _testFile = new(Path.Combine(Path.GetDirectoryName(typeof(TestBufferedInputStream).Assembly.Location) ?? ".", "testData.txt"));
 
         public static void Test()
         {
-            const int streamBufferSize = 1024;
-            const int bufferSize = 15;
+            const Int32 streamBufferSize = 1024;
+            const Int32 bufferSize = 15;
 
             var buffer = new byte[bufferSize];
-            using (var ms = new MemoryStream())
+            using var ms = new MemoryStream();
+            using (var inputStream = _testFile.OpenRead().AsInputByteStream().WithCache(streamBufferSize))
             {
-                using (var inputStream = _testFile.OpenRead().AsInputByteStream().WithCache(streamBufferSize))
+                while (true)
                 {
-                    while (true)
-                    {
-                        var length = inputStream.Read(buffer, 0, buffer.Length);
-                        if (length <= 0)
-                            break;
-                        ms.Write(buffer, 0, length);
-                        Console.Write(".");
-                    }
-                    ms.Flush();
+                    var length = inputStream.Read(buffer.AsSpan());
+                    if (length <= 0)
+                        break;
+                    ms.Write(buffer, 0, length);
+                    Console.Write(".");
                 }
-                ms.Position = 0;
-                if (ms.StreamBytesEqual(_testFile.OpenRead()) == false)
-                    throw new Exception();
+                ms.Flush();
             }
+            ms.Position = 0;
+            if (!ms.StreamBytesEqual(_testFile.OpenRead()))
+                throw new Exception();
         }
     }
 }

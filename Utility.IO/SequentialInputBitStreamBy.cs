@@ -1,21 +1,24 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Utility.IO
 {
     abstract class SequentialInputBitStreamBy
         : IInputBitStream
     {
+        private readonly BitQueue _bitQueue;
+        private readonly BitPackingDirection _bitPackingDirection;
+
         private bool _isDisposed;
-        private BitPackingDirection _packingDirection;
-        private BitQueue _bitQueue;
         private bool _isEndOfSourceSequence;
         private bool _isEndOfSequence;
 
-        protected SequentialInputBitStreamBy(BitPackingDirection packingDirection)
+        protected SequentialInputBitStreamBy(BitPackingDirection bitPackingDirection)
         {
             _isDisposed = false;
-            _packingDirection = packingDirection;
             _bitQueue = new BitQueue();
+            _bitPackingDirection = bitPackingDirection;
             _isEndOfSourceSequence = false;
             _isEndOfSequence = false;
         }
@@ -28,8 +31,7 @@ namespace Utility.IO
             if (_isEndOfSequence)
                 return null;
 
-            if (_isEndOfSourceSequence == false && _bitQueue.Count <= 0)
-                ReadNextByte();
+            FillBitQueue(1);
             if (_bitQueue.Count <= 0)
             {
                 _isEndOfSequence = true;
@@ -38,28 +40,59 @@ namespace Utility.IO
             return _bitQueue.DequeueBoolean();
         }
 
-        public TinyBitArray ReadBits(int bitCount)
+        public async Task<bool?> ReadBitAsync(CancellationToken cancellationToken = default)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
-            if (bitCount < 1)
-                throw new ArgumentException();
 
-            var maximumCount = BitQueue.RecommendedMaxCount - 8;
-            bitCount = bitCount.Minimum(maximumCount);
-            if (bitCount < 0)
-                throw new ArgumentException();
             if (_isEndOfSequence)
                 return null;
 
-            while (_isEndOfSourceSequence == false && _bitQueue.Count < bitCount)
-                ReadNextByte();
+            await FillBitQueueAsync(1, cancellationToken).ConfigureAwait(false);
             if (_bitQueue.Count <= 0)
             {
                 _isEndOfSequence = true;
                 return null;
             }
-            return _bitQueue.DequeueBitArray(bitCount.Minimum(_bitQueue.Count));
+            return _bitQueue.DequeueBoolean();
+        }
+
+        public TinyBitArray? ReadBits(Int32 bitCount)
+        {
+            if (_isDisposed)
+                throw new ObjectDisposedException(GetType().FullName);
+            if (bitCount < 1)
+                throw new ArgumentOutOfRangeException(nameof(bitCount));
+
+            if (_isEndOfSequence)
+                return null;
+            var actualBitCount = GetReadBitCount(bitCount);
+            FillBitQueue(actualBitCount);
+            if (_bitQueue.Count <= 0)
+            {
+                _isEndOfSequence = true;
+                return null;
+            }
+            return _bitQueue.DequeueBitArray(actualBitCount.Minimum(_bitQueue.Count));
+        }
+
+        public async Task<TinyBitArray?> ReadBitsAsync(Int32 bitCount, CancellationToken cancellationToken = default)
+        {
+            if (_isDisposed)
+                throw new ObjectDisposedException(GetType().FullName);
+            if (bitCount < 1)
+                throw new ArgumentOutOfRangeException(nameof(bitCount));
+
+            if (_isEndOfSequence)
+                return null;
+            var actualBitCount = GetReadBitCount(bitCount);
+            await FillBitQueueAsync(actualBitCount, cancellationToken).ConfigureAwait(false);
+            if (_bitQueue.Count <= 0)
+            {
+                _isEndOfSequence = true;
+                return null;
+            }
+            return _bitQueue.DequeueBitArray(actualBitCount.Minimum(_bitQueue.Count));
         }
 
         public void Dispose()
@@ -68,7 +101,15 @@ namespace Utility.IO
             GC.SuppressFinalize(this);
         }
 
+        public async ValueTask DisposeAsync()
+        {
+            await DisposeAsyncCore().ConfigureAwait(false);
+            Dispose(disposing: false);
+            GC.SuppressFinalize(this);
+        }
+
         protected abstract byte? GetNextByte();
+        protected abstract Task<byte?> GetNextByteAsync(CancellationToken cancellationToken);
 
         protected virtual void Dispose(bool disposing)
         {
@@ -81,11 +122,50 @@ namespace Utility.IO
             }
         }
 
+        protected virtual ValueTask DisposeAsyncCore()
+        {
+            if (!_isDisposed)
+            {
+                _isDisposed = true;
+            }
+            return ValueTask.CompletedTask;
+        }
+
+        private static Int32 GetReadBitCount(Int32 bitCount)
+        {
+            const Int32 maximumCount = BitQueue.RecommendedMaxCount - 8;
+            var actualBitCount = bitCount.Minimum(maximumCount);
+            if (actualBitCount < 0)
+                throw new InternalLogicalErrorException();
+            return actualBitCount;
+        }
+
+        private void FillBitQueue(Int32 bitCount)
+        {
+            while (!_isEndOfSourceSequence && _bitQueue.Count < bitCount)
+                ReadNextByte();
+        }
+
+        private async Task FillBitQueueAsync(Int32 bitCount, CancellationToken cancellationToken)
+        {
+            while (!_isEndOfSourceSequence && _bitQueue.Count < bitCount)
+                await ReadNextByteAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         private void ReadNextByte()
         {
             var data = GetNextByte();
-            if (data.HasValue)
-                _bitQueue.Enqueue(data.Value, packingDirection: _packingDirection);
+            if (data is not null)
+                _bitQueue.Enqueue(data.Value, _bitPackingDirection);
+            else
+                _isEndOfSourceSequence = true;
+        }
+
+        private async Task ReadNextByteAsync(CancellationToken cancellationToken)
+        {
+            var data = await GetNextByteAsync(cancellationToken).ConfigureAwait(false);
+            if (data is not null)
+                _bitQueue.Enqueue(data.Value, _bitPackingDirection);
             else
                 _isEndOfSourceSequence = true;
         }

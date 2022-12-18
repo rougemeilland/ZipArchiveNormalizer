@@ -14,7 +14,7 @@ namespace Test.ZipUtility
             var zeroFile = baseDirectory.GetFile("TEST_0バイトのファイル.txt");
             zeroFile.Delete();
             zeroFile.Create().Dispose();
-            for (int count = 0; count < 3000; count++)
+            for (Int32 count = 0; count < 3000; count++)
             {
                 CreateRandomTextFile(baseDirectory.GetFile(string.Format("TEST_非常に短いファイル{0}.txt", count)), 5);
             }
@@ -27,35 +27,33 @@ namespace Test.ZipUtility
             CreateRandomTextFile(baseDirectory.GetFile("TEST_圧縮しても4GBを超えるファイル.txt"), (Int64)UInt32.MaxValue + (UInt32.MaxValue / 4));
         }
 
-        private static void CreateRandomTextFile(FileInfo file, long length)
+        private static void CreateRandomTextFile(FileInfo file, Int64 length)
         {
             file.Delete();
-            using (var outputStream = file.Create().AsOutputByteStream().WithCache().AsStream())
-            using (var writer = new StreamWriter(outputStream, Encoding.UTF8))
-            {
-                var lockObject = new object();
-                Enumerable.Range(0, Environment.ProcessorCount)
-                    .AsParallel()
-                    .ForAll(n =>
+            using var outputStream = file.Create().AsOutputByteStream().WithCache().AsStream();
+            using var writer = new StreamWriter(outputStream, Encoding.UTF8);
+            var lockObject = new object();
+            Enumerable.Range(0, Environment.ProcessorCount)
+                .AsParallel()
+                .ForAll(n =>
+                {
+                    while (true)
                     {
-                        while (true)
+                        var actualCount = 0;
+                        lock (lockObject)
                         {
-                            var actualCount = 0;
-                            lock (lockObject)
-                            {
-                                if (length <= 0)
-                                    return;
-                                actualCount = (int)length.Minimum(1024 * 1024);
-                                length -= actualCount;
-                            }
-                            var data = RandomSequence.AsciiCharSequence.Take((int)actualCount).ToArray();
-                            lock (lockObject)
-                            {
-                                writer.Write(data);
-                            }
+                            if (length <= 0)
+                                return;
+                            actualCount = (Int32)length.Minimum(1024 * 1024);
+                            length -= actualCount;
                         }
-                    });
-            }
+                        var data = RandomSequence.GetAsciiCharSequence().Take(actualCount).ToArray();
+                        lock (lockObject)
+                        {
+                            writer.Write(data);
+                        }
+                    }
+                });
         }
     }
 }

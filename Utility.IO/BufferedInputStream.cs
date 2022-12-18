@@ -1,22 +1,26 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Utility.IO
 {
     abstract class BufferedInputStream<POSITION_T>
         : IInputByteStream<POSITION_T>
     {
-        private const int _MAXIMUM_BUFFER_SIZE = 1024 * 1024;
-        private const int _DEFAULT_BUFFER_SIZE = 80 * 1024;
-        private const int _MINIMUM_BUFFER_SIZE = 4 * 1024;
+        private const Int32 _MAXIMUM_BUFFER_SIZE = 1024 * 1024;
+        private const Int32 _DEFAULT_BUFFER_SIZE = 80 * 1024;
+        private const Int32 _MINIMUM_BUFFER_SIZE = 4 * 1024;
+
+        private readonly IInputByteStream<POSITION_T> _baseStream;
+        private readonly bool _leaveOpen;
+        private readonly Int32 _bufferSize;
+        private readonly byte[] _internalBuffer;
 
         private bool _isDisposed;
-        private IInputByteStream<POSITION_T> _baseStream;
-        private bool _leaveOpen;
         private UInt64 _position;
-        private int _bufferSize;
-        private byte[] _internalBuffer;
-        private int _internalBufferCount;
-        private int _internalBufferIndex;
+        private Int32 _internalBufferCount;
+        private Int32 _internalBufferIndex;
         private bool _isEndOfStream;
         private bool _isEndOfBaseStream;
 
@@ -25,14 +29,14 @@ namespace Utility.IO
         {
         }
 
-        public BufferedInputStream(IInputByteStream<POSITION_T> baseStream, int bufferSize, bool leaveOpen)
+        public BufferedInputStream(IInputByteStream<POSITION_T> baseStream, Int32 bufferSize, bool leaveOpen)
         {
             try
             {
-                if (baseStream == null)
+                if (baseStream is null)
                     throw new ArgumentNullException(nameof(baseStream));
                 if (bufferSize < 0)
-                    throw new ArgumentException();
+                    throw new ArgumentOutOfRangeException(nameof(bufferSize));
 
                 _isDisposed = false;
                 _baseStream = baseStream;
@@ -47,28 +51,32 @@ namespace Utility.IO
             }
             catch (Exception)
             {
-                if (leaveOpen == false)
+                if (!leaveOpen)
                     baseStream?.Dispose();
                 throw;
             }
         }
 
-        public POSITION_T Position => !_isDisposed ? AddPosition(ZeroPositionValue, _position) : throw new ObjectDisposedException(GetType().FullName);
+        public POSITION_T Position
+        {
+            get
+            {
+                if (_isDisposed)
+                    throw new ObjectDisposedException(GetType().FullName);
 
-        public int Read(byte[] buffer, int offset, int count)
+                return AddPosition(ZeroPositionValue, _position);
+            }
+        }
+
+        public Int32 Read(Span<byte> buffer)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
-            if (offset < 0)
-                throw new ArgumentException();
-            if (count < 0)
-                throw new ArgumentException();
-            if (offset + count > buffer.Length)
-                throw new IndexOutOfRangeException();
+
             if (_isEndOfStream)
                 return 0;
 
-            var length = InternalRead(buffer, offset, count);
+            var length = InternalRead(buffer);
             if (length <= 0)
                 _isEndOfStream = true;
             else
@@ -77,7 +85,30 @@ namespace Utility.IO
                 checked
 #endif
                 {
-                    _position += (uint)length;
+                    _position += (UInt32)length;
+                }
+            }
+            return length;
+        }
+
+        public async Task<Int32> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_isDisposed)
+                throw new ObjectDisposedException(GetType().FullName);
+
+            if (_isEndOfStream)
+                return 0;
+
+            var length = await InternalReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            if (length <= 0)
+                _isEndOfStream = true;
+            else
+            {
+#if DEBUG
+                checked
+#endif
+                {
+                    _position += (UInt32)length;
                 }
             }
             return length;
@@ -89,8 +120,27 @@ namespace Utility.IO
             GC.SuppressFinalize(this);
         }
 
+        public async ValueTask DisposeAsync()
+        {
+            await DisposeAsyncCore().ConfigureAwait(false);
+            Dispose(disposing: false);
+            GC.SuppressFinalize(this);
+        }
+
         protected abstract POSITION_T ZeroPositionValue { get; }
         protected abstract POSITION_T AddPosition(POSITION_T x, UInt64 y);
+        protected bool IsDisposed => _isDisposed;
+
+        protected void SetPosition(UInt64 position)
+        {
+            _position = position;
+        }
+
+        protected void ClearCache()
+        {
+            _internalBufferCount = 0;
+            _internalBufferIndex = 0;
+        }
 
         protected void Dispose(bool disposing)
         {
@@ -98,37 +148,70 @@ namespace Utility.IO
             {
                 if (disposing)
                 {
-                    if (_baseStream != null)
-                    {
-                        if (_leaveOpen == false)
-                            _baseStream.Dispose();
-                        _baseStream = null;
-                    }
+                    if (!_leaveOpen)
+                        _baseStream.Dispose();
                 }
+                _isDisposed = true;
             }
         }
 
-        private int InternalRead(byte[] buffer, int offset, int count)
+        protected virtual async ValueTask DisposeAsyncCore()
+        {
+            if (!_isDisposed)
+            {
+                if (!_leaveOpen)
+                    await _baseStream.DisposeAsync().ConfigureAwait(false);
+                _isDisposed = true;
+            }
+        }
+
+        private Int32 InternalRead(Span<byte> buffer)
         {
             if (_isEndOfBaseStream)
                 return 0;
 
-            if (_internalBufferIndex >= _internalBufferCount)
+            if (IsBufferEmpty)
             {
-                _internalBufferCount = _baseStream.Read(_internalBuffer, 0, _internalBuffer.Length);
-                if (_internalBufferCount <= 0)
-                {
-                    _isEndOfBaseStream = true;
-                    return _internalBufferCount;
-                }
-                _internalBufferIndex = 0;
+                if (!SetReadLength(_baseStream.Read(_internalBuffer.AsSpan())))
+                    return 0;
             }
-            var actualCount = _internalBufferCount - _internalBufferIndex;
-            if (actualCount > count)
-                actualCount = count;
-            Array.Copy(_internalBuffer, _internalBufferIndex, buffer, offset, actualCount);
-            _internalBufferIndex += actualCount;
-            return actualCount;
+            return ReadFromBuffer(buffer);
+        }
+
+        private async Task<Int32> InternalReadAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+        {
+            if (_isEndOfBaseStream)
+                return 0;
+
+            if (IsBufferEmpty)
+            {
+                if (!SetReadLength(await _baseStream.ReadAsync(_internalBuffer.AsMemory(), cancellationToken).ConfigureAwait(false)))
+                    return 0;
+            }
+            return ReadFromBuffer(buffer.Span);
+        }
+
+        private bool IsBufferEmpty =>
+            _internalBufferIndex >= _internalBufferCount;
+
+        private bool SetReadLength(Int32 readLength)
+        {
+            _internalBufferCount = readLength;
+            _internalBufferIndex = 0;
+            if (readLength <= 0)
+            {
+                _isEndOfBaseStream = true;
+                return false;
+            }
+            return true;
+        }
+
+        private Int32 ReadFromBuffer(Span<byte> destination)
+        {
+            var copyCount = (_internalBufferCount - _internalBufferIndex).Minimum(destination.Length);
+            _internalBuffer.AsSpan(_internalBufferIndex, copyCount).CopyTo(destination[..copyCount]);
+            _internalBufferIndex += copyCount;
+            return copyCount;
         }
     }
 }

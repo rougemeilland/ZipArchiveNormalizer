@@ -8,11 +8,11 @@ namespace ZipUtility.ZipFileHeader
 {
     class ZipFileZip64EOCDR
     {
-        private static byte[] _zip64EndOfCentralDirectoryRecordSignature;
+        private static readonly ReadOnlyMemory<byte> _zip64EndOfCentralDirectoryRecordSignature;
 
         static ZipFileZip64EOCDR()
         {
-            _zip64EndOfCentralDirectoryRecordSignature = new byte[] { 0x50, 0x4b, 0x06, 0x06 };
+            _zip64EndOfCentralDirectoryRecordSignature = new byte[] { 0x50, 0x4b, 0x06, 0x06 }.AsReadOnly();
         }
 
         private ZipFileZip64EOCDR(UInt64 offsetOfThisHeader, UInt16 versionMadeBy, UInt16 versionNeededToExtract, UInt32 numberOfThisDisk, UInt32 numberOfTheDiskWithTheStartOfTheCentralDirectory, UInt64 totalNumberOfEntriesInTheCentralDirectoryOnThisDisk, UInt64 totalNumberOfEntriesInTheCentralDirectory, UInt64 sizeOfTheCentralDirectory, UInt64 offsetOfStartOfCentralDirectoryWithRespectToTheStartingDiskNumber, IEnumerable<byte> zip64ExtensibleDataSector)
@@ -50,21 +50,21 @@ namespace ZipUtility.ZipFileHeader
                     previousHeader.NumberOfTheDiskWithTheStartOfTheZip64EndOfCentralDirectory,
                     previousHeader.OffsetOfTheZip64EndOfCentralDirectoryRecord));
             var minimumHeaderBytes = zipInputStream.ReadBytes(minimumLengthOfHeader);
-            var signature = minimumHeaderBytes.GetSequence(0, _zip64EndOfCentralDirectoryRecordSignature.Length);
-            if (!signature.SequenceEqual(_zip64EndOfCentralDirectoryRecordSignature))
+            var signature = minimumHeaderBytes[.._zip64EndOfCentralDirectoryRecordSignature.Length];
+            if (!signature.Span.SequenceEqual(_zip64EndOfCentralDirectoryRecordSignature.Span))
                 throw new BadZipFileFormatException("Not found 'zip64 end of central directory record' for ZIP-64");
-            var sizeOfZip64EndOfCentralDirectoryRecord = minimumHeaderBytes.ToUInt64LE(4);
-            var versionMadeBy = minimumHeaderBytes.ToUInt16LE(12);
-            var versionNeededToExtract = minimumHeaderBytes.ToUInt16LE(14);
-            var numberOfThisDisk = minimumHeaderBytes.ToUInt32LE(16);
-            var numberOfTheDiskWithTheStartOfTheCentralDirectory = minimumHeaderBytes.ToUInt32LE(20);
-            var totalNumberOfEntriesInTheCentralDirectoryOnThisDisk = minimumHeaderBytes.ToUInt64LE(24);
-            var totalNumberOfEntriesInTheCentralDirectory = minimumHeaderBytes.ToUInt64LE(32);
-            var sizeOfTheCentralDirectory = minimumHeaderBytes.ToUInt64LE(40);
-            var offsetOfStartOfCentralDirectoryWithRespectToTheStartingDiskNumber = minimumHeaderBytes.ToUInt64LE(48);
-            var zip64ExtensibleDataSector = zipInputStream.ReadBytes(sizeOfZip64EndOfCentralDirectoryRecord - minimumLengthOfHeader + 12);
+            var sizeOfZip64EndOfCentralDirectoryRecord = minimumHeaderBytes[4..].ToUInt64LE();
+            var versionMadeBy = minimumHeaderBytes[12..].ToUInt16LE();
+            var versionNeededToExtract = minimumHeaderBytes[14..].ToUInt16LE();
+            var numberOfThisDisk = minimumHeaderBytes[16..].ToUInt32LE();
+            var numberOfTheDiskWithTheStartOfTheCentralDirectory = minimumHeaderBytes[20..].ToUInt32LE();
+            var totalNumberOfEntriesInTheCentralDirectoryOnThisDisk = minimumHeaderBytes[24..].ToUInt64LE();
+            var totalNumberOfEntriesInTheCentralDirectory = minimumHeaderBytes[32..].ToUInt64LE();
+            var sizeOfTheCentralDirectory = minimumHeaderBytes[40..].ToUInt64LE();
+            var offsetOfStartOfCentralDirectoryWithRespectToTheStartingDiskNumber = minimumHeaderBytes[48..].ToUInt64LE();
+            var zip64ExtensibleDataSector = zipInputStream.ReadByteSequence(sizeOfZip64EndOfCentralDirectoryRecord - minimumLengthOfHeader + 12);
             var centralDirectoryEncryptionHeader = ZipFileCentralDirectoryEncryptionHeader.Parse(zip64ExtensibleDataSector);
-            if (centralDirectoryEncryptionHeader != null)
+            if (centralDirectoryEncryptionHeader is not null)
                 throw new EncryptedZipFileNotSupportedException(ZipEntryGeneralPurposeBitFlag.EncryptedCentralDirectory.ToString());
             return
                 new ZipFileZip64EOCDR(

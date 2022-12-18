@@ -1,7 +1,7 @@
 ﻿namespace ZipUtility.IO.Compression
 {
     public class DeflateCompressionOption
-        : ICompressionOption
+        : ICoderOption
     {
         public DeflateCompressionLevel CompressionLevel { get; set; }
     }

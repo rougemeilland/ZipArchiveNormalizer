@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Utility;
 using Utility.FileWorker;
 using Utility.IO;
@@ -24,7 +25,7 @@ namespace ImageUtility
             }
 
             public FileInfo ImageFile { get; }
-            public uint ImageFileCrc { get; }
+            public UInt32 ImageFileCrc { get; }
             public Size ImageSize { get; }
 
         }
@@ -32,7 +33,7 @@ namespace ImageUtility
         private class ExecutionResult
             : IFileWorkerExecutionResult
         {
-            public ExecutionResult(IEnumerable<FileInfo> sourceFiles, IEnumerable<FileInfo> destinationFiles, long totalChangedFileCount)
+            public ExecutionResult(IEnumerable<FileInfo> sourceFiles, IEnumerable<FileInfo> destinationFiles, Int64 totalChangedFileCount)
             {
                 SourceFiles = sourceFiles.ToReadOnlyCollection();
                 DestinationFiles = destinationFiles.ToReadOnlyCollection();
@@ -43,7 +44,7 @@ namespace ImageUtility
 
             public IReadOnlyCollection<FileInfo> DestinationFiles { get; }
 
-            public long TotalChangedFileCount { get; }
+            public Int64 TotalChangedFileCount { get; }
         }
 
         public ImageFileSummaryEnumerationWorker(IWorkerCancellable canceller)
@@ -53,17 +54,17 @@ namespace ImageUtility
 
         public override string Description => "不自然にサイズが異なる画像が混じっていないか調べます。";
 
-        protected override void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult previousActionResult)
+        protected override void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult? previousActionResult)
         {
-            var totalCount = -1L;
-            var countOfDone = -1L;
+            if (sourceFiles is null)
+                throw new ArgumentNullException(nameof(sourceFiles));
+
             var imageFiles =
-                previousActionResult.DestinationFiles
-                .ToReadOnlyCollection();
+                previousActionResult?.DestinationFiles ?? sourceFiles.ToReadOnlyCollection();
             SetToSourceFiles(imageFiles);
 
-            totalCount = imageFiles.Count;
-            countOfDone = 0;
+            var totalCount = (UInt64)imageFiles.Count;
+            var countOfDone = 0UL;
             UpdateProgress(totalCount, countOfDone);
             using (var cancellationTokenSource = new CancellationTokenSource())
             {
@@ -82,24 +83,27 @@ namespace ImageUtility
                         try
                         {
                             var directory = g.First().Directory;
-                            var summaries =
-                                g
-                                .Select(file =>
-                                {
-                                    try
+                            if (directory is not null)
+                            {
+                                var summaries =
+                                    g
+                                    .Select(file =>
                                     {
-                                        SafetyCancellationCheck();
-                                        return new ImageFileSize(file, file.CalculateCrc32(), file.GetImageSize());
-                                    }
-                                    finally
-                                    {
-                                        UpdateProgress(totalCount, Interlocked.Increment(ref countOfDone));
-                                    }
-                                })
-                                .ToReadOnlyCollection();
-                            ActionForImageFileDirectory(new ImageFileDirectorySummary(directory, summaries.ToReadOnlyCollection()));
-                            foreach (var summary in summaries)
-                                AddToDestinationFiles(summary.ImageFile);
+                                        try
+                                        {
+                                            SafetyCancellationCheck();
+                                            return new ImageFileSize(file, file.CalculateCrc32().Crc, file.GetImageSize());
+                                        }
+                                        finally
+                                        {
+                                            UpdateProgress(totalCount, Interlocked.Increment(ref countOfDone));
+                                        }
+                                    })
+                                    .ToReadOnlyCollection();
+                                ActionForImageFileDirectory(new ImageFileDirectorySummary(directory, summaries.ToReadOnlyCollection()));
+                                foreach (var summary in summaries)
+                                    AddToDestinationFiles(summary.ImageFile);
+                            }
                         }
                         catch (OperationCanceledException)
                         {

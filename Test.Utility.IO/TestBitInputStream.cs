@@ -15,20 +15,20 @@ namespace Test.Utility.IO
             Test(BitPackingDirection.MsbToLsb);
         }
 
-        private static void Test(BitPackingDirection packingDirection)
+        private static void Test(BitPackingDirection bitPackingDirection)
         {
-            var _testFile = new FileInfo(Path.Combine(Path.GetDirectoryName(typeof(TestBitInputStream).Assembly.Location), "testData.txt"));
+            var _testFile = new FileInfo(Path.Combine(Path.GetDirectoryName(typeof(TestBitInputStream).Assembly.Location) ?? ".", "testData.txt"));
             var buffer1 = new BitQueue();
-            using (var bitInputStream = _testFile.OpenRead().AsInputByteStream().WithCache().AsBitStream(packingDirection))
+            using (var bitInputStream = _testFile.OpenRead().AsInputByteStream().WithCache().AsBitStream(bitPackingDirection))
             {
                 var bitCounts = new[] { 1, 3, 5, 7, 11 };
                 var count = 0;
                 while (true)
                 {
                     var bitArray = bitInputStream.ReadBits(bitCounts[count]);
-                    if (bitArray == null)
+                    if (!bitArray.HasValue)
                         break;
-                    buffer1.Enqueue(bitArray);
+                    buffer1.Enqueue(bitArray.Value);
                     count = (count + 1) % bitCounts.Length;
                 }
             }
@@ -38,12 +38,12 @@ namespace Test.Utility.IO
                 while (true)
                 {
                     var data = inputStream.ReadByteOrNull();
-                    if (data == null)
+                    if (data is null)
                         break;
-                    if (packingDirection == BitPackingDirection.MsbToLsb)
-                        desiredBitPatternStringBuffer.Append(Convert.ToString((Byte)data.Value, 2).PadLeft(8, '0'));
+                    if (bitPackingDirection == BitPackingDirection.MsbToLsb)
+                        desiredBitPatternStringBuffer.Append(Convert.ToString((Byte)data, 2).PadLeft(8, '0'));
                     else
-                        desiredBitPatternStringBuffer.Append(new string(Convert.ToString((Byte)data.Value, 2).PadLeft(8, '0').Reverse().ToArray()));
+                        desiredBitPatternStringBuffer.Append(new string(Convert.ToString((Byte)data, 2).PadLeft(8, '0').Reverse().ToArray()));
                 }
             }
             if (!string.Equals(buffer1.ToString("R"), desiredBitPatternStringBuffer.ToString(), StringComparison.Ordinal))

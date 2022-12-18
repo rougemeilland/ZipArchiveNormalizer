@@ -10,8 +10,9 @@ namespace Utility.Text
         private class Enumerator
             : IEnumerator<ShiftJisChar>
         {
+            private readonly IEnumerable<byte> _source;
+
             private bool _isDisposed;
-            private IEnumerable<byte> _source;
             private IEnumerator<byte> _sourceEnumerator;
             private ShiftJisChar? _currentValue;
             private bool _endOfStream;
@@ -33,9 +34,8 @@ namespace Utility.Text
                         throw new ObjectDisposedException(GetType().FullName);
                     if (_endOfStream)
                         throw new InvalidOperationException();
-                    if (_currentValue == null)
-                        throw new InvalidOperationException();
-                    return _currentValue.Value;
+
+                    return _currentValue ?? throw new InvalidOperationException();
                 }
             }
 
@@ -45,31 +45,27 @@ namespace Utility.Text
             {
                 if (_endOfStream)
                     return false;
-                if (_sourceEnumerator.MoveNext() == false)
+                if (!_sourceEnumerator.MoveNext())
                 {
                     _endOfStream = true;
                     return false;
                 }
                 var data1 = _sourceEnumerator.Current;
-                if (data1.IsBetween((byte)0x00, (byte)0x80) ||
-                    data1.IsBetween((byte)0xa0, (byte)0xdf) ||
-                    data1.IsBetween((byte)0xfd, (byte)0xff))
+                if (ShiftJisChar.IsSingleByteChar(data1))
                 {
                     // 1バイト文字
                     _currentValue = new ShiftJisChar(data1);
                     return true;
                 }
-                if (_sourceEnumerator.MoveNext() == false)
-                    throw new UnexpectedEndOfSequenceException();
-                var data2 = _sourceEnumerator.Current;
-                if (data2.IsBetween((byte)0x40, (byte)0x7e) ||
-                    data2.IsBetween((byte)0x80, (byte)0xfc))
+                else
                 {
                     // 2バイト文字
+                    if (!_sourceEnumerator.MoveNext())
+                        throw new UnexpectedEndOfSequenceException();
+                    var data2 = _sourceEnumerator.Current;
                     _currentValue = new ShiftJisChar(data1, data2);
                     return true;
                 }
-                throw new BadShiftJisEncodingException();
             }
 
             public void Reset()
@@ -91,24 +87,19 @@ namespace Utility.Text
                 if (!_isDisposed)
                 {
                     if (disposing)
-                    {
-                        if (_sourceEnumerator != null)
-                        {
-                            _sourceEnumerator.Dispose();
-                            _sourceEnumerator = null;
-                        }
-                    }
+                        _sourceEnumerator.Dispose();
                     _isDisposed = true;
                 }
             }
         }
 
-        private IEnumerable<byte> _source;
+        private readonly IEnumerable<byte> _source;
 
         public ShiftJIsCharSequenceFromByteSequenceEnumerable(IEnumerable<byte> source)
         {
-            if (source == null)
+            if (source is null)
                 throw new ArgumentNullException(nameof(source));
+
             _source = source;
         }
 

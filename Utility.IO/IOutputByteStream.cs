@@ -4,7 +4,7 @@
         : IBasicOutputByteStream
     {
         /// <summary>
-        /// 次にデータが書き込まれる予定のストリームの先頭からのバイト単位での位置を示す<see cref="POSITION_T"/>値です。
+        /// 次にデータが書き込まれる予定のストリームの先頭からのバイト単位での位置を示す <typeparamref name="POSITION_T"/> 値です。
         /// </summary>
         POSITION_T Position { get; }
     }

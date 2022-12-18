@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Utility;
@@ -10,14 +11,39 @@ namespace ZipUtility.ZipFileHeader
         : IZip64ExtendedInformationExtraFieldValueSource
         where ZIP64_EXTRA_FIELD_T : Zip64ExtendedInformationExtraField, new()
     {
-        private static Encoding _utf8EncodingWithoutBOM;
+        private static readonly Encoding _utf8EncodingWithoutBOM;
+        private static IEnumerable<Encoding> _allEncodings;
 
         static ZipEntryInternalHeader()
         {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
             _utf8EncodingWithoutBOM = new UTF8Encoding(false);
+
+            // サポートされているエンコーディングのリストを作成する。
+            // 順序は以下の通り。
+            // 1) IBM437
+            // 2) コンピュータのデフォルトのエンコーディング
+            // 3) 非UNICODE系のその他のエンコーディング
+            // 4) UNICODE系のエンコーディング
+            _allEncodings =
+                Encoding.GetEncodings()
+                .Select(encoding => encoding.GetEncoding())
+                .OrderBy(encoding =>
+                {
+                    if (encoding.WebName == "IBM437")
+                        return -2;
+                    else if (encoding.WebName == Encoding.Default.WebName)
+                        return -1;
+                    else if (encoding.WebName.IsAnyOf("utf-16", "unicodeFFFE", "utf-32", "utf-32BE", "utf-7", "utf-8"))
+                        return encoding.CodePage + 0x10000;
+                    else
+                        return encoding.CodePage;
+                })
+                .ToArray();
         }
 
-        protected ZipEntryInternalHeader(ZipEntryGeneralPurposeBitFlag generalPurposeBitFlag, ZipEntryCompressionMethodId compressionMethod, DateTime? dosDateTime, IReadOnlyArray<byte> fullNameBytes, IReadOnlyArray<byte> commentBytes, ExtraFieldStorage extraFields)
+        protected ZipEntryInternalHeader(ZipEntryGeneralPurposeBitFlag generalPurposeBitFlag, ZipEntryCompressionMethodId compressionMethod, DateTime? dosDateTime, ReadOnlyMemory<byte> fullNameBytes, ReadOnlyMemory<byte> commentBytes, ExtraFieldStorage extraFields, ZIP64_EXTRA_FIELD_T? zip64ExtraField)
         {
             GeneralPurposeBitFlag = generalPurposeBitFlag;
             CompressionMethod = compressionMethod;
@@ -28,26 +54,27 @@ namespace ZipUtility.ZipFileHeader
             LastWriteTimeUtc = null;
             LastAccessTimeUtc = null;
             CreationTimeUtc = null;
-            FullName = null;
-            Comment = null;
-            OriginalFullName = null;
-            Zip64ExtraField = null;
+            FullName = "";
+            Comment = "";
+            OriginalFullName = "";
+            Zip64ExtraField = zip64ExtraField is not null ? zip64ExtraField : new ZIP64_EXTRA_FIELD_T();
+            Zip64ExtraField.SetZipHeaderSource(this);
 
             var ntfsExtraField = ExtraFields.GetData<NtfsExtraField>();
-            if (ntfsExtraField != null &&
-                ntfsExtraField.LastWriteTimeUtc == null &&
-                ntfsExtraField.LastAccessTimeUtc == null &&
-                ntfsExtraField.CreationTimeUtc == null)
+            if (ntfsExtraField is not null &&
+                ntfsExtraField.LastWriteTimeUtc is null &&
+                ntfsExtraField.LastAccessTimeUtc is null &&
+                ntfsExtraField.CreationTimeUtc is null)
             {
                 // NTFS extra field が存在するが 日時情報が全く含まれていない場合は、extra field を削除する。
                 ExtraFields.Delete(NtfsExtraField.ExtraFieldId);
             }
 
             var extendedTimestampExtraField = ExtraFields.GetData<ExtendedTimestampExtraField>();
-            if (extendedTimestampExtraField != null &&
-                extendedTimestampExtraField.LastWriteTimeUtc == null &&
-                extendedTimestampExtraField.LastAccessTimeUtc == null &&
-                extendedTimestampExtraField.CreationTimeUtc == null)
+            if (extendedTimestampExtraField is not null &&
+                extendedTimestampExtraField.LastWriteTimeUtc is null &&
+                extendedTimestampExtraField.LastAccessTimeUtc is null &&
+                extendedTimestampExtraField.CreationTimeUtc is null)
             {
                 // Extended Time Stamp extra field が存在するが 日時情報が全く含まれていない場合は、extra field を削除する。
                 ExtraFields.Delete(ExtendedTimestampExtraField.ExtraFieldId);
@@ -61,15 +88,15 @@ namespace ZipUtility.ZipFileHeader
                 ExtraFields.GetData<UnixExtraFieldType1>(),
                 ExtraFields.GetData<UnixExtraFieldType0>(),
             }
-            .Where(timeStampExtraField => timeStampExtraField != null);
-            foreach (var timeStampExtraField in timeStampExtraFields)
+            .Where(timeStampExtraField => timeStampExtraField is not null);
+            foreach (var timeStampExtraField in timeStampExtraFields.WhereNotNull())
             {
-                if (LastWriteTimeUtc == null && timeStampExtraField.LastWriteTimeUtc.HasValue)
-                    LastWriteTimeUtc = timeStampExtraField.LastWriteTimeUtc.Value;
-                if (LastAccessTimeUtc == null && timeStampExtraField.LastAccessTimeUtc.HasValue)
-                    LastAccessTimeUtc = timeStampExtraField.LastAccessTimeUtc.Value;
-                if (CreationTimeUtc == null && timeStampExtraField.CreationTimeUtc.HasValue)
-                    CreationTimeUtc = timeStampExtraField.CreationTimeUtc.Value;
+                if (LastWriteTimeUtc is null && timeStampExtraField.LastWriteTimeUtc is not null)
+                    LastWriteTimeUtc = timeStampExtraField.LastWriteTimeUtc;
+                if (LastAccessTimeUtc is null && timeStampExtraField.LastAccessTimeUtc is not null)
+                    LastAccessTimeUtc = timeStampExtraField.LastAccessTimeUtc;
+                if (CreationTimeUtc is null && timeStampExtraField.CreationTimeUtc is not null)
+                    CreationTimeUtc = timeStampExtraField.CreationTimeUtc;
             }
 
             // エントリ名とコメントを設定する
@@ -89,7 +116,7 @@ namespace ZipUtility.ZipFileHeader
                 OriginalFullName = Encoding.Default.GetString(fullNameBytes);
 
                 var codePageExtraField = ExtraFields.GetData<CodePageExtraField>();
-                if (codePageExtraField != null)
+                if (codePageExtraField is not null)
                 {
                     // 0xe57a extra field (名称不明) にて、使用するコードページが指定されていた場合
                     // 指定されたコードページのエンコーディングを採用する
@@ -99,17 +126,19 @@ namespace ZipUtility.ZipFileHeader
                     var encodingForTest =
                         Encoding.GetEncoding(codePageExtraField.CodePage);
                     FullNameCanBeExpressedInUnicode =
-                        encodingForTest.GetBytes(encodingForTest.GetString(fullNameBytes)).AsReadOnly()
-                        .SequenceEqual(fullNameBytes);
+                        encodingForTest.GetBytes(encodingForTest.GetString(fullNameBytes)).AsReadOnlySpan()
+                        .SequenceEqual(fullNameBytes.Span);
                     CommentCanBeExpressedInUnicode =
-                        encodingForTest.GetBytes(encodingForTest.GetString(commentBytes)).AsReadOnly()
-                        .SequenceEqual(commentBytes);
+                        encodingForTest.GetBytes(encodingForTest.GetString(commentBytes)).AsReadOnlySpan()
+                        .SequenceEqual(commentBytes.Span);
                 }
                 else
                 {
                     // extra field にて、使用するコードページが指定されていない場合
                     var xceedUnicodeExtraField = extraFields.GetData<XceedUnicodeExtraField>();
-                    if (xceedUnicodeExtraField != null)
+                    if (xceedUnicodeExtraField is not null &&
+                        xceedUnicodeExtraField.FullName is not null &&
+                        xceedUnicodeExtraField.Comment is not null)
                     {
                         // Xceed unicode extra fieldが付加されている場合
                         FullName = xceedUnicodeExtraField.FullName;
@@ -122,35 +151,18 @@ namespace ZipUtility.ZipFileHeader
                         // Xceed unicode extra fieldが付加されていない場合
 
                         // 与えられたエントリ名とコメントのバイト列をUNICODEと一対一で対応させることができるEncodingを探す。
-                        // 探す順序は以下の通り。
-                        // 1) IBM437
-                        // 2) コンピュータのデフォルトのエンコーディング
-                        // 3) 非UNICODE系のその他のエンコーディング
-                        // 4) UNICODE系のエンコーディング
                         // もしそのようなエンコーディングが一つもなければ、
                         // 「エントリ名またはコメント名にUNICODEでは扱えない文字が含まれている」
                         // ということになる。
                         var validEncoding =
-                            Encoding.GetEncodings()
-                                .Select(encoding => encoding.GetEncoding())
-                                .OrderBy(encoding =>
-                                {
-                                    if (encoding.WebName == "IBM437")
-                                        return -2;
-                                    else if (encoding.WebName == Encoding.Default.WebName)
-                                        return -1;
-                                    else if (encoding.WebName.IsAnyOf("utf-16", "unicodeFFFE", "utf-32", "utf-32BE", "utf-7", "utf-8"))
-                                        return encoding.CodePage + 0x10000;
-                                    else
-                                        return encoding.CodePage;
-                                })
+                            _allEncodings
                                 .Where(encoding =>
                                 {
                                     try
                                     {
                                         return
-                                            encoding.GetBytes(encoding.GetString(fullNameBytes)).AsReadOnly().SequenceEqual(fullNameBytes) &&
-                                            encoding.GetBytes(encoding.GetString(commentBytes)).AsReadOnly().SequenceEqual(commentBytes);
+                                            encoding.GetBytes(encoding.GetString(fullNameBytes)).AsReadOnlySpan().SequenceEqual(fullNameBytes.Span) &&
+                                            encoding.GetBytes(encoding.GetString(commentBytes)).AsReadOnlySpan().SequenceEqual(commentBytes.Span);
                                     }
                                     catch (ArgumentException)
                                     {
@@ -159,7 +171,7 @@ namespace ZipUtility.ZipFileHeader
                                 })
                                 .FirstOrDefault();
                         var unicodePathExtraField = ExtraFields.GetData<UnicodePathExtraField>();
-                        if (unicodePathExtraField != null && fullNameBytes.IsMatchCrc(unicodePathExtraField.Crc))
+                        if (unicodePathExtraField is not null && fullNameBytes.IsMatchCrc32(unicodePathExtraField.Crc))
                         {
                             // Unicode Path Extra Field が付加されていて、かつCRCが一致している場合
                             // Unicode Path Extra Field 上の文字列をエントリ名として採用する
@@ -169,7 +181,7 @@ namespace ZipUtility.ZipFileHeader
                         else
                         {
                             // Unicode Path Extra Field が付加されていないか、またはCRCが一致しない場合
-                            if (validEncoding != null)
+                            if (validEncoding is not null)
                             {
                                 // 特にエンコーディングが定められていないが、与えられたバイト列を解釈することができるエンコーディングが存在するので、
                                 // そのエンコーディングで変換する。
@@ -186,7 +198,7 @@ namespace ZipUtility.ZipFileHeader
                         }
 
                         var unicodeCommentExtraField = ExtraFields.GetData<UnicodeCommentExtraField>();
-                        if (unicodeCommentExtraField != null && commentBytes.IsMatchCrc(unicodeCommentExtraField.Crc))
+                        if (unicodeCommentExtraField is not null && commentBytes.IsMatchCrc32(unicodeCommentExtraField.Crc))
                         {
                             // Unicode Comment Extra Field が付加されていて、かつCRCが一致している場合
                             // Unicode Comment Extra Field 上の文字列をコメントとして採用する
@@ -196,7 +208,7 @@ namespace ZipUtility.ZipFileHeader
                         else
                         {
                             // Unicode Path Extra Field が付加されていないか、またはCRCが一致しない場合
-                            if (validEncoding != null)
+                            if (validEncoding is not null)
                             {
                                 // 特にエンコーディングが定められていないが、与えられたバイト列を解釈することができるエンコーディングが存在するので、
                                 // そのエンコーディングで変換する。
@@ -221,8 +233,8 @@ namespace ZipUtility.ZipFileHeader
         public ZipEntryGeneralPurposeBitFlag GeneralPurposeBitFlag { get; }
         public ZipEntryCompressionMethodId CompressionMethod { get; }
         public DateTime? DosDateTime { get; }
-        public IReadOnlyArray<byte> FullNameBytes { get; }
-        public IReadOnlyArray<byte> CommentBytes { get; }
+        public ReadOnlyMemory<byte> FullNameBytes { get; }
+        public ReadOnlyMemory<byte> CommentBytes { get; }
         public ExtraFieldStorage ExtraFields { get; }
         public DateTime? LastWriteTimeUtc { get; }
         public DateTime? LastAccessTimeUtc { get; }
@@ -243,14 +255,6 @@ namespace ZipUtility.ZipFileHeader
         protected virtual UInt32 PackedSizeInHeader { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
         protected virtual UInt32 RelativeHeaderOffsetInHeader { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
         protected virtual UInt16 DiskStartNumberInHeader { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-
-        protected void ApplyZip64ExtraField(ZIP64_EXTRA_FIELD_T zip64ExtraField)
-        {
-            Zip64ExtraField = zip64ExtraField;
-            if (Zip64ExtraField == null)
-                Zip64ExtraField = new ZIP64_EXTRA_FIELD_T();
-            Zip64ExtraField.ZipHeaderSource = this;
-        }
 
         UInt32 IZip64ExtendedInformationExtraFieldValueSource.Size { get => SizeInHeader; set => SizeInHeader = value; }
         UInt32 IZip64ExtendedInformationExtraFieldValueSource.PackedSize { get => PackedSizeInHeader; set => PackedSizeInHeader = value; }

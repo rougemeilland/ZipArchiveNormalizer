@@ -5,42 +5,40 @@ namespace Utility
     public class ProgressChangedEventArgs
         : EventArgs
     {
-        private long _totalCount;
-        private long _countOfDone;
+        private readonly UInt64? _totalCount;
+        private readonly UInt64? _countOfDone;
 
         public ProgressChangedEventArgs()
         {
-            IsCounterEnabled = false;
-            _totalCount = -1;
-            _countOfDone = -1;
+            _totalCount = null;
+            _countOfDone = null;
         }
 
-        public ProgressChangedEventArgs(long totalCount, long countOfDone)
+        public ProgressChangedEventArgs(UInt64 totalCount, UInt64 countOfDone)
         {
-            IsCounterEnabled = true;
             _totalCount = totalCount;
             _countOfDone = countOfDone;
         }
 
-        public bool IsCounterEnabled { get; }
-        
-        public long TotalCount
+        public bool IsCounterEnabled => _totalCount.HasValue && _countOfDone.HasValue;
+
+        public UInt64 TotalCount
         {
             get
             {
-                if (!IsCounterEnabled)
+                if (!_totalCount.HasValue)
                     throw new InvalidOperationException();
-                return _totalCount;
+                return _totalCount.Value;
             }
         }
 
-        public long CountOfDone
+        public UInt64 CountOfDone
         {
             get
             {
-                if (!IsCounterEnabled)
+                if (!_countOfDone.HasValue)
                     throw new InvalidOperationException();
-                return _countOfDone;
+                return _countOfDone.Value;
             }
         }
     }

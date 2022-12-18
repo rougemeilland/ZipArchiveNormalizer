@@ -1,5 +1,4 @@
 ﻿using System;
-using Utility;
 
 namespace Test.Utility
 {
@@ -14,12 +13,13 @@ namespace Test.Utility
             foreach (var lineText in CrcTableMaker.GetRadix64Table())
                 Console.WriteLine(lineText);
 #endif
-#if true
+#if false
             TestFilePathNameComparer.Test();
             TestChunk.Test();
             TestTinyBitArray.Test();
             TestBitQueue.Test();
             TestBase64.Test();
+            TestCopyMemory.Test();
 #endif
             TestShiftJis.Test();
             Console.WriteLine();

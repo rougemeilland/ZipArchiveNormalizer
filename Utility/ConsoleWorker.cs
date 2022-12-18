@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+
 using Utility.FileWorker;
 
 namespace Utility
@@ -9,14 +10,17 @@ namespace Utility
     public abstract class ConsoleWorker
     {
         private const string _carriageReturnConsoleControlText = "\r";
-        private static string _eraseLineConsoleControlText;
-        private static TimeSpan _minimumProgressInternal;
-        private IWorkerCancellable _canceller;
+
+        private static readonly string _eraseLineConsoleControlText;
+        private static readonly TimeSpan _minimumProgressInternal;
+
+        private readonly IWorkerCancellable _canceller;
+
         private bool _existsError;
         private bool _existsWarning;
         private string _previousPrintedPercentageText;
         private DateTime? _previousPrintedTime;
-        private int _progressState;
+        private Int32 _progressState;
 
         static ConsoleWorker()
         {
@@ -26,16 +30,19 @@ namespace Utility
 
         protected ConsoleWorker(IWorkerCancellable canceller)
         {
-            _canceller = canceller;
+            _canceller = canceller ?? throw new ArgumentNullException(nameof(canceller));
             _existsError = false;
             _existsWarning = false;
-            _previousPrintedPercentageText = null;
+            _previousPrintedPercentageText = "";
             _previousPrintedTime = null;
             _progressState = 0;
         }
 
         public void Execute(IEnumerable<string> args)
         {
+            if (args is null)
+                throw new ArgumentNullException(nameof(args));
+
             try
             {
                 if (!string.IsNullOrEmpty(FirstMessage))
@@ -161,22 +168,30 @@ namespace Utility
 
         protected virtual void OnError(DateTime now, FileInfo sourceFile, string message)
         {
+            if (sourceFile is null)
+                throw new ArgumentNullException(nameof(sourceFile));
+            if (string.IsNullOrEmpty(message))
+                throw new ArgumentException($"'{nameof(message)}' を NULL または空にすることはできません。", nameof(message));
         }
 
         protected virtual void OnWarning(DateTime now, FileInfo sourceFile, string message)
         {
+            if (sourceFile is null)
+                throw new ArgumentNullException(nameof(sourceFile));
+            if (string.IsNullOrEmpty(message))
+                throw new ArgumentException($"'{nameof(message)}' を NULL または空にすることはできません。", nameof(message));
         }
 
 
-        private IFileWorkerExecutionResult ExecutePhase(IFileWorker worker, IEnumerable<string> args, IFileWorkerExecutionResult previousWorkerResult, int maximumPhaseNumber, int currentPhaseNumber)
+        private IFileWorkerExecutionResult ExecutePhase(IFileWorker worker, IEnumerable<string> args, IFileWorkerExecutionResult? previousWorkerResult, Int32 maximumPhaseNumber, Int32 currentPhaseNumber)
         {
-            long totalCount = -1;
-            long countOfDone = -1;
+            UInt64? totalCount = null;
+            UInt64? countOfDone = null;
 
-            EventHandler<FileMessageReportedEventArgs> informationReportedEventHandler = (s, e) => PrintInformationMessage(e.TargetFile, e.Message);
-            EventHandler<FileMessageReportedEventArgs> warningReportedEventHandler = (s, e) => PrintWarningMessage(e.TargetFile, e.Message);
-            EventHandler<FileMessageReportedEventArgs> errorReportedEventHandler = (s, e) => PrintErrorMessage(e.TargetFile, e.Message);
-            EventHandler<ProgressChangedEventArgs> progressChangedEventHandler = (s, e) =>
+            void informationReportedEventHandler(object? s, FileMessageReportedEventArgs e) => PrintInformationMessage(e.TargetFile, e.Message);
+            void warningReportedEventHandler(object? s, FileMessageReportedEventArgs e) => PrintWarningMessage(e.TargetFile, e.Message);
+            void errorReportedEventHandler(object? s, FileMessageReportedEventArgs e) => PrintErrorMessage(e.TargetFile, e.Message);
+            void progressChangedEventHandler(object? s, ProgressChangedEventArgs e)
             {
                 if (e.IsCounterEnabled)
                 {
@@ -186,11 +201,11 @@ namespace Utility
                 PrintProgress(
                     worker.IsRequestedToCancel
                     ? "中断処理中..."
-                    : totalCount > 0
-                        ? string.Format("Phase {0}/{1}: {2}%完了", currentPhaseNumber, maximumPhaseNumber, countOfDone * 100 / totalCount)
+                    : totalCount.HasValue && countOfDone.HasValue
+                        ? string.Format("Phase {0}/{1}: {2}%完了", currentPhaseNumber, maximumPhaseNumber, countOfDone.Value * 100 / totalCount.Value)
                         : string.Format("Phase {0}/{1}: 準備中...", currentPhaseNumber, maximumPhaseNumber),
                     worker.IsRequestedToCancel);
-            };
+            }
             worker.InformationReported += informationReportedEventHandler;
             worker.WarningReported += warningReportedEventHandler;
             worker.ErrorReported += errorReportedEventHandler;
@@ -208,14 +223,14 @@ namespace Utility
             }
         }
 
-        private void PrintInformationMessage(FileInfo sourceFile, string message)
+        private void PrintInformationMessage(FileInfo? sourceFile, string message)
         {
             lock (this)
             {
                 Console.Write(_eraseLineConsoleControlText);
-                if (sourceFile != null)
+                if (sourceFile is not null)
                     Console.Write(string.Format("\"{0}\":", sourceFile.FullName));
-                _previousPrintedPercentageText = null;
+                _previousPrintedPercentageText = "";
                 _previousPrintedTime = null;
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 try
@@ -230,21 +245,22 @@ namespace Utility
             }
         }
 
-        private void PrintWarningMessage(FileInfo sourceFile, string message)
+        private void PrintWarningMessage(FileInfo? sourceFile, string message)
         {
             var now = DateTime.Now;
             lock (this)
             {
                 Console.Write(_eraseLineConsoleControlText);
-                if (sourceFile != null)
+                if (sourceFile is not null)
                     Console.Write(string.Format("\"{0}\":", sourceFile.FullName));
-                _previousPrintedPercentageText = null;
+                _previousPrintedPercentageText = "";
                 _previousPrintedTime = null;
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 try
                 {
                     Console.WriteLine(message);
-                    OnWarning(now, sourceFile, message);
+                    if (sourceFile is not null)
+                        OnWarning(now, sourceFile, message);
                     _existsWarning = true;
                 }
                 catch (IOException)
@@ -257,21 +273,22 @@ namespace Utility
             }
         }
 
-        private void PrintErrorMessage(FileInfo sourceFile, string message)
+        private void PrintErrorMessage(FileInfo? sourceFile, string message)
         {
             var now = DateTime.Now;
             lock (this)
             {
                 Console.Write(_eraseLineConsoleControlText);
-                if (sourceFile != null)
+                if (sourceFile is not null)
                     Console.Write(string.Format("\"{0}\":", sourceFile.FullName));
                 Console.ForegroundColor = ConsoleColor.Magenta;
                 try
                 {
                     Console.WriteLine(message);
-                    _previousPrintedPercentageText = null;
+                    _previousPrintedPercentageText = "";
                     _previousPrintedTime = null;
-                    OnError(now, sourceFile, message);
+                    if (sourceFile is not null)
+                        OnError(now, sourceFile, message);
                     _existsError = true;
                 }
                 catch (IOException)
@@ -289,10 +306,10 @@ namespace Utility
             lock (this)
             {
                 var now = DateTime.Now;
-                if (_previousPrintedPercentageText == null ||
+                if (_previousPrintedPercentageText is null ||
                     _previousPrintedPercentageText != percentageText ||
-                    _previousPrintedTime.HasValue == false ||
-                    (now - _previousPrintedTime.Value) >= _minimumProgressInternal)
+                    _previousPrintedTime is null ||
+                    (now - _previousPrintedTime) >= _minimumProgressInternal)
                 {
                     Console.Write(
                         string.Format(

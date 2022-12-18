@@ -9,9 +9,9 @@ namespace ZipArchiveNormalizer.Phase1
     class Phase1Worker
         : FileWorkerFromMainArgument, IPhaseWorker
     {
-        private Func<FileInfo, bool> _isBadFileSelecter;
+        private readonly Func<FileInfo, bool> _isBadFileSelecter;
 
-        public event EventHandler<BadFileFoundEventArgs> BadFileFound;
+        public event EventHandler<BadFileFoundEventArgs>? BadFileFound;
 
         public Phase1Worker(IWorkerCancellable canceller, Func<FileInfo, bool> isBadFileSelecter)
             : base(canceller, FileWorkerConcurrencyMode.ParallelProcessingForEachFile)
@@ -21,11 +21,11 @@ namespace ZipArchiveNormalizer.Phase1
 
         public override string Description => "ZIPファイルに最適化を試みます。";
 
-        protected override IFileWorkerActionFileParameter IsMatchFile(FileInfo sourceFile)
+        protected override IFileWorkerActionFileParameter? IsMatchFile(FileInfo sourceFile)
         {
             // 拡張子が ".zip", ".epub" のいずれかのファイルのみを対象とする
             return
-                _isBadFileSelecter(sourceFile) == false &&
+                !_isBadFileSelecter(sourceFile) &&
                 sourceFile.Extension.IsAnyOf(".zip", ".epub", StringComparison.OrdinalIgnoreCase)
                 ? base.IsMatchFile(sourceFile)
                 : null;
@@ -43,16 +43,17 @@ namespace ZipArchiveNormalizer.Phase1
                     return;
                 }
 
-                EventHandler<FileMessageReportedEventArgs> informationReportedEventHander = (s, e) => RaiseInformationReportedEvent(e.TargetFile, e.Message);
-                EventHandler<FileMessageReportedEventArgs> warningReportedEventHander = (s, e) => RaiseWarningReportedEvent(e.TargetFile, e.Message);
-                EventHandler<FileMessageReportedEventArgs> errorReportedEventHander = (s, e) => RaiseErrorReportedEvent(e.TargetFile, e.Message);
-                EventHandler<ProgressUpdatedEventArgs> progressUpdatedHander = (s, e) => UpdateProgress();
-                FileInfo newZipFile = null;
+                void informationReportedEventHander(object? s, FileMessageReportedEventArgs e) => RaiseInformationReportedEvent(e.TargetFile, e.Message);
+                void warningReportedEventHander(object? s, FileMessageReportedEventArgs e) => RaiseWarningReportedEvent(e.TargetFile, e.Message);
+                void errorReportedEventHander(object? s, FileMessageReportedEventArgs e) => RaiseErrorReportedEvent(e.TargetFile, e.Message);
+                void progressUpdatedHander(object? s, ProgressUpdatedEventArgs e) => UpdateProgress();
+                FileInfo? newZipFile = null;
                 try
                 {
-                    using (var sourceZipFile = sourceFile.OpenAsZipFile())
+                    using var sourceZipFile = sourceFile.OpenAsZipFile();
+                    var entryTree = EntryTree.GetEntryTree(sourceFile, sourceZipFile);
+                    if (entryTree is not null)
                     {
-                        var entryTree = EntryTree.GetEntryTree(sourceFile, sourceZipFile);
                         entryTree.InformationReported += informationReportedEventHander;
                         entryTree.WarningReported += warningReportedEventHander;
                         entryTree.ErrorReported += errorReportedEventHander;
@@ -118,14 +119,14 @@ namespace ZipArchiveNormalizer.Phase1
                 }
                 finally
                 {
-                    if (newZipFile != null)
+                    if (newZipFile is not null)
                     {
                         sourceFile.SendToRecycleBin();
                         new FileInfo(newZipFile.FullName).MoveTo(sourceFile.FullName);
 #if DEBUG
 
-                        if (newZipFile.Exists)
-                            throw new Exception();
+                        //if (newZipFile.Exists)
+                        //    throw new Exception();
 #endif
                     }
                 }
@@ -135,9 +136,9 @@ namespace ZipArchiveNormalizer.Phase1
             }
         }
 
-        private FileInfo SaveEntryTreeToArchiveFile(FileInfo sourceFile, EntryTree entryTree)
+        private static FileInfo SaveEntryTreeToArchiveFile(FileInfo sourceFile, EntryTree entryTree)
         {
-            var newArchiveFile = new FileInfo(Path.Combine(Path.GetDirectoryName(sourceFile.FullName), "." + Path.GetFileName(sourceFile.FullName) + ".temp"));
+            var newArchiveFile = new FileInfo(Path.Combine(sourceFile.DirectoryName ?? ".", "." + Path.GetFileName(sourceFile.FullName) + ".temp"));
             try
             {
                 newArchiveFile.Delete();
@@ -152,15 +153,15 @@ namespace ZipArchiveNormalizer.Phase1
             finally
             {
 #if DEBUG
-                if (newArchiveFile.Exists)
-                    throw new Exception();
+                //if (newArchiveFile.Exists)
+                //    throw new Exception();
 #endif
             }
         }
 
         private void RaiseBadFileFoundEvent(FileInfo targetFile)
         {
-            if (BadFileFound != null)
+            if (BadFileFound is not null)
                 BadFileFound(this, new BadFileFoundEventArgs(targetFile));
         }
     }

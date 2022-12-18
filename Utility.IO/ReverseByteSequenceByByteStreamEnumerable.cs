@@ -6,25 +6,28 @@ namespace Utility.IO
 {
     public abstract class ReverseByteSequenceByByteStreamEnumerable<POSITION_T>
         : IEnumerable<byte>
-        where POSITION_T: IComparable<POSITION_T>
+        where POSITION_T : IComparable<POSITION_T>
     {
         private class Enumerator
             : IEnumerator<byte>
         {
-            private const int _bufferSize = 64 * 1024;
-            private bool _isDisposed;
-            private ReverseByteSequenceByByteStreamEnumerable<POSITION_T> _parent;
-            private IRandomInputByteStream<POSITION_T> _inputStream;
-            private POSITION_T _offset;
-            private UInt64 _count;
-            private bool _leaveOpen;
-            private Action<int> _progressAction;
-            private byte[] _buffer;
-            private int _bufferCount;
-            private int _bufferIndex;
-            private POSITION_T _fileIndex;
+            private const Int32 _bufferSize = 64 * 1024;
 
-            public Enumerator(ReverseByteSequenceByByteStreamEnumerable<POSITION_T> parent, IRandomInputByteStream<POSITION_T> randomAccessStream, POSITION_T offset, UInt64 count, bool leaveOpen, Action<int> progressAction)
+            private readonly ReverseByteSequenceByByteStreamEnumerable<POSITION_T> _parent;
+            private readonly IRandomInputByteStream<POSITION_T> _inputStream;
+            private readonly POSITION_T _offset;
+            private readonly UInt64 _count;
+            private readonly bool _leaveOpen;
+            private readonly IProgress<UInt64>? _progress;
+            private readonly byte[] _buffer;
+
+            private bool _isDisposed;
+            private Int32 _bufferCount;
+            private Int32 _bufferIndex;
+            private POSITION_T _fileIndex;
+            private UInt64 _processedCount;
+
+            public Enumerator(ReverseByteSequenceByByteStreamEnumerable<POSITION_T> parent, IRandomInputByteStream<POSITION_T> randomAccessStream, POSITION_T offset, UInt64 count, IProgress<UInt64>? progress, bool leaveOpen)
             {
                 _isDisposed = false;
                 _parent = parent;
@@ -32,11 +35,12 @@ namespace Utility.IO
                 _offset = offset;
                 _count = count;
                 _leaveOpen = leaveOpen;
-                _progressAction = progressAction;
+                _progress = progress;
                 _buffer = new byte[_bufferSize];
                 _bufferCount = 0;
                 _bufferIndex = 0;
                 _fileIndex = _parent.AddPositionAndDistance(_offset, _count);
+                _processedCount = 0;
             }
 
             public byte Current
@@ -45,7 +49,7 @@ namespace Utility.IO
                 {
                     if (_isDisposed)
                         throw new ObjectDisposedException(GetType().FullName);
-                    if (_bufferIndex.IsBetween(0, _bufferCount - 1) == false)
+                    if (!_bufferIndex.IsBetween(0, _bufferCount - 1))
                         throw new InvalidOperationException();
 
                     return _buffer[_bufferIndex];
@@ -72,15 +76,13 @@ namespace Utility.IO
                     _inputStream.Seek(_fileIndex);
                     _inputStream.ReadBytes(_buffer, 0, _bufferCount);
                     _bufferIndex = _bufferCount;
-                    if (_progressAction != null)
+                    _processedCount += (UInt32)_bufferCount;
+                    try
                     {
-                        try
-                        {
-                            _progressAction(_bufferCount);
-                        }
-                        catch (Exception)
-                        {
-                        }
+                        _progress?.Report(_processedCount);
+                    }
+                    catch (Exception)
+                    {
                     }
                 }
                 --_bufferIndex;
@@ -103,12 +105,8 @@ namespace Utility.IO
                 {
                     if (disposing)
                     {
-                        if (_inputStream != null)
-                        {
-                            if (_leaveOpen == false)
-                                _inputStream.Dispose();
-                            _inputStream = null;
-                        }
+                        if (!_leaveOpen)
+                            _inputStream.Dispose();
                     }
                     _isDisposed = true;
                 }
@@ -121,40 +119,40 @@ namespace Utility.IO
             }
         }
 
-        private IRandomInputByteStream<POSITION_T> _baseStream;
-        private POSITION_T _offset;
-        private UInt64 _count;
-        private bool _leaveOpen;
-        private Action<int> _progressAction;
+        private readonly IRandomInputByteStream<POSITION_T> _baseStream;
+        private readonly POSITION_T _offset;
+        private readonly UInt64 _count;
+        private readonly bool _leaveOpen;
+        private readonly IProgress<UInt64>? _progress;
 
-        public ReverseByteSequenceByByteStreamEnumerable(IRandomInputByteStream<POSITION_T> baseStream, POSITION_T offset, UInt64 count, bool leaveOpen, Action<int> progressAction)
+        public ReverseByteSequenceByByteStreamEnumerable(IRandomInputByteStream<POSITION_T> baseStream, POSITION_T offset, UInt64 count, IProgress<UInt64>? progress, bool leaveOpen)
         {
             try
             {
-                if (baseStream == null)
+                if (baseStream is null)
                     throw new ArgumentNullException(nameof(baseStream));
 
                 _baseStream = baseStream;
                 _offset = offset;
                 _count = count;
                 _leaveOpen = leaveOpen;
-                _progressAction = progressAction;
+                _progress = progress;
 
-                if (_baseStream == null)
+                if (_baseStream is null)
                     throw new NotSupportedException();
             }
             catch (Exception)
             {
-                if (leaveOpen == false)
+                if (!leaveOpen)
                     baseStream?.Dispose();
                 throw;
             }
         }
 
         protected abstract POSITION_T AddPositionAndDistance(POSITION_T position, UInt64 distance);
-        protected abstract POSITION_T SubtractBufferSizeFromPosition(POSITION_T position, uint distance);
-        protected abstract int GetDistanceBetweenPositions(POSITION_T position1, POSITION_T position2);
-        public IEnumerator<byte> GetEnumerator() => new Enumerator(this, _baseStream, _offset, _count, _leaveOpen, _progressAction);
+        protected abstract POSITION_T SubtractBufferSizeFromPosition(POSITION_T position, UInt32 distance);
+        protected abstract Int32 GetDistanceBetweenPositions(POSITION_T position1, POSITION_T position2);
+        public IEnumerator<byte> GetEnumerator() => new Enumerator(this, _baseStream, _offset, _count, _progress, _leaveOpen);
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

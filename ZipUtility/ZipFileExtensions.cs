@@ -8,7 +8,7 @@ namespace ZipUtility
 {
     public static class ZipFileExtensions
     {
-        private static Regex _localFilePathReplacePattern;
+        private static readonly Regex _localFilePathReplacePattern;
 
         static ZipFileExtensions()
         {
@@ -16,15 +16,16 @@ namespace ZipUtility
         }
 
 
-        public static ZipEntry CreateDesdinationEntry(this ZipArchiveEntry entry, string renamedEntryFullPath = null)
+        public static ZipEntry CreateDesdinationEntry(this ZipArchiveEntry entry, string? renamedEntryFullPath = null)
         {
-            var newEntry = new ZipEntry(renamedEntryFullPath ?? entry.FullName);
-
             // 基本属性の設定
-            newEntry.Comment = entry.Comment;
-            newEntry.HostSystem = (int)entry.HostSystem;
-            newEntry.ExternalFileAttributes = (int)entry.ExternalFileAttributes;
-            newEntry.Size = (long)entry.Size;
+            var newEntry = new ZipEntry(renamedEntryFullPath ?? entry.FullName)
+            {
+                Comment = entry.Comment,
+                HostSystem = (Int32)entry.HostSystem,
+                ExternalFileAttributes = (Int32)entry.ExternalFileAttributes,
+                Size = (Int64)entry.Size
+            };
 
             // mimetype ファイルの場合は圧縮しない
             if (entry.FullName == "mimetype" || entry.IsDirectory || entry.Size == 0)
@@ -32,7 +33,7 @@ namespace ZipUtility
 
 
 #if DEBUG
-            if (entry.FullNameCanBeExpressedInUnicode == false || entry.CommentCanBeExpressedInUnicode)
+            if (!entry.FullNameCanBeExpressedInUnicode || entry.CommentCanBeExpressedInUnicode)
                 throw new Exception();
 #endif
             // NameまたはCommentのどちらかがマルチバイトを含む場合は、文字コード系をUTF8に変更する。
@@ -41,7 +42,7 @@ namespace ZipUtility
                 !entry.CommentCanBeExpressedInStandardEncoding;
 
             // 更新日付の設定
-            if (entry.LastWriteTimeUtc.HasValue)
+            if (entry.LastWriteTimeUtc is not null)
                 newEntry.SetLastModificationTime(entry.LastWriteTimeUtc.Value);
 
             // extra data の設定の開始 (基本的に元の extra field を引き継ぐ)
@@ -52,9 +53,9 @@ namespace ZipUtility
             // 作成日時が設定されているが Extended Timestamp extra field には作成日時存在しない場合は
             // Extended Timestamp extra field を追加する
             var extendedTimestampExtraField = newExtraData.GetData<ExtendedTimestampExtraField>();
-            if ((entry.LastWriteTimeUtc.HasValue && extendedTimestampExtraField?.LastWriteTimeUtc == null) ||
-                (entry.LastAccessTimeUtc.HasValue && extendedTimestampExtraField?.LastAccessTimeUtc == null) ||
-                (entry.CreationTimeUtc.HasValue && extendedTimestampExtraField?.CreationTimeUtc == null))
+            if ((entry.LastWriteTimeUtc is not null && extendedTimestampExtraField?.LastWriteTimeUtc is null) ||
+                (entry.LastAccessTimeUtc is not null && extendedTimestampExtraField?.LastAccessTimeUtc is null) ||
+                (entry.CreationTimeUtc is not null && extendedTimestampExtraField?.CreationTimeUtc is null))
             {
                 newExtraData.Delete(ExtendedTimestampExtraField.ExtraFieldId);
                 newExtraData.AddEntry(new ExtendedTimestampExtraField
@@ -67,16 +68,16 @@ namespace ZipUtility
 
             // 最終更新日時がと最終アクセス日時、作成日時がすべて設定されていて、かつ NTFS extra field が存在しない場合
             // NTFS extra field を追加する
-            if (entry.LastWriteTimeUtc.HasValue &&
-                entry.LastAccessTimeUtc.HasValue &&
-                entry.CreationTimeUtc.HasValue &&
+            if (entry.LastWriteTimeUtc is not null &&
+                entry.LastAccessTimeUtc is not null &&
+                entry.CreationTimeUtc is not null &&
                 !newExtraData.Contains(NtfsExtraField.ExtraFieldId))
             {
                 newExtraData.AddEntry(new NtfsExtraField
                 {
                     LastWriteTimeUtc = entry.LastWriteTimeUtc,
-                    LastAccessTimeUtc = entry.LastAccessTimeUtc.Value,
-                    CreationTimeUtc = entry.CreationTimeUtc.Value,
+                    LastAccessTimeUtc = entry.LastAccessTimeUtc,
+                    CreationTimeUtc = entry.CreationTimeUtc,
                 });
             }
 
@@ -93,7 +94,7 @@ namespace ZipUtility
             newExtraData.Delete(UnicodeCommentExtraField.ExtraFieldId);
 
             // 編集した extra field を保存先に格納する
-            newEntry.ExtraData = newExtraData.ToByteArray().DuplicateAsWritableArray();
+            newEntry.ExtraData = newExtraData.ToByteArray().ToArray();
 
             return newEntry;
         }
@@ -142,28 +143,16 @@ namespace ZipUtility
                     .Select(element =>
                         _localFilePathReplacePattern.Replace(
                             element,
-                            m =>
+                            m => m.Groups["rep"].Value switch
                             {
-                                switch (m.Groups["rep"].Value)
-                                {
-                                    case @":":
-                                        return "：";
-                                    case @"*":
-                                        return "＊";
-                                    case @"?":
-                                        return "？";
-                                    case @"""":
-                                        return "”";
-                                    case @"<":
-                                        return "＜";
-                                    case @">":
-                                        return "＞";
-                                    case @"|":
-                                        return "｜";
-                                    default:
-                                        return m.Value;
-                                }
-
+                                @":" => "：",
+                                @"*" => "＊",
+                                @"?" => "？",
+                                @"""" => "”",
+                                @"<" => "＜",
+                                @">" => "＞",
+                                @"|" => "｜",
+                                _ => m.Value,
                             })));
         }
     }

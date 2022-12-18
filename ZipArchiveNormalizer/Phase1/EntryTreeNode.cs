@@ -10,28 +10,27 @@ namespace ZipArchiveNormalizer.Phase1
     class EntryTreeNode
     {
         private IEnumerable<EntryTreeNode> _children;
-        private ZipArchiveEntry _entry;
 
-        public EntryTreeNode(string name, IEnumerable<EntryTreeNode> children, ZipArchiveEntry entry)
+        public EntryTreeNode(string name, IEnumerable<EntryTreeNode> children, ZipArchiveEntry? entry)
         {
 #if DEBUG
-            if (_children.None() && _entry == null)
-                throw new ArgumentNullException();
-            if (_children.Any() && entry.IsFile)
+            if (children.None() && !entry.HasValue)
+                throw new Exception();
+            if (children.Any() && entry.HasValue && entry.Value.IsFile)
                 throw new Exception();
 #endif
             Name = name;
             _children = children;
-            _entry = entry;
+            Entry = entry;
         }
 
         public string Name { get; private set; }
 
-        public bool IsFile => Entry.IsFile;
-        public bool IsDirectory => Entry.IsDirectory;
+        public bool IsFile => Entry.HasValue && Entry.Value.IsFile;
+        public bool IsDirectory => !Entry.HasValue || Entry.Value.IsDirectory;
 
         public IEnumerable<EntryTreeNode> Children => IsDirectory ? _children : throw new InvalidOperationException();
-        public ZipArchiveEntry Entry { get; }
+        public ZipArchiveEntry? Entry { get; }
 
         public bool Rename(string newName)
         {
@@ -63,7 +62,7 @@ namespace ZipArchiveNormalizer.Phase1
                 {
                     var result = child.RemoveUselessFileEntry(directoryPathElements.Concat(new[] { child.Name }), excludedFilePattern, reporter);
                     updated |= result;
-                    if (result == true && child._children.None())
+                    if (result && child._children.None())
                     {
                         // child の配下で不要なファイルを削除して、その結果 child の子要素が空になった場合
 
@@ -80,7 +79,7 @@ namespace ZipArchiveNormalizer.Phase1
         public bool RemoveLeadingUselessDirectoryEntry(IEnumerable<string> directoryPathElements, IReporter reporter)
         {
             var firstElements = _children.Take(2).ToArray();
-            if (firstElements.Length != 1 || firstElements[0].IsFile == true)
+            if (firstElements.Length != 1 || firstElements[0].IsFile)
                 return false;
 
             // この時点で _rootEntries の要素は単一のディレクトリであることが確定
@@ -103,15 +102,15 @@ namespace ZipArchiveNormalizer.Phase1
         public bool RemoveUselessDirectoryEntry(IEnumerable<string> directoryPathElements, IReporter reporter)
         {
             var updated = false;
-            foreach (var child in _children.Where(child => child.IsFile == false))
+            foreach (var child in _children.Where(child => !child.IsFile))
                 updated |= child.RemoveUselessDirectoryEntry(directoryPathElements.Concat(new[] { child.Name }), reporter);
 
             // 子要素がただ一つでありかつそれがディレクトリであるかどうかを調べる
             var firstElements = _children.Take(2).ToArray();
-            if (firstElements.Length == 1 && firstElements[0].IsFile == false)
+            if (firstElements.Length == 1 && firstElements[0]!.IsFile)
             {
                 var singleDirectoryElement = firstElements[0];
-                if (updated == false)
+                if (!updated)
                 {
                     reporter.ReportInformationMessage(
                         string.Format(
@@ -126,7 +125,7 @@ namespace ZipArchiveNormalizer.Phase1
 
         public void SortEntries(IComparer<string> entryNameComparer)
         {
-            foreach (var child in _children.Where(child => child.IsFile == false))
+            foreach (var child in _children.Where(child => !child.IsFile))
                 child.SortEntries(entryNameComparer);
             _children = _children.OrderBy(child => child.Name, entryNameComparer).ToList();
         }

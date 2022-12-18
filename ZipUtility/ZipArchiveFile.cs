@@ -13,13 +13,15 @@ namespace ZipUtility
         : IDisposable
     {
         private static Int64 _serialNumber;
+
+        private readonly IZipInputStream _zipStream;
+        private readonly UInt32 _numberOfLastDisk;
+        private readonly ZipStreamPosition _centralDirectoryPosition;
+        private readonly UInt64 _totalNumberOfCentralDirectoryRecords;
+        private readonly UInt64 _sizeOfCentralDirectory;
+        private readonly Int64 _instanceId;
+
         private bool _isDisposed;
-        private IZipInputStream _zipStream;
-        private UInt32 _numberOfLastDisk;
-        private ZipStreamPosition _centralDirectoryPosition;
-        private UInt64 _totalNumberOfCentralDirectoryRecords;
-        private UInt64 _sizeOfCentralDirectory;
-        private Int64 _instanceId;
 
         static ZipArchiveFile()
         {
@@ -27,7 +29,7 @@ namespace ZipUtility
         }
 
 
-        private ZipArchiveFile(IZipInputStream zipStream, UInt32 numberOfLastDisk, ZipStreamPosition centralDirectoryPosition, UInt64 totalNumberOfCentralDirectoryRecords, UInt64 sizeOfCentralDirectory, IReadOnlyArray<byte> commentBytes)
+        private ZipArchiveFile(IZipInputStream zipStream, UInt32 numberOfLastDisk, ZipStreamPosition centralDirectoryPosition, UInt64 totalNumberOfCentralDirectoryRecords, UInt64 sizeOfCentralDirectory, ReadOnlyMemory<byte> commentBytes)
         {
             _isDisposed = false;
             _zipStream = zipStream;
@@ -43,12 +45,13 @@ namespace ZipUtility
 
         internal static ZipArchiveFile Parse(IZipInputStream zipInputStream)
         {
-            if (zipInputStream == null)
+            if (zipInputStream is null)
                 throw new ArgumentNullException(nameof(zipInputStream));
+
             var lastDiskHeader = ZipFileLastDiskHeader.Parse(zipInputStream);
-            if (lastDiskHeader.EOCDR.IsRequiresZip64 || lastDiskHeader.Zip64EOCDL != null)
+            if (lastDiskHeader.EOCDR.IsRequiresZip64 || lastDiskHeader.Zip64EOCDL is not null)
             {
-                if (lastDiskHeader.Zip64EOCDL == null)
+                if (lastDiskHeader.Zip64EOCDL is null)
                     throw new BadZipFileFormatException("Not found 'zip64 end of central directory locator' in Zip file");
                 if (!zipInputStream.IsMultiVolumeZipStream && lastDiskHeader.Zip64EOCDL.TotalNumberOfDisks > 1)
                     throw new MultiVolumeDetectedException(lastDiskHeader.Zip64EOCDL.TotalNumberOfDisks - 1U);
@@ -110,7 +113,7 @@ namespace ZipUtility
                     .QuickSort(header => header.CentralDirectoryHeader.LocalFileHeaderPosition);
             var entries = new List<ZipArchiveEntry>();
             var localHeaderOrder = 0UL;
-            foreach (var header in headerArray)
+            foreach (var header in headerArray.GetSequence())
             {
                 entries.Add(new ZipArchiveEntry(header, localHeaderOrder, _instanceId));
                 ++localHeaderOrder;
@@ -118,18 +121,20 @@ namespace ZipUtility
             return new ZipArchiveEntryCollection(entries);
         }
 
-        public IInputByteStream<UInt64> GetInputStream(ZipArchiveEntry entry, Action<UInt64> progressAction = null)
+        public IInputByteStream<UInt64> GetContentStream(ZipArchiveEntry entry, IProgress<UInt64>? progress = null)
         {
             if (entry.ZipFileInstanceId != _instanceId)
-                throw new ArgumentException();
-            return entry.GetInputStream(_zipStream, progressAction != null ? new CodingProgress(progressAction) : null);
+                throw new ArgumentException($"It is not {nameof(ZipArchiveEntry)} object for instance of this {nameof(ZipArchiveFile)}.", nameof(entry));
+
+            return entry.GetContentStream(_zipStream, progress);
         }
 
-        public void CheckEntry(ZipArchiveEntry entry, Action<UInt64> progressAction = null)
+        public void CheckEntry(ZipArchiveEntry entry, IProgress<UInt64>? progress = null)
         {
             if (entry.ZipFileInstanceId != _instanceId)
-                throw new ArgumentException();
-            entry.CheckData(_zipStream, progressAction != null ? new CodingProgress(progressAction) : null);
+                throw new ArgumentException($"It is not {nameof(ZipArchiveEntry)} object for instance of this {nameof(ZipArchiveFile)}.", nameof(entry));
+
+            entry.CheckData(_zipStream, progress);
         }
 
         public void Dispose()
@@ -143,13 +148,7 @@ namespace ZipUtility
             if (!_isDisposed)
             {
                 if (disposing)
-                {
-                    if (_zipStream != null)
-                    {
-                        _zipStream.Dispose();
-                        _zipStream = null;
-                    }
-                }
+                    _zipStream.Dispose();
                 _isDisposed = true;
             }
         }

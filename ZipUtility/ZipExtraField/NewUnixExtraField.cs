@@ -1,7 +1,5 @@
 ﻿using System;
-using Utility;
 using Utility.IO;
-using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -9,24 +7,25 @@ namespace ZipUtility.ZipExtraField
         : ExtraField
     {
         private const byte _supportedVersion = 1;
-        private IReadOnlyArray<byte> _uid;
-        private IReadOnlyArray<byte> _gid;
+        private byte? _version;
+        private ReadOnlyMemory<byte>? _uid;
+        private ReadOnlyMemory<byte>? _gid;
 
         public NewUnixExtraField()
             : base(ExtraFieldId)
         {
-            Version = 0;
+            _version = null;
             _uid = null;
             _gid = null;
         }
 
         public const UInt16 ExtraFieldId = 0x7875;
 
-        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
+        public override ReadOnlyMemory<byte>? GetData(ZipEntryHeaderType headerType)
         {
             if (!IsOk)
                 return null;
-            var writer = new ByteArrayOutputStream();
+            var writer = new ByteArrayRenderer();
             writer.WriteByte(Version);
             writer.WriteByte((byte)UID.Length);
             writer.WriteBytes(UID);
@@ -35,34 +34,36 @@ namespace ZipUtility.ZipExtraField
             return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> data)
         {
+            _version = null;
             _uid = null;
             _gid = null;
-            var reader = new ByteArrayInputStream(data, index, count);
+            var reader = new ByteArrayParser(data);
             var success = false;
             try
             {
-                Version = reader.ReadByte();
-                if (Version != _supportedVersion)
+                var version = reader.ReadByte();
+                if (version != _supportedVersion)
                     return;
+                _version = version;
                 var uidSize = reader.ReadByte();
-                UID = reader.ReadBytes(uidSize);
+                _uid = reader.ReadBytes(uidSize);
                 var gidSize = reader.ReadByte();
-                GID = reader.ReadBytes(gidSize);
+                _gid = reader.ReadBytes(gidSize);
                 if (reader.ReadAllBytes().Length > 0)
-                    throw GetBadFormatException(headerType, data, index, count);
+                    throw GetBadFormatException(headerType, data);
                 success = true;
             }
             catch (UnexpectedEndOfStreamException)
             {
-                throw GetBadFormatException(headerType, data, index, count);
+                throw GetBadFormatException(headerType, data);
             }
             finally
             {
                 if (!success)
                 {
-                    Version = 0;
+                    _version = null;
                     _uid = null;
                     _gid = null;
                 }
@@ -71,11 +72,38 @@ namespace ZipUtility.ZipExtraField
 
         public bool IsOk =>
             Version == _supportedVersion &&
-            _uid != null && _uid.Length <= byte.MaxValue &&
-            _gid != null && _gid.Length <= byte.MaxValue;
+            _uid.HasValue && _uid.Value.Length <= byte.MaxValue &&
+            _gid.HasValue && _gid.Value.Length <= byte.MaxValue;
 
-        public byte Version { get; set; }
-        public IReadOnlyArray<byte> UID { get => _uid; set => _uid = value == null && value.Length <= byte.MaxValue ? value : throw new ArgumentException("Null or too long values cannot be set in the UID."); }
-        public IReadOnlyArray<byte> GID { get => _gid; set => _gid = value == null && value.Length <= byte.MaxValue ? value : throw new ArgumentException("Null or too long values cannot be set in the GID."); }
+        public byte Version
+        {
+            get => _version ?? throw new InvalidOperationException();
+            set
+            {
+                _version = value;
+            }
+        }
+
+        public ReadOnlyMemory<byte> UID
+        {
+            get => _uid ?? throw new InvalidOperationException();
+            set
+            {
+                if (value.Length > byte.MaxValue)
+                    throw new ArgumentOutOfRangeException(nameof(value), "Too Int64 array");
+                _uid = value;
+            }
+        }
+
+        public ReadOnlyMemory<byte> GID
+        {
+            get => _gid ?? throw new InvalidOperationException();
+            set
+            {
+                if (value.Length > byte.MaxValue)
+                    throw new ArgumentOutOfRangeException(nameof(value), "Too Int64 array");
+                _gid = value;
+            }
+        }
     }
 }

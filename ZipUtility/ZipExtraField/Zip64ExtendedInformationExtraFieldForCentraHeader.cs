@@ -1,5 +1,4 @@
 ﻿using System;
-using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -16,7 +15,7 @@ namespace ZipUtility.ZipExtraField
         public UInt64 RelativeHeaderOffset { get => InternalRelativeHeaderOffset; set => InternalRelativeHeaderOffset = value; }
         public UInt32 DiskStartNumber { get => InternalDiskStartNumber; set => InternalDiskStartNumber = value; }
 
-        protected override void GetData(ByteArrayOutputStream writer)
+        protected override void GetData(ByteArrayRenderer writer)
         {
             if (ZipHeaderSource.Size == UInt32.MaxValue)
                 writer.WriteUInt64LE(InternalPackedSize);
@@ -28,7 +27,7 @@ namespace ZipUtility.ZipExtraField
                 writer.WriteUInt32LE(InternalDiskStartNumber);
         }
 
-        protected override void SetData(ByteArrayInputStream reader, UInt16 totalCount)
+        protected override void SetData(ByteArrayParser reader, UInt16 totalCount)
         {
             InternalSize = ZipHeaderSource.Size == UInt32.MaxValue ? reader.ReadUInt64LE() : ZipHeaderSource.Size;
             InternalPackedSize = ZipHeaderSource.PackedSize == UInt32.MaxValue ? reader.ReadUInt64LE() : ZipHeaderSource.PackedSize;

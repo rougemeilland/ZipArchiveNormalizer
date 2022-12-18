@@ -1,4 +1,5 @@
-﻿using System.Drawing;
+﻿using System;
+using System.Drawing;
 using System.IO;
 
 namespace ImageUtility
@@ -8,11 +9,12 @@ namespace ImageUtility
 
         public static Size GetImageSize(this FileInfo imageFile)
         {
-            using (var imageFileStream = new FileStream(imageFile.FullName, FileMode.Open, FileAccess.Read))
-            using (var bitmap = new Bitmap(imageFileStream))
-            {
-                return bitmap.Size;
-            }
+            if (imageFile is null)
+                throw new ArgumentNullException(nameof(imageFile));
+
+            using var imageFileStream = new FileStream(imageFile.FullName, FileMode.Open, FileAccess.Read);
+            using var bitmap = new Bitmap(imageFileStream);
+            return bitmap.Size;
         }
     }
 }

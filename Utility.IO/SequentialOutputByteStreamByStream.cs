@@ -1,47 +1,65 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Utility.IO
 {
-    class SequentialOutputByteStreamByStream
+    class SequentialOutputByteStreamByStream<BASE_STREAM_T>
         : IOutputByteStream<UInt64>
+        where BASE_STREAM_T : Stream
     {
-        private bool _isDisposed;
-        private Stream _baseStream;
-        private bool _leaveOpne;
-        private ulong _position;
+        private readonly BASE_STREAM_T _baseStream;
+        private readonly Action<BASE_STREAM_T> _finishAction;
+        private readonly bool _leaveOpne;
 
-        public SequentialOutputByteStreamByStream(Stream baseStream, bool leaveOpen)
+        private bool _isDisposed;
+        private UInt64 _position;
+
+        public SequentialOutputByteStreamByStream(BASE_STREAM_T baseStream, Action<BASE_STREAM_T> finishAction, bool leaveOpen)
         {
             try
             {
-                if (baseStream == null)
+                if (baseStream is null)
                     throw new ArgumentNullException(nameof(baseStream));
-                if (baseStream.CanWrite == false)
-                    throw new ArgumentException();
+                if (finishAction is null)
+                    throw new ArgumentNullException(nameof(finishAction));
+                if (!baseStream.CanWrite)
+                    throw new NotSupportedException();
 
                 _baseStream = baseStream;
+                _finishAction = finishAction;
                 _leaveOpne = leaveOpen;
                 _position = 0;
             }
             catch (Exception)
             {
-                if (leaveOpen == false)
+                if (!leaveOpen)
                     baseStream?.Dispose();
                 throw;
             }
         }
 
-        public ulong Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
+        public UInt64 Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
 
-        public int Write(IReadOnlyArray<byte> buffer, int offset, int count)
+        public Int32 Write(ReadOnlySpan<byte> buffer)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
 
-            _baseStream.Write(buffer?.GetRawArray(), offset, count);
-            _position += (ulong)count;
-            return count;
+            _baseStream.Write(buffer);
+            _position += (UInt64)buffer.Length;
+            return buffer.Length;
+        }
+
+        public async Task<Int32> WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_isDisposed)
+                throw new ObjectDisposedException(GetType().FullName);
+
+            await _baseStream.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
+            _position += (UInt64)buffer.Length;
+            return buffer.Length;
         }
 
         public void Flush()
@@ -52,17 +70,24 @@ namespace Utility.IO
             _baseStream.Flush();
         }
 
-        public void Close()
+        public async Task FlushAsync(CancellationToken cancellationToken = default)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
 
-            _baseStream.Close();
+            await _baseStream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public void Dispose()
         {
             Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await DisposeAsyncCore().ConfigureAwait(false);
+            Dispose(disposing: false);
             GC.SuppressFinalize(this);
         }
 
@@ -72,13 +97,33 @@ namespace Utility.IO
             {
                 if (disposing)
                 {
-                    if (_baseStream != null)
+                    try
                     {
-                        if (_leaveOpne == false)
-                            _baseStream.Dispose();
-                        _baseStream = null;
+                        _finishAction(_baseStream);
                     }
+                    catch (Exception)
+                    {
+                    }
+                    if (!_leaveOpne)
+                        _baseStream.Dispose();
                 }
+                _isDisposed = true;
+            }
+        }
+
+        protected virtual async ValueTask DisposeAsyncCore()
+        {
+            if (!_isDisposed)
+            {
+                try
+                {
+                    _finishAction(_baseStream);
+                }
+                catch (Exception)
+                {
+                }
+                if (!_leaveOpne)
+                    await _baseStream.DisposeAsync().ConfigureAwait(false);
                 _isDisposed = true;
             }
         }

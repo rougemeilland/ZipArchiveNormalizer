@@ -1,10 +1,11 @@
-﻿using ICSharpCode.SharpZipLib.Zip;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 using Utility;
 using Utility.FileWorker;
 using Utility.IO;
@@ -16,12 +17,12 @@ namespace ZipArchiveNormalizer.Phase3
         : FileWorker, IPhaseWorker
     {
         /// <summary>
-        /// エントリのパス、サイズ、オフセット、CRCがすべて一致しているかどうかを調べる <see cref="IEqualityComparer{ZipArchiveEntry}"/> の実装
+        /// エントリのパス、サイズ、オフセット、CRCがすべて一致しているかどうかを調べる <see cref="IEqualityComparer{ZipArchiveEntry}">IEqualityComparer&lt;<see cref="ZipArchiveEntry"/>&gt;</see> の実装
         /// </summary>
         private class ZipEntryEasilyEqualityComparer
             : IEqualityComparer<ZipArchiveEntry>
         {
-            private bool _compareEntryName;
+            private readonly bool _compareEntryName;
 
             public ZipEntryEasilyEqualityComparer(bool compareEntryName)
             {
@@ -30,20 +31,13 @@ namespace ZipArchiveNormalizer.Phase3
 
             public bool Equals(ZipArchiveEntry x, ZipArchiveEntry y)
             {
-                if (x == null)
-                    return y == null;
-                else if (y == null)
-                    return false;
-                else
-                {
-                    return
-                        (_compareEntryName == false || string.Equals(x.FullName, y.FullName, StringComparison.OrdinalIgnoreCase)) &&
-                        x.Size.Equals(y.Size) &&
-                        x.Crc.Equals(y.Crc);
-                }
+                return
+                    (!_compareEntryName || string.Equals(x.FullName, y.FullName, StringComparison.OrdinalIgnoreCase)) &&
+                    x.Size.Equals(y.Size) &&
+                    x.Crc.Equals(y.Crc);
             }
 
-            public int GetHashCode(ZipArchiveEntry obj)
+            public Int32 GetHashCode(ZipArchiveEntry obj)
             {
                 return
                     obj.FullName.GetHashCode() ^
@@ -53,13 +47,13 @@ namespace ZipArchiveNormalizer.Phase3
         }
 
         /// <summary>
-        /// データの内容が同じ二つのアーカイブファイルのうちどちらの重要度が高いかを比較する <see cref="IComparable{ZipArchiveEntriesOfZipFile}"/> の実装
+        /// データの内容が同じ二つのアーカイブファイルのうちどちらの重要度が高いかを比較する <see cref="IComparable{ZipArchiveEntriesOfZipFile}">IComparable&lt;<see cref="ZipArchiveEntriesOfZipFile"/>&gt;</see> の実装
         /// </summary>
         private class ArchiveFileImportanceComparer
             : IComparer<ZipArchiveEntriesOfZipFile>
         {
-            private static IComparer<FileInfo> _fileImportanceComparer;
-            private static Regex _lessImportantEntryNamePattern ;
+            private static readonly IComparer<FileInfo> _fileImportanceComparer;
+            private static readonly Regex _lessImportantEntryNamePattern;
 
             static ArchiveFileImportanceComparer()
             {
@@ -67,29 +61,29 @@ namespace ZipArchiveNormalizer.Phase3
                 _lessImportantEntryNamePattern = new Regex(@"^p[0-9]", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             }
 
-            public int Compare(ZipArchiveEntriesOfZipFile x, ZipArchiveEntriesOfZipFile y)
+            public Int32 Compare(ZipArchiveEntriesOfZipFile? x, ZipArchiveEntriesOfZipFile? y)
             {
-                if (x == null)
-                    return y == null ? 0 : -1;
-                else if (y == null)
+                if (x is null)
+                    return y is null ? 0 : -1;
+                else if (y is null)
                     return 1;
                 else
                     return CompareZipArchiveEntriesOfZipFile(x, y);
             }
 
-            private int CompareZipArchiveEntriesOfZipFile(ZipArchiveEntriesOfZipFile x, ZipArchiveEntriesOfZipFile y)
+            private static Int32 CompareZipArchiveEntriesOfZipFile(ZipArchiveEntriesOfZipFile x, ZipArchiveEntriesOfZipFile y)
             {
                 // 付加されている拡張属性の数が多い方を残す。
                 // それが同じなら、エントリ名の長さの合計が多い方を残す
                 // それが同じなら、エントリの更新日時の最大値が低い方のファイルを残す。
                 // それが同じなら、エントリの作成日時の最大値が低い方のファイルを残す。
                 // それが同じなら、アーカイブファイル名が長い方を残す。
-                int c;
+                Int32 c;
 
                 // アーカイブファイルに含まれているエントリの拡張属性の種類の数の合計が多い方のファイルが重要
                 if ((c =
-                    x.ZipEntries.Sum(entry => (long)entry.ExtraFields.Count)
-                    .CompareTo(y.ZipEntries.Sum(entry => (long)entry.ExtraFields.Count))) != 0)
+                    x.ZipEntries.Sum(entry => (Int64)entry.ExtraFields.Count)
+                    .CompareTo(y.ZipEntries.Sum(entry => (Int64)entry.ExtraFields.Count))) != 0)
                     return c;
 
                 // エントリのファイル名全てが"p<数字>"で始まるわけではない方のファイルが優先
@@ -100,20 +94,20 @@ namespace ZipArchiveNormalizer.Phase3
 
                 // アーカイブファイルに含まれているエントリの名前の長さの合計が多い方のファイルが重要
                 if ((c =
-                    x.ZipEntries.Sum(entry => (long)entry.FullName.Length)
-                    .CompareTo(y.ZipEntries.Sum(entry => (long)entry.FullName.Length))) != 0)
+                    x.ZipEntries.Sum(entry => (Int64)entry.FullName.Length)
+                    .CompareTo(y.ZipEntries.Sum(entry => (Int64)entry.FullName.Length))) != 0)
                     return c;
 
                 // アーカイブファイルに含まれているエントリの最新更新日付が古い方のファイルが重要 (日付がないエントリが一つでもあればそのファイルは「より重要ではない」)
                 if ((c =
-                    x.ZipEntries.Max(entry => entry.LastWriteTimeUtc?.Ticks ?? long.MaxValue)
-                    .CompareTo(y.ZipEntries.Max(entry => entry.LastWriteTimeUtc?.Ticks ?? long.MaxValue))) != 0)
+                    x.ZipEntries.Max(entry => entry.LastWriteTimeUtc?.Ticks ?? Int64.MaxValue)
+                    .CompareTo(y.ZipEntries.Max(entry => entry.LastWriteTimeUtc?.Ticks ?? Int64.MaxValue))) != 0)
                     return -c;
 
                 // アーカイブファイルに含まれているエントリの最新作成日付が古い方のファイルが重要 (日付がないエントリが一つでもあればそのファイルは「より重要ではない」)
                 if ((c =
-                    x.ZipEntries.Max(entry => entry.CreationTimeUtc?.Ticks ?? long.MaxValue)
-                    .CompareTo(y.ZipEntries.Max(entry => entry.CreationTimeUtc?.Ticks ?? long.MaxValue))) != 0)
+                    x.ZipEntries.Max(entry => entry.CreationTimeUtc?.Ticks ?? Int64.MaxValue)
+                    .CompareTo(y.ZipEntries.Max(entry => entry.CreationTimeUtc?.Ticks ?? Int64.MaxValue))) != 0)
                     return -c;
 
                 return _fileImportanceComparer.Compare(x.File, y.File);
@@ -129,14 +123,14 @@ namespace ZipArchiveNormalizer.Phase3
             }
 
             public FileInfo File { get; }
-            public long ZipEntriesCount { get; }
+            public Int64 ZipEntriesCount { get; }
         }
 
         private class ZipArchiveEntriesOfZipFile
         {
             public ZipArchiveEntriesOfZipFile(FileInfo file, ZipArchiveFile zipArchiveFile)
             {
-                File = File;
+                File = file;
                 ZipFile = zipArchiveFile;
                 ZipEntries = zipArchiveFile.GetEntries();
             }
@@ -146,12 +140,13 @@ namespace ZipArchiveNormalizer.Phase3
             public ZipArchiveEntryCollection ZipEntries { get; }
         }
 
-        private static IEqualityComparer<ZipArchiveEntry> _zipEntryMoreEasilyEqualityComparer;
-        private static IEqualityComparer<ZipArchiveEntry> _zipEntryEasilyEqualityComparer;
-        private static IComparer<ZipArchiveEntriesOfZipFile> _archiveFileImportanceComparer;
-        private Func<FileInfo, bool> _isBadFileSelecter;
+        private static readonly IEqualityComparer<ZipArchiveEntry> _zipEntryMoreEasilyEqualityComparer;
+        private static readonly IEqualityComparer<ZipArchiveEntry> _zipEntryEasilyEqualityComparer;
+        private static readonly IComparer<ZipArchiveEntriesOfZipFile> _archiveFileImportanceComparer;
 
-        public event EventHandler<BadFileFoundEventArgs> BadFileFound;
+        private readonly Func<FileInfo, bool> _isBadFileSelecter;
+
+        public event EventHandler<BadFileFoundEventArgs>? BadFileFound;
 
         static Phase3Worker()
         {
@@ -168,14 +163,14 @@ namespace ZipArchiveNormalizer.Phase3
 
         public override string Description => "同一内容のZIPファイルがないか調べます。";
 
-        protected override void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult previousWorkerResult)
+        protected override void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult? previousWorkerResult)
         {
             UpdateProgress();
 
             var targetArchiveFiles =
                 sourceFiles
                 .Where(file =>
-                    _isBadFileSelecter(file) == false &&
+                    !_isBadFileSelecter(file) &&
                     file.Extension.IsAnyOf(".zip", ".epub", StringComparison.OrdinalIgnoreCase))
                 .ToReadOnlyCollection();
             SetToSourceFiles(targetArchiveFiles);
@@ -184,19 +179,17 @@ namespace ZipArchiveNormalizer.Phase3
             foreach (var sourceFile in targetArchiveFiles)
                 destinationFiles[sourceFile.FullName] = sourceFile;
 
-            var totalCount = targetArchiveFiles.Sum(file => file.Length) * 2;
-            var counrOfDone = 0L;
+            var totalCount = (UInt64)targetArchiveFiles.Sum(file => file.Length) * 2;
+            var counrOfDone = 0UL;
             var groupedArchiveFiles =
                 targetArchiveFiles
                 .Select(file =>
                 {
                     SafetyCancellationCheck();
-                    using (var zipFile = file.OpenAsZipFile())
-                    {
-                        var o = new ZipArchiveEntriesSummaryOfZipFile(file, zipFile);
-                        UpdateProgress(totalCount, Interlocked.Add(ref counrOfDone, -file.Length));
-                        return o;
-                    }
+                    using var zipFile = file.OpenAsZipFile();
+                    var o = new ZipArchiveEntriesSummaryOfZipFile(file, zipFile);
+                    UpdateProgress(totalCount, Interlocked.Add(ref counrOfDone, (UInt64)file.Length));
+                    return o;
                 })
                 .Select(archiveFile => new { archiveFile, entriesCount = archiveFile.ZipEntriesCount })
                 .GroupBy(item => item.entriesCount)
@@ -217,7 +210,7 @@ namespace ZipArchiveNormalizer.Phase3
                             return;
                         }
                         var archiveFiles = item.Select(item2 => item2.archiveFile).ToReadOnlyCollection();
-                        var sizeOfArchiveFiles = archiveFiles.Sum(item2 => item2.File.Length);
+                        var sizeOfArchiveFiles = (UInt64)archiveFiles.Sum(item2 => item2.File.Length);
                         while (archiveFiles.Count >= 2)
                         {
                             try
@@ -241,7 +234,7 @@ namespace ZipArchiveNormalizer.Phase3
                                         ex);
                             }
                         }
-                        UpdateProgress(totalCount, Interlocked.Add(ref counrOfDone, -sizeOfArchiveFiles));
+                        UpdateProgress(totalCount, Interlocked.Add(ref counrOfDone, sizeOfArchiveFiles));
                     });
                 if (cancellationTokenSource.IsCancellationRequested)
                     throw new OperationCanceledException();
@@ -255,78 +248,76 @@ namespace ZipArchiveNormalizer.Phase3
 
         private IEnumerable<ZipArchiveEntriesSummaryOfZipFile> DeleteAndExcludeUselessArchiveFile(IEnumerable<ZipArchiveEntriesSummaryOfZipFile> zipArchives, Action<FileInfo> onDelete)
         {
-            FileInfo fileToDelete = null;
-            FileInfo otherFile = null;
+            FileInfo? fileToDelete = null;
+            FileInfo? otherFile = null;
             var zipArchiveFileSummary1 = zipArchives.First();
             foreach (var zipArchiveFileSummary2 in zipArchives.Skip(1))
             {
                 SafetyCancellationCheck();
                 UpdateProgress();
 
-                using (var zipFile1 = zipArchiveFileSummary1.File.OpenAsZipFile())
-                using (var zipFile2 = zipArchiveFileSummary2.File.OpenAsZipFile())
+                using var zipFile1 = zipArchiveFileSummary1.File.OpenAsZipFile();
+                using var zipFile2 = zipArchiveFileSummary2.File.OpenAsZipFile();
+                var zipArchiveFileInfo1 = new ZipArchiveEntriesOfZipFile(zipArchiveFileSummary1.File, zipFile1);
+                var zipArchiveFileInfo2 = new ZipArchiveEntriesOfZipFile(zipArchiveFileSummary2.File, zipFile2);
+
+                var isLikelyToBeEqual = EntriesEqualMoreEasily(zipArchiveFileInfo1, zipArchiveFileInfo2);
+                var isMostlyEqual = EntriesEqualEasily(zipArchiveFileInfo1, zipArchiveFileInfo2);
+
+                if (isMostlyEqual)
                 {
-                    var zipArchiveFileInfo1 = new ZipArchiveEntriesOfZipFile(zipArchiveFileSummary1.File, zipFile1);
-                    var zipArchiveFileInfo2 = new ZipArchiveEntriesOfZipFile(zipArchiveFileSummary2.File, zipFile2);
-
-                    var isLikelyToBeEqual = EntriesEqualMoreEasily(zipArchiveFileInfo1, zipArchiveFileInfo2);
-                    var isMostlyEqual = EntriesEqualEasily(zipArchiveFileInfo1, zipArchiveFileInfo2);
-
-                    if (isMostlyEqual)
+                    // 全てのエントリの名前、オフセット、サイズ、CRCが等しい場合
+                    var isExactlyEqual = EntriesEqualStrictly(zipArchiveFileInfo1, zipArchiveFileInfo2);
+                    if (isExactlyEqual)
                     {
-                        // 全てのエントリの名前、オフセット、サイズ、CRCが等しい場合
-                        var isExactlyEqual = EntriesEqualStrictly(zipArchiveFileInfo1, zipArchiveFileInfo2);
-                        if (isExactlyEqual)
+                        // 全てのエントリのデータが一致している場合
+
+                        // ファイルの重要度を比較する
+                        if (_archiveFileImportanceComparer.Compare(zipArchiveFileInfo1, zipArchiveFileInfo2) > 0)
                         {
-                            // 全てのエントリのデータが一致している場合
-
-                            // ファイルの重要度を比較する
-                            if (_archiveFileImportanceComparer.Compare(zipArchiveFileInfo1, zipArchiveFileInfo2) > 0)
-                            {
-                                fileToDelete = zipArchiveFileInfo2.File;
-                                otherFile = zipArchiveFileInfo1.File;
-                            }
-                            else
-                            {
-                                fileToDelete = zipArchiveFileInfo1.File;
-                                otherFile = zipArchiveFileInfo2.File;
-                            }
-                            break;
+                            fileToDelete = zipArchiveFileInfo2.File;
+                            otherFile = zipArchiveFileInfo1.File;
                         }
-                    }
-                    else if (isLikelyToBeEqual)
-                    {
-                        // 全てのエントリのオフセット、サイズ、CRCが等しい場合
-                        var isExactlyEqual = EntriesEqualStrictly(zipArchiveFileInfo1, zipArchiveFileInfo2);
-                        if (isExactlyEqual)
+                        else
                         {
-                            // 全てのエントリのデータが一致している場合
-
-                            if (_archiveFileImportanceComparer.Compare(zipArchiveFileInfo1, zipArchiveFileInfo2) > 0)
-                            {
-                                RaiseWarningReportedEvent(
-                                    zipArchiveFileInfo2.File,
-                                    string.Format(
-                                        "エントリ名を除いて、エントリのデータがエントリの順番も含めて全て同一の別のアーカイブファイルが存在します。: \"{0}\"",
-                                        zipArchiveFileInfo1.File.FullName));
-                            }
-                            else
-                            {
-                                RaiseWarningReportedEvent(
-                                    zipArchiveFileInfo1.File,
-                                    string.Format(
-                                        "エントリ名を除いて、エントリのデータがエントリの順番も含めて全て同一の別のアーカイブファイルが存在します。: \"{0}\"",
-                                        zipArchiveFileInfo2.File.FullName));
-                            }
+                            fileToDelete = zipArchiveFileInfo1.File;
+                            otherFile = zipArchiveFileInfo2.File;
                         }
-                    }
-                    else
-                    {
-                        // NOP
+                        break;
                     }
                 }
+                else if (isLikelyToBeEqual)
+                {
+                    // 全てのエントリのオフセット、サイズ、CRCが等しい場合
+                    var isExactlyEqual = EntriesEqualStrictly(zipArchiveFileInfo1, zipArchiveFileInfo2);
+                    if (isExactlyEqual)
+                    {
+                        // 全てのエントリのデータが一致している場合
+
+                        if (_archiveFileImportanceComparer.Compare(zipArchiveFileInfo1, zipArchiveFileInfo2) > 0)
+                        {
+                            RaiseWarningReportedEvent(
+                                zipArchiveFileInfo2.File,
+                                string.Format(
+                                    "エントリ名を除いて、エントリのデータがエントリの順番も含めて全て同一の別のアーカイブファイルが存在します。: \"{0}\"",
+                                    zipArchiveFileInfo1.File.FullName));
+                        }
+                        else
+                        {
+                            RaiseWarningReportedEvent(
+                                zipArchiveFileInfo1.File,
+                                string.Format(
+                                    "エントリ名を除いて、エントリのデータがエントリの順番も含めて全て同一の別のアーカイブファイルが存在します。: \"{0}\"",
+                                    zipArchiveFileInfo2.File.FullName));
+                        }
+                    }
+                }
+                else
+                {
+                    // NOP
+                }
             }
-            if (fileToDelete != null)
+            if (fileToDelete is not null && otherFile is not null)
             {
 #if DEBUG
                 if (string.Equals(fileToDelete.FullName, otherFile.FullName, StringComparison.OrdinalIgnoreCase))
@@ -350,7 +341,7 @@ namespace ZipArchiveNormalizer.Phase3
             }
         }
 
-        private bool EntriesEqualMoreEasily(ZipArchiveEntriesOfZipFile archiveFile1, ZipArchiveEntriesOfZipFile archiveFile2)
+        private static bool EntriesEqualMoreEasily(ZipArchiveEntriesOfZipFile archiveFile1, ZipArchiveEntriesOfZipFile archiveFile2)
         {
             try
             {
@@ -364,7 +355,7 @@ namespace ZipArchiveNormalizer.Phase3
             }
         }
 
-        private bool EntriesEqualEasily(ZipArchiveEntriesOfZipFile archiveFile1, ZipArchiveEntriesOfZipFile archiveFile2)
+        private static bool EntriesEqualEasily(ZipArchiveEntriesOfZipFile archiveFile1, ZipArchiveEntriesOfZipFile archiveFile2)
         {
             try
             {
@@ -387,8 +378,8 @@ namespace ZipArchiveNormalizer.Phase3
                     archiveFile1.ZipEntries
                     .Zip(archiveFile2.ZipEntries, (entry1, entry2) => new { entry1, entry2 })
                     .All(item =>
-                        archiveFile1.ZipFile.GetInputStream(item.entry1)
-                        .StreamBytesEqual(archiveFile2.ZipFile.GetInputStream(item.entry2), progressNotification: count => UpdateProgress()));
+                        archiveFile1.ZipFile.GetContentStream(item.entry1)
+                        .StreamBytesEqual(archiveFile2.ZipFile.GetContentStream(item.entry2), progress: new Progress<UInt64>(_ => UpdateProgress())));
             }
             catch (Exception)
             {
@@ -396,10 +387,13 @@ namespace ZipArchiveNormalizer.Phase3
             }
         }
 
+        [SuppressMessage("CodeQuality", "IDE0051:使用されていないプライベート メンバーを削除する", Justification = "<保留中>")]
         private void RaiseBadFileFoundEvent(FileInfo targetFile)
         {
-            if (BadFileFound != null)
+            if (BadFileFound is not null)
+            {
                 BadFileFound(this, new BadFileFoundEventArgs(targetFile));
+            }
         }
     }
 }

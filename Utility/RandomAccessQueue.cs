@@ -6,23 +6,27 @@ using System.Linq;
 namespace Utility
 {
     public class RandomAccessQueue<ELEMENT_T>
-        : IReadOnlyArray<ELEMENT_T>, ICloneable<RandomAccessQueue<ELEMENT_T>>, IEquatable<RandomAccessQueue<ELEMENT_T>>
+        : IEnumerable<ELEMENT_T>, ICloneable<RandomAccessQueue<ELEMENT_T>>, IEquatable<RandomAccessQueue<ELEMENT_T>>
         where ELEMENT_T : IEquatable<ELEMENT_T>
     {
-        private SortedDictionary<ulong, ELEMENT_T> _queue;
-        private ulong _indexOfStart;
-        private ulong _indexOfEnd;
+        private readonly SortedDictionary<UInt64, ELEMENT_T> _queue;
+
+        private UInt64 _indexOfStart;
+        private UInt64 _indexOfEnd;
 
         public RandomAccessQueue()
+            : this(Array.Empty<ELEMENT_T>())
         {
-            _queue = new SortedDictionary<ulong, ELEMENT_T>();
-            _indexOfStart = 0;
-            _indexOfEnd = 0;
         }
 
         public RandomAccessQueue(IEnumerable<ELEMENT_T> dataSource)
-            : this()
         {
+            if (dataSource is null)
+                throw new ArgumentNullException(nameof(dataSource));
+
+            _queue = new SortedDictionary<UInt64, ELEMENT_T>();
+            _indexOfStart = 0;
+            _indexOfEnd = 0;
             foreach (var value in dataSource)
             {
                 _queue.Add(_indexOfEnd, value);
@@ -65,115 +69,40 @@ namespace Utility
             return value;
         }
 
-        public ELEMENT_T this[int index]
+        public ELEMENT_T this[Int32 index]
         {
             get
             {
-                if (index < 0)
-                    throw new IndexOutOfRangeException("'index' is a negative value.");
-                if (index >= _queue.Count)
-                    throw new IndexOutOfRangeException("'index' exceeds the upper limit.");
+                if (!index.InRange(0, _queue.Count))
+                    throw new ArgumentOutOfRangeException(nameof(index));
                 try
                 {
 #if DEBUG
                     checked
 #endif
                     {
-                        return _queue[_indexOfStart + (uint)index];
+                        return _queue[_indexOfStart + (UInt32)index];
 
                     }
                 }
                 catch (OverflowException ex)
                 {
-                    throw new IndexOutOfRangeException("'index' exceeds the upper limit.", ex);
+                    throw new ArgumentOutOfRangeException($"Invalid {nameof(index)} value", ex);
                 }
                 catch (KeyNotFoundException ex)
                 {
-                    throw new IndexOutOfRangeException("'index' exceeds the upper limit.", ex);
+                    throw new ArgumentOutOfRangeException($"Invalid {nameof(index)} value", ex);
                 }
             }
         }
-        public int Length => _queue.Count;
-        public int Count => _queue.Count;
+        public Int32 Length => _queue.Count;
+        public Int32 Count => _queue.Count;
         public IEnumerator<ELEMENT_T> GetEnumerator() => _queue.Values.GetEnumerator();
-        public ELEMENT_T[] DuplicateAsWritableArray() => _queue.Values.ToArray();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-        [Obsolete]
-        ELEMENT_T[] IReadOnlyArray<ELEMENT_T>.ToArray() => throw new NotSupportedException();
-
-
-        public void CopyTo(ELEMENT_T[] destinationArray, int destinationOffset)
-        {
-            if (destinationArray == null)
-                throw new ArgumentNullException();
-            if (destinationOffset < 0)
-                throw new IndexOutOfRangeException();
-            if (destinationOffset > destinationArray.Length)
-                throw new IndexOutOfRangeException();
-            if (destinationArray.Length - destinationOffset > _queue.Count)
-                throw new IndexOutOfRangeException();
-            InternalCopyTo(0, destinationArray, destinationOffset, destinationArray.Length - destinationOffset);
-        }
-
-        public void CopyTo(int sourceOffset, ELEMENT_T[] destinationArray, int destinationOffset, int count)
-        {
-            if (sourceOffset < 0)
-                throw new IndexOutOfRangeException();
-            if (destinationArray == null)
-                throw new ArgumentNullException();
-            if (destinationOffset < 0)
-                throw new IndexOutOfRangeException();
-            if (count < 0)
-                throw new IndexOutOfRangeException();
-            if (sourceOffset + count > _queue.Count)
-                throw new IndexOutOfRangeException();
-            if (destinationOffset + count > destinationArray.Length)
-                throw new IndexOutOfRangeException();
-            InternalCopyTo(sourceOffset, destinationArray, destinationOffset, count);
-        }
-
-        public RandomAccessQueue<ELEMENT_T> Clone()
-        {
-            return new RandomAccessQueue<ELEMENT_T>(_queue.Values);
-        }
-
-        public bool Equals(RandomAccessQueue<ELEMENT_T> other)
-        {
-            if (other == null)
-                return false;
-            if (_queue.Count != other._queue.Count)
-                return false;
-            if (_queue.Values.SequenceEqual(other._queue.Values) == false)
-                return false;
-            return true;
-        }
-
-        public override bool Equals(object obj)
-        {
-            if (obj == null || GetType() != obj.GetType())
-                return false;
-            return Equals((RandomAccessQueue<ELEMENT_T>)obj);
-        }
-
-        public override int GetHashCode()
-        {
-            return _queue.Values.Aggregate(0, (hashCode, value) => hashCode ^ value.GetHashCode());
-        }
-
-        private void InternalCopyTo(int sourceOffset, ELEMENT_T[] destinationArray, int destinationOffset, int count)
-        {
-#if DEBUG
-            if (sourceOffset < 0)
-                throw new Exception();
-            if (destinationOffset < 0)
-                throw new Exception();
-            if (count < 0)
-                throw new Exception();
-#endif
-            for (var index = 0; index < count; ++index)
-                destinationArray[destinationOffset + index] = _queue[_indexOfStart + (uint)sourceOffset + (uint)index];
-        }
+        public RandomAccessQueue<ELEMENT_T> Clone() => new(_queue.Values);
+        public bool Equals(RandomAccessQueue<ELEMENT_T>? other) => other is not null && _queue.Count == other._queue.Count && _queue.Values.SequenceEqual(other._queue.Values);
+        public override bool Equals(object? obj) => obj is not null && GetType() == obj.GetType() && Equals((RandomAccessQueue<ELEMENT_T>)obj);
+        public override Int32 GetHashCode() => _queue.Values.Aggregate(0, (hashCode, value) => hashCode ^ value.GetHashCode());
 
         private void Normalize()
         {
@@ -192,16 +121,15 @@ namespace Utility
                     var firstKey = _queue.Keys.First();
                     foreach (var item in _queue)
                     {
-#if DEBUG
                         if (item.Key < firstKey)
-                            throw new Exception();
-#endif
+                            throw new InternalLogicalErrorException();
+
                         _queue.Remove(item.Key);
                         _queue[item.Key - firstKey] = item.Value;
                     }
                 }
                 _indexOfStart = 0;
-                _indexOfEnd = (uint)_queue.Count;
+                _indexOfEnd = (UInt32)_queue.Count;
             }
         }
 
@@ -218,7 +146,7 @@ namespace Utility
                 checked
 #endif
                 {
-                    if ((uint)_queue.Count != _indexOfEnd - _indexOfStart)
+                    if ((UInt32)_queue.Count != _indexOfEnd - _indexOfStart)
                         throw new Exception();
                 }
             }
@@ -232,6 +160,4 @@ namespace Utility
         }
 #endif
     }
-
-
 }

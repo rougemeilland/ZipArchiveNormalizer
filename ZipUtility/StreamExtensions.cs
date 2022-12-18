@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Utility;
 using Utility.IO;
 
@@ -18,19 +14,19 @@ namespace ZipUtility
             {
             }
 
-            public PartialInputStreamForZipInputStream(IInputByteStream<ZipStreamPosition> baseStream, ulong size, bool leaveOpen = false)
+            public PartialInputStreamForZipInputStream(IInputByteStream<ZipStreamPosition> baseStream, UInt64 size, bool leaveOpen = false)
                 : base(baseStream, size, leaveOpen)
             {
             }
 
-            public PartialInputStreamForZipInputStream(IInputByteStream<ZipStreamPosition> baseStream, ulong? size, bool leaveOpen = false)
+            public PartialInputStreamForZipInputStream(IInputByteStream<ZipStreamPosition> baseStream, UInt64? size, bool leaveOpen = false)
                 : base(baseStream, size, leaveOpen)
             {
             }
 
-            protected override ulong ZeroPositionValue => 0;
+            protected override UInt64 ZeroPositionValue => 0;
 
-            protected override ulong AddPosition(ulong x, ulong y)
+            protected override UInt64 AddPosition(UInt64 x, UInt64 y)
             {
 #if DEBUG
                 checked
@@ -49,55 +45,65 @@ namespace ZipUtility
             {
             }
 
-            public PartialRandomInputStreamForZipInputStream(IZipInputStream baseStream, ulong size, bool leaveOpen = false)
+            public PartialRandomInputStreamForZipInputStream(IZipInputStream baseStream, UInt64 size, bool leaveOpen = false)
                 : base(baseStream, size, leaveOpen)
             {
             }
 
-            public PartialRandomInputStreamForZipInputStream(IZipInputStream baseStream, ZipStreamPosition offset, ulong size, bool leaveOpen = false)
+            public PartialRandomInputStreamForZipInputStream(IZipInputStream baseStream, ZipStreamPosition offset, UInt64 size, bool leaveOpen = false)
                 : base(baseStream, offset, size, leaveOpen)
             {
             }
 
-            public PartialRandomInputStreamForZipInputStream(IZipInputStream baseStream, ZipStreamPosition? offset, ulong? size, bool leaveOpen = false)
+            public PartialRandomInputStreamForZipInputStream(IZipInputStream baseStream, ZipStreamPosition? offset, UInt64? size, bool leaveOpen = false)
                 : base(baseStream, offset, size, leaveOpen)
             {
             }
 
-            protected IZipInputStream SourceStream => BaseStream as IZipInputStream;
+            protected IZipInputStream SourceStream => (BaseStream as IZipInputStream) ?? throw new InternalLogicalErrorException();
 
-            protected override ulong ZeroPositionValue => 0;
+            protected override UInt64 ZeroPositionValue => 0;
 
             protected override ZipStreamPosition EndBasePositionValue => SourceStream.LastDiskStartPosition + SourceStream.LastDiskSize;
 
-            protected override ZipStreamPosition AddBasePosition(ZipStreamPosition x, ulong y)
+            protected override (bool Success, ZipStreamPosition Position) AddBasePosition(ZipStreamPosition x, UInt64 y)
             {
-                return x + y;
-            }
-
-            protected override ulong AddPosition(ulong x, ulong y)
-            {
-#if DEBUG
-                checked
-#endif
+                try
                 {
-                    return x + y;
+                    checked
+                    {
+                        return (true, x + y);
+                    }
+                }
+                catch (OverflowException)
+                {
+                    return (false, EndBasePositionValue);
                 }
             }
 
-            protected override ulong GetDistanceBetweenBasePositions(ZipStreamPosition x, ZipStreamPosition y)
+            protected override (bool Success, UInt64 Position) AddPosition(UInt64 x, UInt64 y)
             {
-                return x - y;
+                try
+                {
+                    checked
+                    {
+                        return (true, x + y);
+                    }
+                }
+                catch (OverflowException)
+                {
+                    return (false, 0);
+                }
             }
 
-            protected override ulong GetDistanceBetweenPositions(ulong x, ulong y)
+            protected override (bool Success, UInt64 Distance) GetDistanceBetweenBasePositions(ZipStreamPosition x, ZipStreamPosition y)
             {
-#if DEBUG
-                checked
-#endif
-                {
-                    return x - y;
-                }
+                return x >= y ? (true, x - y) : (false, 0);
+            }
+
+            protected override (bool Success, UInt64 Distance) GetDistanceBetweenPositions(UInt64 x, UInt64 y)
+            {
+                return x >= y ? (true, x - y) : (false, 0);
             }
         }
 
@@ -105,7 +111,7 @@ namespace ZipUtility
         {
             try
             {
-                if (baseStream == null)
+                if (baseStream is null)
                     throw new ArgumentNullException(nameof(baseStream));
 
                 baseStream.Seek(offset);
@@ -122,7 +128,7 @@ namespace ZipUtility
         {
             try
             {
-                if (baseStream == null)
+                if (baseStream is null)
                     throw new ArgumentNullException(nameof(baseStream));
 
                 return new PartialRandomInputStreamForZipInputStream(baseStream, offset, size, true);

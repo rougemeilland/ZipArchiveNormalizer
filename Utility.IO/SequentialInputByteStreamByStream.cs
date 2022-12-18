@@ -1,24 +1,27 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Utility.IO
 {
     class SequentialInputByteStreamByStream
         : IInputByteStream<UInt64>
     {
+        private readonly Stream _baseStream;
+        private readonly bool _leaveOpen;
+
         private bool _isDisposed;
-        private Stream _baseStream;
-        private bool _leaveOpen;
-        private ulong _position;
+        private UInt64 _position;
 
         public SequentialInputByteStreamByStream(Stream baseStream, bool leaveOpen)
         {
             try
             {
-                if (baseStream == null)
+                if (baseStream is null)
                     throw new ArgumentNullException(nameof(baseStream));
-                if (baseStream.CanRead == false)
-                    throw new ArgumentException();
+                if (!baseStream.CanRead)
+                    throw new NotSupportedException();
 
                 _baseStream = baseStream;
                 _leaveOpen = leaveOpen;
@@ -26,22 +29,33 @@ namespace Utility.IO
             }
             catch (Exception)
             {
-                if (leaveOpen == false)
+                if (!leaveOpen)
                     baseStream?.Dispose();
                 throw;
             }
         }
 
-        public ulong Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
+        public UInt64 Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
 
-        public int Read(byte[] buffer, int offset, int count)
+        public Int32 Read(Span<byte> buffer)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
 
-            var length = _baseStream.Read(buffer, offset, count);
+            var length = _baseStream.Read(buffer);
             if (length > 0)
-                _position += (ulong)length;
+                _position += (UInt32)length;
+            return length;
+        }
+
+        public async Task<Int32> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_isDisposed)
+                throw new ObjectDisposedException(GetType().FullName);
+
+            var length = await _baseStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            if (length > 0)
+                _position += (UInt32)length;
             return length;
         }
 
@@ -51,19 +65,32 @@ namespace Utility.IO
             GC.SuppressFinalize(this);
         }
 
+        public async ValueTask DisposeAsync()
+        {
+            await DisposeAsyncCore().ConfigureAwait(false);
+            Dispose(disposing: false);
+            GC.SuppressFinalize(this);
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!_isDisposed)
             {
                 if (disposing)
                 {
-                    if (_baseStream != null)
-                    {
-                        if (_leaveOpen == false)
-                            _baseStream.Dispose();
-                        _baseStream = null;
-                    }
+                    if (!_leaveOpen)
+                        _baseStream.Dispose();
                 }
+                _isDisposed = true;
+            }
+        }
+
+        protected virtual async ValueTask DisposeAsyncCore()
+        {
+            if (!_isDisposed)
+            {
+                if (!_leaveOpen)
+                    await _baseStream.DisposeAsync().ConfigureAwait(false);
                 _isDisposed = true;
             }
         }

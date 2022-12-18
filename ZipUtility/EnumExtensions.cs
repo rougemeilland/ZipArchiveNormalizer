@@ -14,7 +14,7 @@ namespace ZipUtility
                 != ZipEntryGeneralPurposeBitFlag.None;
         }
 
-        public static int GetCompressionOptionValue(this ZipEntryGeneralPurposeBitFlag flag)
+        public static Int32 GetCompressionOptionValue(this ZipEntryGeneralPurposeBitFlag flag)
         {
             return ((UInt16)flag >> 1) & 3;
         }

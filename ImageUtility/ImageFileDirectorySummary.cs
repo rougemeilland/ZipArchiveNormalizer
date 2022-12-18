@@ -1,32 +1,36 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
-using System;
 using System.Linq;
+using Utility;
 
 namespace ImageUtility
 {
     public class ImageFileDirectorySummary
     {
-        private static IDictionary<UInt32, object> _allowedImageFileCrcs;
+        private static readonly IDictionary<UInt32, object> _allowedImageFileCrcs;
 
         static ImageFileDirectorySummary()
         {
-            _allowedImageFileCrcs = new[]
-            {
-                0xCDB43943U,
-                0x692D8095U,
-                0xB48D63F8U,
-                0x6057F760U,
-                0xDCCCBCF9U,
-                0x37F9F844U,
-                0x73118FDBU,
-            }
-            .ToDictionary(crc => crc, crc => new object());
+            _allowedImageFileCrcs =
+                ((ReadOnlySpan<UInt32>)new[]
+                {
+                    0xCDB43943U,
+                    0x692D8095U,
+                    0xB48D63F8U,
+                    0x6057F760U,
+                    0xDCCCBCF9U,
+                    0x37F9F844U,
+                    0x73118FDBU,
+                }).ToDictionary(crc => crc, crc => new object());
         }
 
         public ImageFileDirectorySummary(DirectoryInfo directory, IEnumerable<IImageFileSize> imageFiles)
         {
-            Directory = directory;
+            if (imageFiles is null)
+                throw new ArgumentNullException(nameof(imageFiles));
+
+            Directory = directory ?? throw new ArgumentNullException(nameof(directory));
             ImageFileOfMinimumWidth =
                 imageFiles
                 .Where(imageFile => !_allowedImageFileCrcs.ContainsKey(imageFile.ImageFileCrc))

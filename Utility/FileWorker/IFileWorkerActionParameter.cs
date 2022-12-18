@@ -1,8 +1,10 @@
-﻿namespace Utility.FileWorker
+﻿using System;
+
+namespace Utility.FileWorker
 {
     public interface IFileWorkerActionParameter
     {
-        int FileIndexOnSameDirectory { get; }
+        Int32 FileIndexOnSameDirectory { get; }
         IFileWorkerActionDirectoryParameter DirectoryParameter { get; }
         IFileWorkerActionFileParameter FileParameter { get; }
     }

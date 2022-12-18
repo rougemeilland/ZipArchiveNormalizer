@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Test.ZipUtility": {
+      "commandName": "Project",
+      "commandLineArgs": "\"D:\\テストデータ\""
+    }
+  }
+}

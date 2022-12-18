@@ -348,3 +348,16 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+# original source file folder
+RawSource/
+/SevenZip.Compression.Lzma/Decoder/LzmaDec.cs
+/SevenZip.Compression.Lzma/Decoder/LzmaDecoderConstants.cs
+/SevenZip.Compression.Lzma/Decoder/LzmaFinishMode.cs
+/SevenZip.Compression.Lzma/Decoder/LzmaStatus.cs
+/SevenZip.Compression.Lzma/Decoder/LzmaDecoderStream.cs
+/SevenZip.Compression.Lzma/Encoder/LzmaEnc.cs
+/SevenZip.Compression.Lzma/Encoder/LzmaEncoderConstants.cs
+/SevenZip.Compression.Lzma/Encoder/LzmaEncoderStream.cs
+/SevenZip.Compression.Lzma/Encoder/ProbExtensions.cs
+/SevenZip.Compression.Lzma/old_LzmaConstants.cs

@@ -1,7 +1,5 @@
 ﻿using System;
-using Utility;
 using Utility.IO;
-using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -19,11 +17,11 @@ namespace ZipUtility.ZipExtraField
 
         public const ushort ExtraFieldId = 0x5855;
 
-        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
+        public override ReadOnlyMemory<byte>? GetData(ZipEntryHeaderType headerType)
         {
-            if (LastAccessTimeUtc == null || LastWriteTimeUtc == null)
+            if (LastAccessTimeUtc is null || LastWriteTimeUtc is null)
                 return null;
-            var writer = new ByteArrayOutputStream();
+            var writer = new ByteArrayRenderer();
             writer.WriteInt32LE(ToUnixTimeStamp(LastAccessTimeUtc.Value));
             writer.WriteInt32LE(ToUnixTimeStamp(LastWriteTimeUtc.Value));
             if (headerType == ZipEntryHeaderType.LocalFileHeader)
@@ -34,13 +32,13 @@ namespace ZipUtility.ZipExtraField
             return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> data)
         {
             LastAccessTimeUtc = null;
             LastWriteTimeUtc = null;
             UserId = UInt16.MaxValue;
             GroupId = UInt16.MaxValue;
-            var reader = new ByteArrayInputStream(data, index, count);
+            var reader = new ByteArrayParser(data);
             var success = false;
             try
             {
@@ -52,12 +50,12 @@ namespace ZipUtility.ZipExtraField
                     GroupId = reader.ReadUInt16LE();
                 }
                 if (reader.ReadAllBytes().Length > 0)
-                    throw GetBadFormatException(headerType, data, index, count);
+                    throw GetBadFormatException(headerType, data);
                 success = true;
             }
             catch (UnexpectedEndOfStreamException)
             {
-                throw GetBadFormatException(headerType, data, index, count);
+                throw GetBadFormatException(headerType, data);
             }
             finally
             {

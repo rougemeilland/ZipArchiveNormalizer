@@ -13,7 +13,7 @@ namespace Test.ZipUtility
         private class Walker
             : FileWorkerFromMainArgument
         {
-            private static Regex _zipFileNamePattern;
+            private static readonly Regex _zipFileNamePattern;
 
             static Walker()
             {
@@ -27,10 +27,18 @@ namespace Test.ZipUtility
 
             public override string Description => "ZIPファイルの検査をします。";
 
-            protected override IFileWorkerActionFileParameter IsMatchFile(FileInfo sourceFile)
+            protected override IFileWorkerActionFileParameter? IsMatchFile(FileInfo sourceFile)
             {
                 return
                     _zipFileNamePattern.IsMatch(sourceFile.Name)
+                    && (
+                        false
+                        //|| (sourceFile.Name.Contains("DEFLATE", StringComparison.OrdinalIgnoreCase) && !sourceFile.Name.Contains("DEFLATE64", StringComparison.OrdinalIgnoreCase))
+                        //|| sourceFile.Name.Contains("DEFLATE64", StringComparison.OrdinalIgnoreCase)
+                        || sourceFile.Name.Contains("LZMA", StringComparison.OrdinalIgnoreCase)
+                        //|| sourceFile.Name.Contains("BZIP2", StringComparison.OrdinalIgnoreCase)
+                        //|| sourceFile.Name.Contains("PPMD", StringComparison.OrdinalIgnoreCase)
+                    )
                         ? base.IsMatchFile(sourceFile)
                         : null;
             }
@@ -70,7 +78,7 @@ namespace Test.ZipUtility
         private class Worker
             : ConsoleWorker
         {
-            private IReadOnlyCollection<IFileWorker> _workers;
+            private readonly IReadOnlyCollection<IFileWorker> _workers;
 
             public Worker(IWorkerCancellable canceller)
                 : base(canceller)
@@ -91,10 +99,8 @@ namespace Test.ZipUtility
 
         public static void Test(string[] args)
         {
-            using (var canceller = new ConsoleBreakCancellale())
-            {
-                new Worker(canceller).Execute(args);
-            }
+            using var canceller = new ConsoleBreakCancellale();
+            new Worker(canceller).Execute(args);
         }
     }
 }

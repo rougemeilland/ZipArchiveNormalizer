@@ -13,13 +13,13 @@ namespace ZipUtility
             Required = required;
         }
 
-        public EncryptedZipFileNotSupportedException(string message, string entryName, string required)
+        public EncryptedZipFileNotSupportedException(string message, string required)
             : base(message)
         {
             Required = required;
         }
 
-        public EncryptedZipFileNotSupportedException(string message, Exception inner, string entryName, string required)
+        public EncryptedZipFileNotSupportedException(string message, Exception inner, string required)
             : base(message, inner)
         {
             Required = required;
@@ -28,7 +28,7 @@ namespace ZipUtility
         protected EncryptedZipFileNotSupportedException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
-            Required = info.GetString("Required");
+            Required = info.GetString("Required") ?? "???";
         }
 
         public override void GetObjectData(SerializationInfo info, StreamingContext context)

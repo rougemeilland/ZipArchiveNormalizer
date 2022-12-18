@@ -11,9 +11,9 @@ namespace ZipArchiveNormalizer.Phase0
     class Phase0Worker
         : FileWorkerFromMainArgument, IPhaseWorker
     {
-        private Func<FileInfo, bool> _isBadFileSelecter;
+        private readonly Func<FileInfo, bool> _isBadFileSelecter;
 
-        public event EventHandler<BadFileFoundEventArgs> BadFileFound;
+        public event EventHandler<BadFileFoundEventArgs>? BadFileFound;
 
         static Phase0Worker()
         {
@@ -27,10 +27,10 @@ namespace ZipArchiveNormalizer.Phase0
 
         public override string Description => "ZIPファイルに未知の拡張フィールドがないか調べます。";
 
-        protected override IFileWorkerActionFileParameter IsMatchFile(FileInfo sourceFile)
+        protected override IFileWorkerActionFileParameter? IsMatchFile(FileInfo sourceFile)
         {
             return
-                _isBadFileSelecter(sourceFile) == false &&
+                !_isBadFileSelecter(sourceFile) &&
                 sourceFile.Extension.IsAnyOf(".zip", ".epub", StringComparison.OrdinalIgnoreCase)
                 ? base.IsMatchFile(sourceFile)
                 : null;
@@ -40,38 +40,36 @@ namespace ZipArchiveNormalizer.Phase0
         {
             try
             {
-                using (var zipFile = sourceFile.OpenAsZipFile())
+                using var zipFile = sourceFile.OpenAsZipFile();
+                foreach (var entry in zipFile.GetEntries())
                 {
-                    foreach (var entry in zipFile.GetEntries())
+                    UpdateProgress();
+                    var extraFieldIds =
+                        entry.ExtraFields.EnumerateExtraFieldIds()
+                        .ToList();
+                    extraFieldIds.Remove(CodePageExtraField.ExtraFieldId);
+                    extraFieldIds.Remove(ExtendedTimestampExtraField.ExtraFieldId);
+                    extraFieldIds.Remove(NewUnixExtraField.ExtraFieldId);
+                    extraFieldIds.Remove(NtfsExtraField.ExtraFieldId);
+                    extraFieldIds.Remove(UnicodeCommentExtraField.ExtraFieldId);
+                    extraFieldIds.Remove(UnicodePathExtraField.ExtraFieldId);
+                    extraFieldIds.Remove(UnixExtraFieldType0.ExtraFieldId);
+                    extraFieldIds.Remove(UnixExtraFieldType1.ExtraFieldId);
+                    extraFieldIds.Remove(UnixExtraFieldType2.ExtraFieldId);
+                    extraFieldIds.Remove(WindowsSecurityDescriptorExtraField.ExtraFieldId);
+                    extraFieldIds.Remove(0x0001);
+                    if (extraFieldIds.Any())
                     {
-                        UpdateProgress();
-                        var extraFieldIds =
-                            entry.ExtraFields.EnumerateExtraFieldIds()
-                            .ToList();
-                        extraFieldIds.Remove(CodePageExtraField.ExtraFieldId);
-                        extraFieldIds.Remove(ExtendedTimestampExtraField.ExtraFieldId);
-                        extraFieldIds.Remove(NewUnixExtraField.ExtraFieldId);
-                        extraFieldIds.Remove(NtfsExtraField.ExtraFieldId);
-                        extraFieldIds.Remove(UnicodeCommentExtraField.ExtraFieldId);
-                        extraFieldIds.Remove(UnicodePathExtraField.ExtraFieldId);
-                        extraFieldIds.Remove(UnixExtraFieldType0.ExtraFieldId);
-                        extraFieldIds.Remove(UnixExtraFieldType1.ExtraFieldId);
-                        extraFieldIds.Remove(UnixExtraFieldType2.ExtraFieldId);
-                        extraFieldIds.Remove(WindowsSecurityDescriptorExtraField.ExtraFieldId);
-                        extraFieldIds.Remove(0x0001);
-                        if (extraFieldIds.Any())
-                        {
-                            RaiseWarningReportedEvent(
-                                sourceFile,
-                                string.Format(
-                                    "Unknown extra field used.: entry=\"{0}\", id={{{1}}}",
-                                    entry.FullName,
-                                    string.Join(
-                                        ", ",
-                                        extraFieldIds
-                                            .OrderBy(id => id)
-                                            .Select(id => string.Format("0x{0:x4}", id)))));
-                        }
+                        RaiseWarningReportedEvent(
+                            sourceFile,
+                            string.Format(
+                                "Unknown extra field used.: entry=\"{0}\", id={{{1}}}",
+                                entry.FullName,
+                                string.Join(
+                                    ", ",
+                                    extraFieldIds
+                                        .OrderBy(id => id)
+                                        .Select(id => string.Format("0x{0:x4}", id)))));
                     }
                 }
             }
@@ -85,10 +83,14 @@ namespace ZipArchiveNormalizer.Phase0
             }
         }
 
+#pragma warning disable IDE0051 // 使用されていないプライベート メンバーを削除する
         private void RaiseBadFileFoundEvent(FileInfo targetFile)
+#pragma warning restore IDE0051 // 使用されていないプライベート メンバーを削除する
         {
-            if (BadFileFound != null)
+            if (BadFileFound is not null)
+            {
                 BadFileFound(this, new BadFileFoundEventArgs(targetFile));
+            }
         }
     }
 }

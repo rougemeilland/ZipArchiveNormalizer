@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="SevenZip\Compression\Lz\Bt2MatchFinder.cs" />
+    <Compile Remove="SevenZip\Compression\Lz\Bt3MatchFinder.cs" />
+    <Compile Remove="SevenZip\Compression\Lz\Bt4MatchFinder.cs" />
+    <Compile Remove="SevenZip\Compression\Lz\Bt5MatchFinder.cs" />
+    <Compile Remove="SevenZip\Compression\Lz\Hc4MatchFinder.cs" />
+    <Compile Remove="SevenZip\Compression\Lz\Hc5MatchFinder.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="SevenZip\Compression\Lz\Bt2MatchFinder.cs" />
+    <None Include="SevenZip\Compression\Lz\Bt3MatchFinder.cs" />
+    <None Include="SevenZip\Compression\Lz\Bt4MatchFinder.cs" />
+    <None Include="SevenZip\Compression\Lz\Bt5MatchFinder.cs" />
+    <None Include="SevenZip\Compression\Lz\Hc4MatchFinder.cs" />
+    <None Include="SevenZip\Compression\Lz\Hc5MatchFinder.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SevenZip.Compression\SevenZip.Compression.csproj" />
+    <ProjectReference Include="..\Utility.IO\Utility.IO.csproj" />
+    <ProjectReference Include="..\Utility\Utility.csproj" />
+  </ItemGroup>
+
+</Project>

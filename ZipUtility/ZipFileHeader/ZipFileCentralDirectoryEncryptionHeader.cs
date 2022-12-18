@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using Utility;
 using Utility.IO;
 
 namespace ZipUtility.ZipFileHeader
 {
     class ZipFileCentralDirectoryEncryptionHeader
     {
-        public ZipFileCentralDirectoryEncryptionHeader(ZipEntryCompressionMethodId compressionMethodId, UInt64 packedSize, UInt64 size, ZipEntryEncryptionAlgorithmId algorithmId, UInt16 bitLength, ZipEntryEncryptionFlag flag, ZipEntryHashAlgorithmId hashAlgorithmId, IReadOnlyArray<byte> hashData)
+        public ZipFileCentralDirectoryEncryptionHeader(ZipEntryCompressionMethodId compressionMethodId, UInt64 packedSize, UInt64 size, ZipEntryEncryptionAlgorithmId algorithmId, UInt16 bitLength, ZipEntryEncryptionFlag flag, ZipEntryHashAlgorithmId hashAlgorithmId, ReadOnlyMemory<byte> hashData)
         {
             CompressionMethodId = compressionMethodId;
             PackedSize = packedSize;
@@ -27,43 +26,41 @@ namespace ZipUtility.ZipFileHeader
         public UInt16 BitLength { get; }
         public ZipEntryEncryptionFlag Flag { get; }
         public ZipEntryHashAlgorithmId HashAlgorithmId { get; }
-        public IReadOnlyArray<byte> HashData { get; }
+        public ReadOnlyMemory<byte> HashData { get; }
 
-        public static ZipFileCentralDirectoryEncryptionHeader Parse(IEnumerable<byte> source)
+        public static ZipFileCentralDirectoryEncryptionHeader? Parse(IEnumerable<byte> source)
         {
-            using (var stream = source.AsByteStream())
+            using var stream = source.AsByteStream();
+            try
             {
-                try
-                {
-                    var compressionMethodId = (ZipEntryCompressionMethodId)stream.ReadUInt16LE();
-                    var packedSize = stream.ReadUInt64LE();
-                    var size = stream.ReadUInt64LE();
-                    var algorithmId = (ZipEntryEncryptionAlgorithmId)stream.ReadUInt16LE();
-                    var bitLength = stream.ReadUInt16LE();
-                    var flag = (ZipEntryEncryptionFlag)stream.ReadUInt16LE();
-                    var hashAlgorithmId = (ZipEntryHashAlgorithmId)stream.ReadUInt16LE();
-                    var hashhDataLength = stream.ReadUInt16LE();
-                    var hashData = stream.ReadBytes(hashhDataLength);
-                    if (hashData.Length != hashhDataLength)
-                        return null;
-                    var otherData = stream.ReadByteOrNull();
-                    if (otherData.HasValue)
-                        return null;
-                    return
-                        new ZipFileCentralDirectoryEncryptionHeader(
-                            compressionMethodId,
-                            packedSize,
-                            size,
-                            algorithmId,
-                            bitLength,
-                            flag,
-                            hashAlgorithmId,
-                            hashData);
-                }
-                catch (UnexpectedEndOfStreamException)
-                {
+                var compressionMethodId = (ZipEntryCompressionMethodId)stream.ReadUInt16LE();
+                var packedSize = stream.ReadUInt64LE();
+                var size = stream.ReadUInt64LE();
+                var algorithmId = (ZipEntryEncryptionAlgorithmId)stream.ReadUInt16LE();
+                var bitLength = stream.ReadUInt16LE();
+                var flag = (ZipEntryEncryptionFlag)stream.ReadUInt16LE();
+                var hashAlgorithmId = (ZipEntryHashAlgorithmId)stream.ReadUInt16LE();
+                var hashhDataLength = stream.ReadUInt16LE();
+                var hashData = stream.ReadBytes(hashhDataLength);
+                if (hashData.Length != hashhDataLength)
                     return null;
-                }
+                var otherData = stream.ReadByteOrNull();
+                if (otherData is not null)
+                    return null;
+                return
+                    new ZipFileCentralDirectoryEncryptionHeader(
+                        compressionMethodId,
+                        packedSize,
+                        size,
+                        algorithmId,
+                        bitLength,
+                        flag,
+                        hashAlgorithmId,
+                        hashData);
+            }
+            catch (UnexpectedEndOfStreamException)
+            {
+                return null;
             }
         }
     }

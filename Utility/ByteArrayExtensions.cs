@@ -2,13 +2,17 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Utility
 {
     public static class ByteArrayExtensions
     {
-        private class CommonCrc32
+        #region private class
+
+        private class Crc32Calculator
             : CrcCalculationMethod<UInt32>
         {
             protected override UInt32 InitialValue => 0xffffffffU;
@@ -16,7 +20,7 @@ namespace Utility
             protected override UInt32 Finalize(UInt32 crc) => ~crc;
         }
 
-        private class Crc24ForRadix64
+        private class Crc24ForRadix64Calculator
             : CrcCalculationMethod<UInt32>
         {
             protected override UInt32 InitialValue => 0x00b704ceU;
@@ -24,278 +28,27 @@ namespace Utility
             protected override UInt32 Finalize(UInt32 crc) => crc & 0xffffffU;
         }
 
-        private class BitArraySequenceFromByteSequence
-            : IEnumerable<TinyBitArray>
-        {
-            private class Enumerator
-                : IEnumerator<TinyBitArray>
-            {
-                private bool _isDisposed;
-                private IEnumerable<byte> _source;
-                private int _bitCount;
-                private BitPackingDirection _packingDirection;
-                private IEnumerator<byte> _sourceEnumerator;
-                private BitQueue _bitQueue;
-                private TinyBitArray _value;
-                private bool _isEndOfSourceSequence;
-                private bool _isEndOfSequence;
+        #endregion
 
-                public Enumerator(IEnumerable<byte> source, int bitCount, BitPackingDirection packingDirection)
-                {
-                    _isDisposed = false;
-                    _source = source;
-                    _bitCount = bitCount;
-                    _packingDirection = packingDirection;
-                    _sourceEnumerator = _source.GetEnumerator();
-                    _bitQueue = new BitQueue();
-                    _value = null;
-                    _isEndOfSourceSequence = false;
-                    _isEndOfSequence = false;
-                }
+        private const byte _BYTE_ESCAPE_CHAR = 0x1b;
+        private const byte _BYTE_AT_MARK_CHAR = 0x40;
+        private const byte _BYTE_DOLLAR_CHAR = 0x24;
+        private const byte _BYTE_AMPERSAND_CHAR = 0x26;
+        private const byte _BYTE_OPEN_PARENTHESIS_CHAR = 0x28;
+        private const byte _BYTE_B_CHAR = 0x42;
+        private const byte _BYTE_D_CHAR = 0x44;
+        private const byte _BYTE_J_CHAR = 0x4a;
+        private const byte _BYTE_I_CHAR = 0x49;
 
-                public TinyBitArray Current
-                {
-                    get
-                    {
-                        if (_isDisposed)
-                            throw new ObjectDisposedException(GetType().FullName);
-                        if (_value == null)
-                            throw new InvalidOperationException();
-                        if (_isEndOfSequence)
-                            throw new InvalidOperationException();
-                        return _value;
-                    }
-                }
-
-                object IEnumerator.Current => Current;
-
-                public bool MoveNext()
-                {
-                    _value = null;
-                    if (_isEndOfSequence)
-                        return false;
-                    while (_bitQueue.Count < _bitCount)
-                    {
-                        if (_isEndOfSourceSequence || _sourceEnumerator.MoveNext() == false)
-                        {
-                            _isEndOfSourceSequence = true;
-                            break;
-                        }
-                        _bitQueue.Enqueue(_sourceEnumerator.Current, packingDirection: _packingDirection);
-                    }
-                    if (_bitQueue.Count <= 0)
-                    {
-                        _isEndOfSequence = true;
-                        return false;
-                    }
-                    else
-                    {
-                        _value = _bitQueue.DequeueBitArray(_bitCount.Minimum(_bitQueue.Count));
-                        return true;
-                    }
-                }
-
-                public void Reset()
-                {
-                    if (_sourceEnumerator != null)
-                        _sourceEnumerator.Dispose();
-                    _sourceEnumerator = _source.GetEnumerator();
-                    _bitQueue = new BitQueue();
-                    _value = null;
-                    _isEndOfSourceSequence = false;
-                    _isEndOfSequence = false;
-                }
-
-                protected virtual void Dispose(bool disposing)
-                {
-                    if (!_isDisposed)
-                    {
-                        if (disposing)
-                        {
-                            if (_sourceEnumerator != null)
-                            {
-                                _sourceEnumerator.Dispose();
-                                _sourceEnumerator = null;
-                            }
-                        }
-                        _isDisposed = true;
-                    }
-                }
-
-                public void Dispose()
-                {
-                    Dispose(disposing: true);
-                    GC.SuppressFinalize(this);
-                }
-            }
-
-            private IEnumerable<byte> _source;
-            private int _bitCount;
-            private BitPackingDirection _packingDirection;
-
-            public BitArraySequenceFromByteSequence(IEnumerable<byte> source, int bitCount, BitPackingDirection packingDirection)
-            {
-                if (source == null)
-                    throw new ArgumentNullException();
-                if (bitCount < 1)
-                    throw new ArgumentException();
-                _source = source;
-                _bitCount = bitCount;
-                _packingDirection = packingDirection;
-            }
-
-            public IEnumerator<TinyBitArray> GetEnumerator()
-            {
-                return new Enumerator(_source, _bitCount, _packingDirection);
-            }
-
-            IEnumerator IEnumerable.GetEnumerator()
-            {
-                return GetEnumerator();
-            }
-        }
-
-        private class ByteSequenceFromBitArraySequence
-            : IEnumerable<Byte>
-        {
-            private class Enumerator
-                : IEnumerator<Byte>
-            {
-                private bool _isDisposed;
-                private IEnumerable<TinyBitArray> _source;
-                private BitPackingDirection _packingDirection;
-                private IEnumerator<TinyBitArray> _sourceEnumerator;
-                private BitQueue _bitQueue;
-                private byte? _value;
-                private bool _isEndOfSourceSequence;
-                private bool _isEndOfSequence;
-
-                public Enumerator(IEnumerable<TinyBitArray> source, BitPackingDirection packingDirection)
-                {
-                    _isDisposed = false;
-                    _source = source;
-                    _packingDirection = packingDirection;
-                    _sourceEnumerator = _source.GetEnumerator();
-                    _bitQueue = new BitQueue();
-                    _value = null;
-                    _isEndOfSourceSequence = false;
-                    _isEndOfSequence = false;
-                }
-
-                public Byte Current
-                {
-                    get
-                    {
-                        if (_isDisposed)
-                            throw new ObjectDisposedException(GetType().FullName);
-                        if (_value == null)
-                            throw new InvalidOperationException();
-                        if (_isEndOfSequence)
-                            throw new InvalidOperationException();
-                        return _value.Value;
-                    }
-                }
-
-                object IEnumerator.Current => Current;
-
-                public bool MoveNext()
-                {
-                    _value = null;
-                    if (_isEndOfSequence)
-                        return false;
-                    while (_bitQueue.Count < 8)
-                    {
-                        if (_isEndOfSourceSequence || _sourceEnumerator.MoveNext() == false)
-                        {
-                            _isEndOfSourceSequence = true;
-                            break;
-                        }
-                        _bitQueue.Enqueue(_sourceEnumerator.Current);
-                    }
-                    if (_bitQueue.Count <= 0)
-                    {
-                        _isEndOfSequence = true;
-                        return false;
-                    }
-                    else
-                    {
-                        _value = _bitQueue.DequeueByte(_packingDirection);
-                        return true;
-                    }
-                }
-
-                public void Reset()
-                {
-                    if (_sourceEnumerator != null)
-                        _sourceEnumerator.Dispose();
-                    _sourceEnumerator = _source.GetEnumerator();
-                    _bitQueue = new BitQueue();
-                    _value = null;
-                    _isEndOfSourceSequence = false;
-                    _isEndOfSequence = false;
-                }
-
-                protected virtual void Dispose(bool disposing)
-                {
-                    if (!_isDisposed)
-                    {
-                        if (disposing)
-                        {
-                            if (_sourceEnumerator != null)
-                            {
-                                _sourceEnumerator.Dispose();
-                                _sourceEnumerator = null;
-                            }
-                        }
-                        _isDisposed = true;
-                    }
-                }
-
-                public void Dispose()
-                {
-                    Dispose(disposing: true);
-                    GC.SuppressFinalize(this);
-                }
-            }
-
-            private IEnumerable<TinyBitArray> _source;
-            private BitPackingDirection _packingDirection;
-
-            public ByteSequenceFromBitArraySequence(IEnumerable<TinyBitArray> source, BitPackingDirection packingDirection)
-            {
-                if (source == null)
-                    throw new ArgumentNullException();
-                _source = source;
-                _packingDirection = packingDirection;
-            }
-
-            public IEnumerator<Byte> GetEnumerator()
-            {
-                return new Enumerator(_source, _packingDirection);
-            }
-
-            IEnumerator IEnumerable.GetEnumerator()
-            {
-                return GetEnumerator();
-            }
-        }
-
-        private const byte _byteEscape = 0x1b;
-        private const byte _byteAtMark = 0x40;
-        private const byte _byteDollar = 0x24;
-        private const byte _byteAmpersand = 0x26;
-        private const byte _byteOpenParenthesis = 0x28;
-        private const byte _byteB = 0x42;
-        private const byte _byteD = 0x44;
-        private const byte _byteJ = 0x4a;
-        private const byte _byteI = 0x49;
-        private static UInt32[] _crcTableOfCommonCrc32;
-        private static UInt32[] _crcTableOfCrc24ForRadix64;
-        private static CrcCalculationMethod<UInt32> _commonCrc32;
-        private static CrcCalculationMethod<UInt32> _crc24ForRadix64;
+        private static readonly UInt32[] _crcTableOfCommonCrc32;
+        private static readonly UInt32[] _crcTableOfCrc24ForRadix64;
+        private static readonly CrcCalculationMethod<UInt32> _commonCrc32;
+        private static readonly CrcCalculationMethod<UInt32> _crc24ForRadix64;
 
         static ByteArrayExtensions()
         {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
             _crcTableOfCommonCrc32 = new UInt32[]
             {
                 0x00000000, 0x77073096, 0xee0e612c, 0x990951ba,
@@ -432,496 +185,1855 @@ namespace Utility
                 0x00d11cce, 0x00575035, 0x005bc9c3, 0x00dd8538,
             };
 
-            _commonCrc32 = new CommonCrc32();
-            _crc24ForRadix64 = new Crc24ForRadix64();
+            _commonCrc32 = new Crc32Calculator();
+            _crc24ForRadix64 = new Crc24ForRadix64Calculator();
         }
 
-        public static UInt32 CalculateCrc32(this IEnumerable<byte> source) => _commonCrc32.Calculate(source);
-        public static UInt32 CalculateCrc24(this IEnumerable<byte> source) => _crc24ForRadix64.Calculate(source);
-        public static UInt32 CalculateCrc32(this IEnumerable<byte> source, out ulong count) => _commonCrc32.Calculate(source, out count);
-        public static UInt32 CalculateCrc24(this IEnumerable<byte> source, out ulong count) => _crc24ForRadix64.Calculate(source, out count);
-        public static IEnumerable<byte> GetSequenceWithCrc32(this IEnumerable<byte> source, ValueHolder<UInt32> result) => _commonCrc32.GetSequenceWithCrc(source, result);
-        public static IEnumerable<byte> GetSequenceWithCrc24(this IEnumerable<byte> source, ValueHolder<UInt32> result) => _crc24ForRadix64.GetSequenceWithCrc(source, result);
+        public static (UInt32 Crc, UInt64 Length) CalculateCrc32(this IEnumerable<byte> source, IProgress<UInt64>? progress = null)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            return _commonCrc32.Calculate(source, progress);
+        }
+
+        public static UInt32 CalculateCrc32(this ReadOnlyMemory<byte> source) =>
+            _commonCrc32.Calculate(source);
+
+        public static UInt32 CalculateCrc32(this ReadOnlySpan<byte> source) =>
+            _commonCrc32.Calculate(source);
+
+        public static async Task<(UInt32 Crc, UInt64 Length)> CalculateCrc32Async(this IAsyncEnumerable<byte> source, IProgress<UInt64>? progress = null)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            return await _commonCrc32.CalculateAsync(source, progress).ConfigureAwait(false);
+        }
+
+        public static IEnumerable<byte> GetSequenceWithCrc32(this IEnumerable<byte> source, ValueHolder<(UInt32 Crc, UInt64 Length)> result, IProgress<UInt64>? progress = null)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+            if (result is null)
+                throw new ArgumentNullException(nameof(result));
+
+            return _commonCrc32.GetSequenceWithCrc(source, result, progress);
+        }
+
+        public static IAsyncEnumerable<byte> GetAsyncSequenceWithCrc32(this IAsyncEnumerable<byte> source, ValueHolder<(UInt32 Crc, UInt64 Length)> result, IProgress<UInt64>? progress = null)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+            if (result is null)
+                throw new ArgumentNullException(nameof(result));
+
+            return _commonCrc32.GetAsyncSequenceWithCrc(source, result, progress);
+        }
+
+        public static (UInt32 Crc, UInt64 Length) CalculateCrc24(this IEnumerable<byte> source, IProgress<UInt64>? progress = null)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            return _crc24ForRadix64.Calculate(source, progress);
+        }
+
+        public static async Task<(UInt32 Crc, UInt64 Length)> CalculateCrc24Async(this IAsyncEnumerable<byte> source, IProgress<UInt64>? progress = null)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            return await _crc24ForRadix64.CalculateAsync(source, progress).ConfigureAwait(false);
+        }
+
+        public static IEnumerable<byte> GetSequenceWithCrc24(this IEnumerable<byte> source, ValueHolder<(UInt32 Crc, UInt64 Length)> result, IProgress<UInt64>? progress = null)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+            if (result is null)
+                throw new ArgumentNullException(nameof(result));
+
+            return _crc24ForRadix64.GetSequenceWithCrc(source, result, progress);
+        }
+
+        public static IAsyncEnumerable<byte> GetAsyncSequenceWithCrc24(this IAsyncEnumerable<byte> source, ValueHolder<(UInt32 Crc, UInt64 Length)> result, IProgress<UInt64>? progress = null)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+            if (result is null)
+                throw new ArgumentNullException(nameof(result));
+
+            return _crc24ForRadix64.GetAsyncSequenceWithCrc(source, result, progress);
+        }
 
         public static IEnumerable<char> GetBase64EncodedSequence(this IEnumerable<byte> source, char char62 = '+', char char63 = '/')
         {
-            if (char62.IsBetween('0', '9') || char62.IsBetween('A', 'Z') || char62.IsBetween('a', 'z') || char62 == '=' || char62 <= '\u0020' || char62 >= '\u007f')
-                throw new ArgumentException();
-            if (char63.IsBetween('0', '9') || char63.IsBetween('A', 'Z') || char63.IsBetween('a', 'z') || char63 == '=' || char63 <= '\u0020' || char63 >= '\u007f')
-                throw new ArgumentException();
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+            if (char62.IsBetween('0', '9') || char62.IsBetween('A', 'Z') || char62.IsBetween('a', 'z') || char62 == '=' || !char62.IsBetween('\u0021', '\u007e'))
+                throw new ArgumentException("Invalid character", nameof(char62));
+            if (char63.IsBetween('0', '9') || char63.IsBetween('A', 'Z') || char63.IsBetween('a', 'z') || char63 == '=' || !char63.IsBetween('\u0021', '\u007e'))
+                throw new ArgumentException("Invalid character", nameof(char63));
             if (char62 == char63)
-                throw new ArgumentException();
+                throw new ArgumentException($"Invalid character ({nameof(char62)}=={nameof(char63)})");
+
             return InternalGetBase64EncodedSequence(source, char62, char63);
         }
 
         public static IEnumerable<byte> GetBase64DecodedSequence(this IEnumerable<char> source, bool ignoreSpace = false, bool ignoreInvalidCharacter = false, char char62 = '+', char char63 = '/')
         {
-            if (char62.IsBetween('0', '9') || char62.IsBetween('A', 'Z') || char62.IsBetween('a', 'z') || char62 == '=' || char62 <= '\u0020' || char62 >= '\u007f')
-                throw new ArgumentException();
-            if (char63.IsBetween('0', '9') || char63.IsBetween('A', 'Z') || char63.IsBetween('a', 'z') || char63 == '=' || char63 <= '\u0020' || char63 >= '\u007f')
-                throw new ArgumentException();
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+            if (char62.IsBetween('0', '9') || char62.IsBetween('A', 'Z') || char62.IsBetween('a', 'z') || char62 == '=' || !char62.IsBetween('\u0021', '\u007e'))
+                throw new ArgumentException("Invalid character", nameof(char62));
+            if (char63.IsBetween('0', '9') || char63.IsBetween('A', 'Z') || char63.IsBetween('a', 'z') || char63 == '=' || !char63.IsBetween('\u0021', '\u007e'))
+                throw new ArgumentException("Invalid character", nameof(char63));
             if (char62 == char63)
-                throw new ArgumentException();
+                throw new ArgumentException($"Invalid character ({nameof(char62)}=={nameof(char63)})");
+
             return InternalGetBase64DecodedSequence(source, ignoreSpace, ignoreInvalidCharacter, char62, char63);
         }
 
-        public static string EncodeBase64(this IEnumerable<byte> source, Base64EncodingType encodingType = Base64EncodingType.Default)
+        public static string EncodeBase64(this IEnumerable<byte> source, IProgress<UInt64>? progress = null)
         {
-            switch (encodingType)
-            {
-                case Base64EncodingType.Rrc4648Encoding: // Default
-                case Base64EncodingType.Rrc2045Encoding: // for MIME
-                    return
-                        string.Join(
-                            "\r\n",
-                            source.GetBase64EncodedSequence()
-                            .ToChunkOfArray(64)
-                            .Select(charArray => new string(charArray)));
-                case Base64EncodingType.Rrc4880Encoding: // for OpenPGP Radix-64
-                    var crc24Value = new ValueHolder<UInt32>();
-                    var bodyPart =
-                        string.Join(
-                            "\r\n",
-                            source
-                            .GetSequenceWithCrc24(crc24Value)
-                            .GetBase64EncodedSequence()
-                            .ToChunkOfArray(76)
-                            .Select(charArray => new string(charArray)));
-                    var crcPart =
-                        new string(
-                            new[]
-                            {
-                                (byte)((crc24Value.Value >> 16) & byte.MaxValue),
-                                (byte)((crc24Value.Value >> 8) & byte.MaxValue),
-                                (byte)((crc24Value.Value >> 0) & byte.MaxValue),
-                            }
-                            .GetBase64EncodedSequence()
-                            .ToArray());
-                    return bodyPart + "\r\n=" + crcPart;
-                default:
-                    throw new ArgumentException();
-            }
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            return InternalEncodeBase64(source, Base64EncodingType.Default, progress);
         }
 
-        public static IEnumerable<byte> DecodeBase64(this string source, Base64EncodingType encodingType = Base64EncodingType.Default)
+        public static string EncodeBase64(this IEnumerable<byte> source, Base64EncodingType encodingType, IProgress<UInt64>? progress = null)
         {
-            switch (encodingType)
-            {
-                case Base64EncodingType.Rrc4648Encoding: // Default
-                    return source.GetBase64DecodedSequence(false, false);
-                case Base64EncodingType.Rrc2045Encoding: // for MIME
-                    return source.GetBase64DecodedSequence(true, true);
-                case Base64EncodingType.Rrc4880Encoding: // for OpenPGP Radix-64
-                    var indexOfLastEqualSign = source.LastIndexOf('=');
-                    var bodyPart = indexOfLastEqualSign >= 0 ? source.Substring(0, indexOfLastEqualSign) : source;
-                    var crcPart = indexOfLastEqualSign >= 0 ? source.Substring(indexOfLastEqualSign) : null;
-                    var data = bodyPart.GetBase64DecodedSequence(true, false).ToArray();
-                    if (crcPart != null)
-                    {
-                        var crcByteArray = crcPart.GetSequence(1).GetBase64DecodedSequence(true, false).ToArray();
-                        if (crcByteArray.Length != 3)
-                            throw new FormatException();
-                        var desiredCrc = ((UInt32)crcByteArray[0] << 16) | ((UInt32)crcByteArray[1] << 8) | ((UInt32)crcByteArray[2] << 0);
-                        var actualCrc = data.CalculateCrc24();
-                        if (actualCrc != desiredCrc)
-                            throw new FormatException();
-                    }
-                    return data;
-                default:
-                    throw new ArgumentException();
-            }
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            return InternalEncodeBase64(source, encodingType, progress);
         }
 
-        public static bool IsMatchCrc(this IEnumerable<byte> source, UInt32 expectedCrc)
+        public static IEnumerable<byte> DecodeBase64(this string source, IProgress<UInt64>? progress = null)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            return InternalDecodeBase64(source, Base64EncodingType.Default, progress);
+        }
+
+        public static IEnumerable<byte> DecodeBase64(this string source, Base64EncodingType encodingType, IProgress<UInt64>? progress = null)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            return InternalDecodeBase64(source, encodingType, progress);
+        }
+
+        public static bool IsMatchCrc32(this IEnumerable<byte> source, UInt32 expectedCrc, IProgress<UInt64>? progress = null)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            var actualCrc = source.CalculateCrc32(progress).Crc;
+            return actualCrc == expectedCrc;
+        }
+
+        public static bool IsMatchCrc32(this ReadOnlyMemory<byte> source, UInt32 expectedCrc)
         {
             var actualCrc = source.CalculateCrc32();
             return actualCrc == expectedCrc;
         }
 
-        public static bool SequenceEqual(this byte[] source, byte[] other)
+        public static bool IsMatchCrc32(this ReadOnlySpan<byte> source, UInt32 expectedCrc)
         {
-            if (source == null)
-                throw new ArgumentNullException();
-            if (other == null)
-                throw new ArgumentNullException();
-            if (source.Length != other.Length)
-                return false;
-            return source.ByteArrayEqual(0, other, 0, source.Length);
+            var actualCrc = source.CalculateCrc32();
+            return actualCrc == expectedCrc;
         }
 
-        public static bool ByteArrayEqual(this byte[] byteArray1, int offset1, byte[] byteArray2, int offset2, int count)
-        {
-            if (byteArray1 == null)
-                throw new ArgumentNullException();
-            if (byteArray2 == null)
-                throw new ArgumentNullException();
-            if (offset1 >= byteArray1.Length)
-                throw new IndexOutOfRangeException();
-            if (offset1 + count > byteArray1.Length)
-                throw new IndexOutOfRangeException();
-            if (offset2 >= byteArray2.Length)
-                throw new IndexOutOfRangeException();
-            if (offset2 + count > byteArray2.Length)
-                throw new IndexOutOfRangeException();
+        #region GetBitArraySequence
 
-            // 第1段階: バッファの内容を8バイト単位で比較する
-            var limit1OfPhaseA = offset1 + count - sizeof(UInt64);
-            var index1 = offset1;
-            var index2 = offset2;
-            while (index1 <= limit1OfPhaseA)
+        public static IEnumerable<TinyBitArray> GetBitArraySequence(this IEnumerable<byte> source, Int32 bitCount, BitPackingDirection bitPackingDirection = BitPackingDirection.Default)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            var bitQueue = new BitQueue();
+            foreach (var data in source)
             {
-                var value1 = byteArray1.ToUInt64LE(index1);
-                var value2 = byteArray2.ToUInt64LE(index2);
-                if (value1 != value2)
-                    return false;
-                index1 += sizeof(UInt64);
-                index2 += sizeof(UInt64);
+                bitQueue.Enqueue(data, bitPackingDirection);
+                while (bitQueue.Count >= bitCount)
+                    yield return bitQueue.DequeueBitArray(bitCount);
+            }
+            if (bitQueue.Count > 0)
+                yield return bitQueue.DequeueBitArray(bitCount);
+        }
+
+        public static IEnumerable<TinyBitArray> GetBitArraySequence(this Memory<byte> source, Int32 bitCount, BitPackingDirection bitPackingDirection = BitPackingDirection.Default)
+        {
+            var bitQueue = new BitQueue();
+            for (var index = 0; index < source.Length; ++index)
+            {
+                bitQueue.Enqueue(source.Span[index], bitPackingDirection);
+                while (bitQueue.Count >= bitCount)
+                    yield return bitQueue.DequeueBitArray(bitCount);
+            }
+            if (bitQueue.Count > 0)
+                yield return bitQueue.DequeueBitArray(bitCount);
+        }
+
+        public static IEnumerable<TinyBitArray> GetBitArraySequence(this ReadOnlyMemory<byte> source, Int32 bitCount, BitPackingDirection bitPackingDirection = BitPackingDirection.Default)
+        {
+            var bitQueue = new BitQueue();
+            for (var index = 0; index < source.Length; ++index)
+            {
+                bitQueue.Enqueue(source.Span[index], bitPackingDirection);
+                while (bitQueue.Count >= bitCount)
+                    yield return bitQueue.DequeueBitArray(bitCount);
+            }
+            if (bitQueue.Count > 0)
+                yield return bitQueue.DequeueBitArray(bitCount);
+        }
+
+        public static IEnumerable<TinyBitArray> GetBitArraySequence(this IEnumerable<byte[]> source, Int32 bitCount, BitPackingDirection bitPackingDirection = BitPackingDirection.Default)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            return source.SelectMany(bytes => bytes).GetBitArraySequence(bitCount, bitPackingDirection);
+        }
+
+        public static IEnumerable<TinyBitArray> GetBitArraySequence(this IEnumerable<Memory<byte>> source, Int32 bitCount, BitPackingDirection bitPackingDirection = BitPackingDirection.Default)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            return source.SelectMany(bytes => bytes.GetSequence()).GetBitArraySequence(bitCount, bitPackingDirection);
+        }
+
+        public static IEnumerable<TinyBitArray> GetBitArraySequence(this IEnumerable<ReadOnlyMemory<byte>> source, Int32 bitCount, BitPackingDirection bitPackingDirection = BitPackingDirection.Default)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            return source.SelectMany(bytes => bytes.GetSequence()).GetBitArraySequence(bitCount, bitPackingDirection);
+        }
+
+        #endregion
+
+        public static IEnumerable<Byte> GetByteSequence(this IEnumerable<TinyBitArray> source, BitPackingDirection bitPackingDirection = BitPackingDirection.Default)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+
+            var bitQueue = new BitQueue();
+            foreach (var bitArray in source)
+            {
+                bitQueue.Enqueue(bitArray);
+                while (bitQueue.Count > 8)
+                    yield return bitQueue.DequeueByte(bitPackingDirection);
+            }
+            if (bitQueue.Count > 0)
+                yield return bitQueue.DequeueByte(bitPackingDirection);
+        }
+
+        #region ToInt16LE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16LE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(Int16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(Int16) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
             }
 
-#if DEBUG
-            if (offset1 + count - index1 >= sizeof(UInt64))
-                throw new Exception();
-#endif
-            // 第2段階： バッファの内容を1バイト単位で比較する
-            var limit1OfPhaseB = offset1 + count;
-            // この時点で、limit1OfPhaseB - index は 8 未満のはず
-            while (index1 < limit1OfPhaseB)
+            return (Int16)array.InternalToUInt16LE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16LE(this Memory<byte> array)
+        {
+            if (sizeof(Int16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int16)((ReadOnlySpan<byte>)array.Span).InternalToUInt16LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16LE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(Int16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int16)array.Span.InternalToUInt16LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16LE(this Span<byte> array)
+        {
+            if (sizeof(Int16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int16)((ReadOnlySpan<byte>)array).InternalToUInt16LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16LE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(Int16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int16)array.InternalToUInt16LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16LE(this ArrayPointer<byte> pointer)
+        {
+            try
             {
-                if (byteArray1[index1] != byteArray2[index2])
-                    return false;
-                ++index1;
-                ++index2;
+                return (Int16)((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Int16))).InternalToUInt16LE();
             }
-#if DEBUG
-            if (index1 != offset1 + count)
-                throw new Exception();
-            if (index2 != offset2 + count)
-                throw new Exception();
-#endif
-            // 終端に達しても違いがなかったので、すべて一致していると判断してtrueを返す。
-            return true;
-        }
-
-        public static IEnumerable<TinyBitArray> GetBitArraySequence(this IEnumerable<byte> source, int bitCount, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
-        {
-            return new BitArraySequenceFromByteSequence(source, bitCount, packingDirection);
-        }
-
-        public static IEnumerable<TinyBitArray> GetBitArraySequence(this IEnumerable<byte[]> source, int bitCount, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
-        {
-            return source.SelectMany(bytes => bytes).GetBitArraySequence(bitCount, packingDirection);
-        }
-
-        public static IEnumerable<TinyBitArray> GetBitArraySequence(this IEnumerable<IReadOnlyArray<byte>> source, int bitCount, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
-        {
-            return source.SelectMany(bytes => bytes).GetBitArraySequence(bitCount, packingDirection);
-        }
-
-        public static IEnumerable<Byte> GetByteSequence(this IEnumerable<TinyBitArray> source, BitPackingDirection packingDirection = BitPackingDirection.MsbToLsb)
-        {
-            return new ByteSequenceFromBitArraySequence(source, packingDirection);
-        }
-
-        public static Int16 ToInt16LE(this IReadOnlyArray<byte> array, int startIndex) => (Int16)array.ToUInt16LE(startIndex);
-
-        public static UInt16 ToUInt16LE(this IReadOnlyArray<byte> array, int startIndex)
-        {
-#if DEBUG
-            if (sizeof(UInt16) != 2)
-                throw new Exception();
-#endif
-            if (array == null)
-                throw new ArgumentNullException(nameof(array));
-            if (startIndex < 0)
-                throw new IndexOutOfRangeException();
-            if (startIndex + sizeof(UInt16) > array.Length)
-                throw new IndexOutOfRangeException();
-            return (UInt16)(((UInt16)array[startIndex + 0] << 0) | ((UInt16)array[startIndex + 1] << 8));
-        }
-
-        public static Int32 ToInt32LE(this IReadOnlyArray<byte> array, int startIndex) => (Int32)array.ToUInt32LE(startIndex);
-
-        public static UInt32 ToUInt32LE(this IReadOnlyArray<byte> array, int startIndex)
-        {
-#if DEBUG
-            if (sizeof(UInt32) != 4)
-                throw new Exception();
-#endif
-            if (array == null)
-                throw new ArgumentNullException(nameof(array));
-            if (startIndex < 0)
-                throw new IndexOutOfRangeException();
-            if (startIndex + sizeof(UInt32) > array.Length)
-                throw new IndexOutOfRangeException();
-            return
-                ((UInt32)array[startIndex + 0] << 00) |
-                ((UInt32)array[startIndex + 1] << 08) |
-                ((UInt32)array[startIndex + 2] << 16) |
-                ((UInt32)array[startIndex + 3] << 24);
-        }
-
-        public static Int64 ToInt64LE(this IReadOnlyArray<byte> array, int startIndex) => (Int64)array.ToUInt64LE(startIndex);
-
-        public static UInt64 ToUInt64LE(this IReadOnlyArray<byte> array, int startIndex)
-        {
-#if DEBUG
-            if (sizeof(UInt64) != 8)
-                throw new Exception();
-#endif
-            if (array == null)
-                throw new ArgumentNullException(nameof(array));
-            if (startIndex < 0)
-                throw new IndexOutOfRangeException();
-            if (startIndex + sizeof(UInt64) > array.Length)
-                throw new IndexOutOfRangeException();
-            return
-                ((UInt64)array[startIndex + 0] << 0) |
-                ((UInt64)array[startIndex + 1] << 8) |
-                ((UInt64)array[startIndex + 2] << 16) |
-                ((UInt64)array[startIndex + 3] << 24) |
-                ((UInt64)array[startIndex + 4] << 32) |
-                ((UInt64)array[startIndex + 5] << 40) |
-                ((UInt64)array[startIndex + 6] << 48) |
-                ((UInt64)array[startIndex + 7] << 56);
-        }
-
-        public static float ToSingleLE(this IReadOnlyArray<byte> array, int startIndex) => array.GetRawArray().ToSingleLE(startIndex);
-        public static double ToDoubleLE(this IReadOnlyArray<byte> array, int startIndex) => array.GetRawArray().ToDoubleLE(startIndex);
-        public static Int16 ToInt16LE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt16LE(startIndex);
-        public static UInt16 ToUInt16LE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt16LE(startIndex);
-        public static Int32 ToInt32LE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt32LE(startIndex);
-        public static UInt32 ToUInt32LE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt32LE(startIndex);
-        public static Int64 ToInt64LE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt64LE(startIndex);
-        public static UInt64 ToUInt64LE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt64LE(startIndex);
-
-        public static Single ToSingleLE(this byte[] array, int startIndex)
-        {
-#if DEBUG
-            if (sizeof(Single) != 4)
-                throw new Exception();
-#endif
-            if (array == null)
-                throw new ArgumentNullException(nameof(array));
-            if (startIndex < 0)
-                throw new IndexOutOfRangeException();
-            if (startIndex + sizeof(Single) > array.Length)
-                throw new IndexOutOfRangeException();
-            if (BitConverter.IsLittleEndian)
-                return BitConverter.ToSingle(array, startIndex);
-            else
+            catch (ArgumentOutOfRangeException ex)
             {
-                return
-                    BitConverter.ToSingle(new[]
-                    {
-                        array[startIndex + 3],
-                        array[startIndex + 2],
-                        array[startIndex + 1],
-                        array[startIndex + 0],
-                    }, 0);
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
             }
         }
 
-        public static Double ToDoubleLE(this byte[] array, int startIndex)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16LE(this ReadOnlyArrayPointer<byte> pointer)
         {
-#if DEBUG
-            if (sizeof(Double) != 8)
-                throw new Exception();
-#endif
-            if (array == null)
-                throw new ArgumentNullException(nameof(array));
-            if (startIndex < 0)
-                throw new IndexOutOfRangeException();
-            if (startIndex + sizeof(Double) > array.Length)
-                throw new IndexOutOfRangeException();
-            if (BitConverter.IsLittleEndian)
-                return BitConverter.ToDouble(array, startIndex);
-            else
+            try
             {
-                return
-                    BitConverter.ToDouble(new[]
-                    {
-                        array[startIndex + 7],
-                        array[startIndex + 6],
-                        array[startIndex + 5],
-                        array[startIndex + 4],
-                        array[startIndex + 3],
-                        array[startIndex + 2],
-                        array[startIndex + 1],
-                        array[startIndex + 0],
-                    }, 0);
+                return (Int16)pointer.GetSpan(sizeof(Int16)).InternalToUInt16LE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
             }
         }
 
-        public static Int16 ToInt16BE(this IReadOnlyArray<byte> array, int startIndex) => (Int16)array.ToUInt16BE(startIndex);
+        #endregion
 
-        public static UInt16 ToUInt16BE(this IReadOnlyArray<byte> array, int startIndex)
+        #region ToUInt16LE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16LE(this byte[] array, Int32 startIndex = 0)
         {
-#if DEBUG
-            if (sizeof(UInt16) != 2)
-                throw new Exception();
-#endif
-            if (array == null)
+            if (array is null)
                 throw new ArgumentNullException(nameof(array));
             if (startIndex < 0)
-                throw new IndexOutOfRangeException();
-            if (startIndex + sizeof(UInt16) > array.Length)
-                throw new IndexOutOfRangeException();
-            return (UInt16)(((UInt16)array[0] << 8) | ((UInt16)array[1] << 0));
-        }
-
-        public static Int32 ToInt32BE(this IReadOnlyArray<byte> array, int startIndex) => (Int32)array.ToUInt32BE(startIndex);
-
-        public static UInt32 ToUInt32BE(this IReadOnlyArray<byte> array, int startIndex)
-        {
-#if DEBUG
-            if (sizeof(UInt32) != 4)
-                throw new Exception();
-#endif
-            if (array == null)
-                throw new ArgumentNullException(nameof(array));
-            if (startIndex < 0)
-                throw new IndexOutOfRangeException();
-            if (startIndex + sizeof(UInt32) > array.Length)
-                throw new IndexOutOfRangeException();
-            return
-                ((UInt32)array[startIndex + 0] << 24) |
-                ((UInt32)array[startIndex + 1] << 16) |
-                ((UInt32)array[startIndex + 2] << 08) |
-                ((UInt32)array[startIndex + 3] << 00);
-        }
-
-        public static Int64 ToInt64BE(this IReadOnlyArray<byte> array, int startIndex) => (Int64)array.ToUInt64BE(startIndex);
-
-        public static UInt64 ToUInt64BE(this IReadOnlyArray<byte> array, int startIndex)
-        {
-#if DEBUG
-            if (sizeof(UInt64) != 8)
-                throw new Exception();
-#endif
-            if (array == null)
-                throw new ArgumentNullException(nameof(array));
-            if (startIndex < 0)
-                throw new IndexOutOfRangeException();
-            if (startIndex + sizeof(UInt64) > array.Length)
-                throw new IndexOutOfRangeException();
-            return
-                ((UInt64)array[startIndex + 0] << 56) |
-                ((UInt64)array[startIndex + 1] << 48) |
-                ((UInt64)array[startIndex + 2] << 40) |
-                ((UInt64)array[startIndex + 3] << 32) |
-                ((UInt64)array[startIndex + 4] << 24) |
-                ((UInt64)array[startIndex + 5] << 16) |
-                ((UInt64)array[startIndex + 6] << 08) |
-                ((UInt64)array[startIndex + 7] << 00);
-        }
-
-        public static float ToSingleBE(this IReadOnlyArray<byte> array, int startIndex) => array.GetRawArray().ToSingleBE(startIndex);
-        public static double ToDoubleBE(this IReadOnlyArray<byte> array, int startIndex) => array.GetRawArray().ToDoubleBE(startIndex);
-        public static Int16 ToInt16BE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt16BE(startIndex);
-        public static UInt16 ToUInt16BE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt16BE(startIndex);
-        public static Int32 ToInt32BE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt32BE(startIndex);
-        public static UInt32 ToUInt32BE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt32BE(startIndex);
-        public static Int64 ToInt64BE(this byte[] array, int startIndex) => array.AsReadOnly().ToInt64BE(startIndex);
-        public static UInt64 ToUInt64BE(this byte[] array, int startIndex) => array.AsReadOnly().ToUInt64BE(startIndex);
-
-        public static Single ToSingleBE(this byte[] array, int startIndex)
-        {
-#if DEBUG
-            if (sizeof(Single) != 4)
-                throw new Exception();
-#endif
-            if (array == null)
-                throw new ArgumentNullException(nameof(array));
-            if (startIndex < 0)
-                throw new IndexOutOfRangeException();
-            if (startIndex + sizeof(Single) > array.Length)
-                throw new IndexOutOfRangeException();
-            if (BitConverter.IsLittleEndian)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(UInt16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
             {
-                return
-                    BitConverter.ToSingle(new[]
-                    {
-                        array[startIndex + 3],
-                        array[startIndex + 2],
-                        array[startIndex + 1],
-                        array[startIndex + 0],
-                    }, 0);
+                if (startIndex + sizeof(UInt16) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
             }
-            else
-                return BitConverter.ToSingle(array, startIndex);
+
+            return array.InternalToUInt16LE(startIndex);
         }
 
-        public static Double ToDoubleBE(this byte[] array, int startIndex)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16LE(this Memory<byte> array)
         {
-#if DEBUG
-            if (sizeof(Double) != 8)
-                throw new Exception();
-#endif
-            if (array == null)
-                throw new ArgumentNullException(nameof(array));
-            if (startIndex < 0)
-                throw new IndexOutOfRangeException();
-            if (startIndex + sizeof(Double) > array.Length)
-                throw new IndexOutOfRangeException();
-            if (BitConverter.IsLittleEndian)
+            if (sizeof(UInt16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array.Span).InternalToUInt16LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16LE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(UInt16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.Span.InternalToUInt16LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16LE(this Span<byte> array)
+        {
+            if (sizeof(UInt16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array).InternalToUInt16LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16LE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(UInt16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.InternalToUInt16LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16LE(this ArrayPointer<byte> pointer)
+        {
+            try
             {
-                return
-                    BitConverter.ToDouble(new[]
-                    {
-                        array[startIndex + 7],
-                        array[startIndex + 6],
-                        array[startIndex + 5],
-                        array[startIndex + 4],
-                        array[startIndex + 3],
-                        array[startIndex + 2],
-                        array[startIndex + 1],
-                        array[startIndex + 0],
-                    }, 0);
+                return ((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Int16))).InternalToUInt16LE();
             }
-            else
-                return BitConverter.ToDouble(array, startIndex);
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
         }
 
-        public static string ToFriendlyString(this IReadOnlyArray<byte> value) => value.ToFriendlyString(0, value.Length);
-        public static string ToFriendlyString(this IReadOnlyArray<byte> value, int startIndex) => value.ToFriendlyString(startIndex, value.Length - startIndex);
-
-        public static string ToFriendlyString(this IReadOnlyArray<byte> array, int startIndex, int length)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16LE(this ReadOnlyArrayPointer<byte> pointer)
         {
-            if (array == null)
+            try
+            {
+                return pointer.GetSpan(sizeof(UInt16)).InternalToUInt16LE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToInt32LE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32LE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
                 throw new ArgumentNullException(nameof(array));
             if (startIndex < 0)
-                throw new IndexOutOfRangeException();
-            if (startIndex > array.Length)
-                throw new IndexOutOfRangeException();
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(Int32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(Int32) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return (Int32)array.InternalToUInt32LE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32LE(this Memory<byte> array)
+        {
+            if (sizeof(Int32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int32)((ReadOnlySpan<byte>)array.Span).InternalToUInt32LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32LE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(Int32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int32)array.Span.InternalToUInt32LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32LE(this Span<byte> array)
+        {
+            if (sizeof(Int32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int32)((ReadOnlySpan<byte>)array).InternalToUInt32LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32LE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(Int32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int32)array.InternalToUInt32LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32LE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return (Int32)((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Int32))).InternalToUInt32LE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32LE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return (Int32)pointer.GetSpan(sizeof(Int32)).InternalToUInt32LE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToUInt32LE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32LE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(UInt32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(UInt32) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return array.InternalToUInt32LE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32LE(this Memory<byte> array)
+        {
+            if (sizeof(UInt32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array.Span).InternalToUInt32LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32LE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(UInt32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.Span.InternalToUInt32LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32LE(this Span<byte> array)
+        {
+            if (sizeof(UInt32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array).InternalToUInt32LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32LE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(UInt32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.InternalToUInt32LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32LE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return ((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(UInt32))).InternalToUInt32LE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32LE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return pointer.GetSpan(sizeof(UInt32)).InternalToUInt32LE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToInt64LE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64LE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(Int64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(Int64) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return (Int64)array.InternalToUInt64LE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64LE(this Memory<byte> array)
+        {
+            if (sizeof(Int64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int64)((ReadOnlySpan<byte>)array.Span).InternalToUInt64LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64LE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(Int64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int64)array.Span.InternalToUInt64LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64LE(this Span<byte> array)
+        {
+            if (sizeof(Int64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int64)((ReadOnlySpan<byte>)array).InternalToUInt64LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64LE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(Int64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int64)array.InternalToUInt64LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64LE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return (Int64)((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Int64))).InternalToUInt64LE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64LE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return (Int64)pointer.GetSpan(sizeof(Int64)).InternalToUInt64LE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToUInt64LE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64LE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(UInt64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(UInt64) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return array.InternalToUInt64LE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64LE(this Memory<byte> array)
+        {
+            if (sizeof(UInt64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array.Span).InternalToUInt64LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64LE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(UInt64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.Span.InternalToUInt64LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64LE(this Span<byte> array)
+        {
+            if (sizeof(UInt64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array).InternalToUInt64LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64LE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(UInt64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.InternalToUInt64LE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64LE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return ((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(UInt64))).InternalToUInt64LE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64LE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return pointer.GetSpan(sizeof(UInt64)).InternalToUInt64LE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToSingleLE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleLE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(Single) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(Single) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return array.InternalToSingleLE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleLE(this Memory<byte> array)
+        {
+            if (sizeof(Single) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array.Span).InternalToSingleLE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleLE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(Single) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.Span.InternalToSingleLE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleLE(this Span<byte> array)
+        {
+            if (sizeof(Single) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array).InternalToSingleLE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleLE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(Single) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.InternalToSingleLE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleLE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return ((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Single))).InternalToSingleLE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleLE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return pointer.GetSpan(sizeof(Single)).InternalToSingleLE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToDoubleLE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleLE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(Double) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(Double) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return array.InternalToDoubleLE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleLE(this Memory<byte> array)
+        {
+            if (sizeof(Double) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array.Span).InternalToDoubleLE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleLE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(Double) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.Span.InternalToDoubleLE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleLE(this Span<byte> array)
+        {
+            if (sizeof(Double) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array).InternalToDoubleLE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleLE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(Double) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.InternalToDoubleLE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleLE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return ((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Double))).InternalToDoubleLE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleLE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return pointer.GetSpan(sizeof(Double)).InternalToDoubleLE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToDecimalLE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalLE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(Decimal) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(Decimal) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return array.InternalToDecimalLE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalLE(this Memory<byte> array)
+        {
+            if (sizeof(Decimal) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array.Span).InternalToDecimalLE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalLE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(Decimal) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.Span.InternalToDecimalLE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalLE(this Span<byte> array)
+        {
+            if (sizeof(Decimal) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array).InternalToDecimalLE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalLE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(Decimal) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.InternalToDecimalLE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalLE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return ((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Decimal))).InternalToDecimalLE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalLE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return pointer.GetSpan(sizeof(Decimal)).InternalToDecimalLE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToInt16BE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16BE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(Int16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(Int16) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return (Int16)array.InternalToUInt16BE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16BE(this Memory<byte> array)
+        {
+            if (sizeof(Int16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int16)((ReadOnlySpan<byte>)array.Span).InternalToUInt16BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16BE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(Int16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int16)array.Span.InternalToUInt16BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16BE(this Span<byte> array)
+        {
+            if (sizeof(Int16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int16)((ReadOnlySpan<byte>)array).InternalToUInt16BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16BE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(Int16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int16)array.InternalToUInt16BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16BE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return (Int16)((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Int16))).InternalToUInt16BE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int16 ToInt16BE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return (Int16)pointer.GetSpan(sizeof(Int16)).InternalToUInt16BE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToUInt16BE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16BE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(UInt16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(UInt16) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return array.InternalToUInt16BE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16BE(this Memory<byte> array)
+        {
+            if (sizeof(UInt16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array.Span).InternalToUInt16BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16BE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(UInt16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.Span.InternalToUInt16BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16BE(this Span<byte> array)
+        {
+            if (sizeof(UInt16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array).InternalToUInt16BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16BE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(UInt16) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.InternalToUInt16BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16BE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return ((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(UInt16))).InternalToUInt16BE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt16 ToUInt16BE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return pointer.GetSpan(sizeof(UInt16)).InternalToUInt16BE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToInt32BE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32BE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(Int32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(Int32) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return (Int32)array.InternalToUInt32BE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32BE(this Memory<byte> array)
+        {
+            if (sizeof(Int32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int32)((ReadOnlySpan<byte>)array.Span).InternalToUInt32BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32BE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(Int32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int32)array.Span.InternalToUInt32BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32BE(this Span<byte> array)
+        {
+            if (sizeof(Int32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int32)((ReadOnlySpan<byte>)array).InternalToUInt32BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32BE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(Int32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int32)array.InternalToUInt32BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32BE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return (Int32)((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Int32))).InternalToUInt32BE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 ToInt32BE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return (Int32)pointer.GetSpan(sizeof(Int32)).InternalToUInt32BE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToUInt32BE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32BE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(UInt32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(UInt32) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return array.InternalToUInt32BE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32BE(this Memory<byte> array)
+        {
+            if (sizeof(UInt32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array.Span).InternalToUInt32BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32BE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(UInt32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.Span.InternalToUInt32BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32BE(this Span<byte> array)
+        {
+            if (sizeof(UInt32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            return ((ReadOnlySpan<byte>)array).InternalToUInt32BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32BE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(UInt32) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            return array.InternalToUInt32BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32BE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return ((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(UInt32))).InternalToUInt32BE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt32 ToUInt32BE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return pointer.GetSpan(sizeof(UInt32)).InternalToUInt32BE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToInt64BE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64BE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(Int64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(Int64) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return (Int64)array.InternalToUInt64BE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64BE(this Memory<byte> array)
+        {
+            if (sizeof(Int64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int64)((ReadOnlySpan<byte>)array.Span).InternalToUInt64BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64BE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(Int64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int64)array.Span.InternalToUInt64BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64BE(this Span<byte> array)
+        {
+            if (sizeof(Int64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int64)((ReadOnlySpan<byte>)array).InternalToUInt64BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64BE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(Int64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return (Int64)array.InternalToUInt64BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64BE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return (Int64)((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Int64))).InternalToUInt64BE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 ToInt64BE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return (Int64)pointer.GetSpan(sizeof(Int64)).InternalToUInt64BE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToUInt64BE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64BE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(UInt64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(UInt64) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return array.InternalToUInt64BE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64BE(this Memory<byte> array)
+        {
+            if (sizeof(UInt64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array.Span).InternalToUInt64BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64BE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(UInt64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.Span.InternalToUInt64BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64BE(this Span<byte> array)
+        {
+            if (sizeof(UInt64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array).InternalToUInt64BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64BE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(UInt64) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.InternalToUInt64BE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64BE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return ((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(UInt64))).InternalToUInt64BE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static UInt64 ToUInt64BE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return pointer.GetSpan(sizeof(UInt64)).InternalToUInt64BE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToSingleBE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleBE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(Single) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(Single) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return array.InternalToSingleBE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleBE(this Memory<byte> array)
+        {
+            if (sizeof(Single) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array.Span).InternalToSingleBE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleBE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(Single) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.Span.InternalToSingleBE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleBE(this Span<byte> array)
+        {
+            if (sizeof(Single) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array).InternalToSingleBE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleBE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(Single) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.InternalToSingleBE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleBE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return ((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Single))).InternalToSingleBE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Single ToSingleBE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return pointer.GetSpan(sizeof(Single)).InternalToSingleBE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToDoubleBE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleBE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(Double) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(Double) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return array.InternalToDoubleBE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleBE(this Memory<byte> array)
+        {
+            if (sizeof(Double) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array.Span).InternalToDoubleBE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleBE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(Double) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.Span.InternalToDoubleBE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleBE(this Span<byte> array)
+        {
+            if (sizeof(Double) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array).InternalToDoubleBE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleBE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(Double) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.InternalToDoubleBE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleBE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return ((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Double))).InternalToDoubleBE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Double ToDoubleBE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return pointer.GetSpan(sizeof(Double)).InternalToDoubleBE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToDecimalBE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalBE(this byte[] array, Int32 startIndex = 0)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (sizeof(Decimal) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+            checked
+            {
+                if (startIndex + sizeof(Decimal) > array.Length)
+                    throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+
+            return array.InternalToDecimalBE(startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalBE(this Memory<byte> array)
+        {
+            if (sizeof(Decimal) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array.Span).InternalToDecimalBE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalBE(this ReadOnlyMemory<byte> array)
+        {
+            if (sizeof(Decimal) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.Span.InternalToDecimalBE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalBE(this Span<byte> array)
+        {
+            if (sizeof(Decimal) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return ((ReadOnlySpan<byte>)array).InternalToDecimalBE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalBE(this ReadOnlySpan<byte> array)
+        {
+            if (sizeof(Decimal) > array.Length)
+                throw new ArgumentException("Too short array", nameof(array));
+
+            return array.InternalToDecimalBE();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalBE(this ArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return ((ReadOnlySpan<byte>)pointer.GetSpan(sizeof(Decimal))).InternalToDecimalBE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Decimal ToDecimalBE(this ReadOnlyArrayPointer<byte> pointer)
+        {
+            try
+            {
+                return pointer.GetSpan(sizeof(Decimal)).InternalToDecimalBE();
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new ArgumentOutOfRangeException($"Illegal {nameof(pointer)} value", ex);
+            }
+        }
+
+        #endregion
+
+        #region ToFriendlyString
+
+        public static string ToFriendlyString(this byte[] value, Int32 startIndex = 0)
+        {
+            if (value is null)
+                throw new ArgumentNullException(nameof(value));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (startIndex > value.Length)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+
+            return value.AsSpan(startIndex).AsReadOnly().ToFriendlyString();
+        }
+
+        public static string ToFriendlyString(this byte[] value, Int32 startIndex, Int32 length)
+        {
+            if (value is null)
+                throw new ArgumentNullException(nameof(value));
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (startIndex > value.Length)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
             if (length < 0)
-                throw new ArgumentException();
-            if (startIndex + length > array.Length)
-                throw new IndexOutOfRangeException();
+                throw new ArgumentOutOfRangeException(nameof(length));
+            checked
+            {
+                if (startIndex + length > value.Length)
+                    throw new ArgumentException($"The specified range ({nameof(startIndex)} and {nameof(length)}) is not within the {nameof(value)}.");
+            }
 
+            return value.AsSpan(startIndex, length).AsReadOnly().ToFriendlyString();
+        }
+
+        public static string ToFriendlyString(this Memory<byte> value) =>
+            ((ReadOnlySpan<byte>)value.Span).ToFriendlyString();
+
+        public static string ToFriendlyString(this ReadOnlyMemory<byte> value) =>
+            value.Span.ToFriendlyString();
+
+        public static string ToFriendlyString(this Span<byte> value) =>
+            ((ReadOnlySpan<byte>)value).ToFriendlyString();
+
+        public static string ToFriendlyString(this ReadOnlySpan<byte> array)
+        {
             var sb = new StringBuilder();
             var isFirst = true;
-            for (var index = 0; index < length; ++index)
+            for (var index = 0; index < array.Length; ++index)
             {
-                if (isFirst == false)
-                    sb.Append("-");
-                sb.Append(array[startIndex + index].ToString("x2"));
+                if (!isFirst)
+                    sb.Append('-');
+                sb.Append(array[index].ToString("x2"));
                 isFirst = false;
             }
             return sb.ToString();
         }
 
-        public static string ToFriendlyString(this byte[] array) => array.AsReadOnly().ToFriendlyString();
-        public static string ToFriendlyString(this byte[] array, int startIndex) => array.AsReadOnly().ToFriendlyString(startIndex);
-        public static string ToFriendlyString(this byte[] array, int startIndex, int length) => array.AsReadOnly().ToFriendlyString(startIndex, length);
-        public static Encoding GuessWhichEncoding(this byte[] bytes) => bytes.AsReadOnly().GuessWhichEncoding();
+        #endregion
 
-        public static Encoding GuessWhichEncoding(this IReadOnlyArray<byte> bytes)
+        #region GuessWhichEncoding
+
+        public static Encoding? GuessWhichEncoding(this byte[] bytes)
+        {
+            if (bytes is null)
+                throw new ArgumentNullException(nameof(bytes));
+
+            return ((ReadOnlySpan<byte>)bytes).GuessWhichEncoding();
+        }
+
+        public static Encoding? GuessWhichEncoding(this Memory<byte> bytes)
+        {
+            return ((ReadOnlySpan<byte>)bytes.Span).GuessWhichEncoding();
+        }
+
+        public static Encoding? GuessWhichEncoding(this ReadOnlyMemory<byte> bytes)
+        {
+            return bytes.Span.GuessWhichEncoding();
+        }
+
+        public static Encoding? GuessWhichEncoding(this Span<byte> bytes)
+        {
+            return ((ReadOnlySpan<byte>)bytes).GuessWhichEncoding();
+        }
+
+        public static Encoding? GuessWhichEncoding(this ReadOnlySpan<byte> bytes)
         {
             var len = bytes.Length;
 
             // UTF-16かどうかのチェック
             var isBinary = false;
-            for (int i = 0; i < len; i++)
+            for (Int32 i = 0; i < len; i++)
             {
                 var b1 = bytes[i];
                 if (b1 <= 0x06 || b1.IsAnyOf((byte)0x7f, (byte)0xff))
@@ -936,10 +2048,10 @@ namespace Utility
 
             // ASCIIかどうかのチェック
             var notJapanese = true;
-            for (int i = 0; i < len; i++)
+            for (Int32 i = 0; i < len; i++)
             {
                 var b1 = bytes[i];
-                if (b1 == _byteEscape || b1 >= 0x80)
+                if (b1 == _BYTE_ESCAPE_CHAR || b1 >= 0x80)
                 {
                     notJapanese = false;
                     break;
@@ -949,35 +2061,35 @@ namespace Utility
                 return Encoding.ASCII;
 
             // JISコードかどうかのチェック
-            for (int i = 0; i < len - 2; i++)
+            for (Int32 i = 0; i < len - 2; i++)
             {
                 var b1 = bytes[i];
                 var b2 = bytes[i + 1];
                 var b3 = bytes[i + 2];
 
-                if (b1 == _byteEscape)
+                if (b1 == _BYTE_ESCAPE_CHAR)
                 {
-                    if (b2 == _byteDollar && b3 == _byteAtMark)
+                    if (b2 == _BYTE_DOLLAR_CHAR && b3 == _BYTE_AT_MARK_CHAR)
                         return Encoding.GetEncoding("iso-2022-jp");//JIS_0208 1978
-                    else if (b2 == _byteDollar && b3 == _byteB)
+                    else if (b2 == _BYTE_DOLLAR_CHAR && b3 == _BYTE_B_CHAR)
                         return Encoding.GetEncoding("iso-2022-jp");//JIS_0208 1983
-                    else if (b2 == _byteOpenParenthesis && b3.IsAnyOf(_byteB, _byteJ))
+                    else if (b2 == _BYTE_OPEN_PARENTHESIS_CHAR && b3.IsAnyOf(_BYTE_B_CHAR, _BYTE_J_CHAR))
                         return Encoding.GetEncoding("iso-2022-jp");//JIS_ASC
-                    else if (b2 == _byteOpenParenthesis && b3 == _byteI)
+                    else if (b2 == _BYTE_OPEN_PARENTHESIS_CHAR && b3 == _BYTE_I_CHAR)
                         return Encoding.GetEncoding("iso-2022-jp");//JIS_KANA
                     if (i < len - 3)
                     {
                         var b4 = bytes[i + 3];
-                        if (b2 == _byteDollar &&
-                            b3 == _byteOpenParenthesis &&
-                            b4 == _byteD)
+                        if (b2 == _BYTE_DOLLAR_CHAR &&
+                            b3 == _BYTE_OPEN_PARENTHESIS_CHAR &&
+                            b4 == _BYTE_D_CHAR)
                             return Encoding.GetEncoding("iso-2022-jp");//JIS_0212
                         if (i < len - 5 &&
-                            b2 == _byteAmpersand &&
-                            b3 == _byteAtMark &&
-                            b4 == _byteEscape &&
-                            bytes[i + 4] == _byteDollar &&
-                            bytes[i + 5] == _byteB)
+                            b2 == _BYTE_AMPERSAND_CHAR &&
+                            b3 == _BYTE_AT_MARK_CHAR &&
+                            b4 == _BYTE_ESCAPE_CHAR &&
+                            bytes[i + 4] == _BYTE_DOLLAR_CHAR &&
+                            bytes[i + 5] == _BYTE_B_CHAR)
                             return Encoding.GetEncoding("iso-2022-jp");//JIS_0208 1990
                     }
                 }
@@ -987,7 +2099,7 @@ namespace Utility
             var count_shift_jis = 0;
             var count_euc = 0;
             var count_utf8 = 0;
-            for (int i = 0; i < len - 1; i++)
+            for (Int32 i = 0; i < len - 1; i++)
             {
                 var b1 = bytes[i];
                 var b2 = bytes[i + 1];
@@ -996,10 +2108,10 @@ namespace Utility
                 {
                     //SJIS_C
                     count_shift_jis += 2;
-                    i++;
+                    ++i;
                 }
             }
-            for (int i = 0; i < len - 1; i++)
+            for (Int32 i = 0; i < len - 1; i++)
             {
                 var b1 = bytes[i];
                 var b2 = bytes[i + 1];
@@ -1009,7 +2121,7 @@ namespace Utility
                     //EUC_C
                     //EUC_KANA
                     count_euc += 2;
-                    i++;
+                    ++i;
                 }
                 else if (i < len - 2)
                 {
@@ -1023,7 +2135,7 @@ namespace Utility
                     }
                 }
             }
-            for (int i = 0; i < len - 1; i++)
+            for (Int32 i = 0; i < len - 1; i++)
             {
                 var b1 = bytes[i];
                 var b2 = bytes[i + 1];
@@ -1032,7 +2144,7 @@ namespace Utility
                 {
                     //UTF8
                     count_utf8 += 2;
-                    i++;
+                    ++i;
                 }
                 else if (i < len - 2)
                 {
@@ -1056,102 +2168,164 @@ namespace Utility
                 return null;
         }
 
+        #endregion
+
+        internal static ICrcCalculationState<UInt32, UInt64> CreateCrc32CalculationState() => _commonCrc32.CreateSession();
+
+        internal static ICrcCalculationState<UInt32, UInt64> CreateCrc24CalculationState() => _crc24ForRadix64.CreateSession();
+
+        private static string InternalEncodeBase64(IEnumerable<byte> source, Base64EncodingType encodingType, IProgress<UInt64>? progress)
+        {
+            switch (encodingType)
+            {
+                case Base64EncodingType.Rfc4648Encoding: // Default
+                case Base64EncodingType.Rfc2045Encoding: // for MIME
+                    return
+                        string.Join(
+                            "\r\n",
+                            source.GetBase64EncodedSequence()
+                            .ChunkAsString(64));
+                case Base64EncodingType.Rfc4880Encoding: // for OpenPGP Radix-64
+                    var crc24ValueHolder = new ValueHolder<(UInt32 Crc, UInt64 Length)>();
+                    var bodyPart =
+                        string.Join(
+                            "\r\n",
+                            source
+                            .GetSequenceWithCrc24(crc24ValueHolder, progress)
+                            .GetBase64EncodedSequence()
+                            .ChunkAsString(76));
+                    var crc24 = crc24ValueHolder.Value.Crc;
+                    var crcPart =
+                        new string(
+                            new[]
+                            {
+                                (byte)(crc24 >> 16),
+                                (byte)(crc24 >> 8),
+                                (byte)(crc24 >> 0),
+                            }
+                            .GetBase64EncodedSequence()
+                            .ToArray());
+                    return bodyPart + "\r\n=" + crcPart;
+                default:
+                    throw new ArgumentException($"Unexpected {nameof(Base64EncodingType)} value", nameof(encodingType));
+            }
+        }
+
+        private static IEnumerable<byte> InternalDecodeBase64(string source, Base64EncodingType encodingType, IProgress<UInt64>? progress)
+        {
+            switch (encodingType)
+            {
+                case Base64EncodingType.Rfc4648Encoding: // Default
+                    return source.GetBase64DecodedSequence(false, false);
+                case Base64EncodingType.Rfc2045Encoding: // for MIME
+                    return source.GetBase64DecodedSequence(true, true);
+                case Base64EncodingType.Rfc4880Encoding: // for OpenPGP Radix-64
+                    var indexOfLastEqualSign = source.LastIndexOf('=');
+                    var bodyPart = indexOfLastEqualSign >= 0 ? source[..indexOfLastEqualSign] : source;
+                    var crcPart = indexOfLastEqualSign >= 0 ? source[(indexOfLastEqualSign + 1)..] : null;
+                    var data = bodyPart.GetBase64DecodedSequence(true, false).ToArray();
+                    if (crcPart is not null)
+                    {
+                        var crcByteArray = crcPart.GetBase64DecodedSequence(true, false).ToArray();
+                        if (crcByteArray.Length != 3)
+                            throw new FormatException();
+                        var desiredCrc = ((UInt32)crcByteArray[0] << 16) | ((UInt32)crcByteArray[1] << 8) | ((UInt32)crcByteArray[2] << 0);
+                        var actualCrc = data.CalculateCrc24(progress).Crc;
+                        if (actualCrc != desiredCrc)
+                            throw new FormatException();
+                    }
+                    return data;
+                default:
+                    throw new ArgumentException($"Unexpected {nameof(Base64EncodingType)} value", nameof(encodingType));
+            }
+        }
+
         private static IEnumerable<char> InternalGetBase64EncodedSequence(IEnumerable<byte> source, char char62, char char63)
         {
-            return
-                source
-                .ToChunkOfReadOnlyArray(3)
-                .SelectMany(bytes =>
+            var bytes = new byte[3];
+            var index = 0;
+            foreach (var data in source)
+            {
+                bytes[index++] = data;
+                if (index >= bytes.Length)
                 {
-                    switch (bytes.Length)
-                    {
-                        case 1:
-                            return
-                                new[]
-                                {
-                                    ToBase64Character(bytes[0] >> 2, char62, char63),
-                                    ToBase64Character((bytes[0] << 4) & 0x3f, char62, char63),
-                                    '=',
-                                    '=',
-                                };
-                        case 2:
-                            return
-                                new[]
-                                {
-                                    ToBase64Character(bytes[0] >> 2, char62, char63),
-                                    ToBase64Character(((bytes[0] << 4) | ( bytes[1] >> 4)) & 0x3f, char62, char63),
-                                    ToBase64Character((bytes[1] << 2) & 0x3f, char62, char63),
-                                     '=',
-                                };
-                        case 3:
-                            return
-                                new[]
-                                {
-                                    ToBase64Character(bytes[0] >> 2, char62, char63),
-                                    ToBase64Character(((bytes[0] << 4) | ( bytes[1] >> 4)) & 0x3f, char62, char63),
-                                    ToBase64Character(((bytes[1] << 2) | ( bytes[2] >> 6)) & 0x3f, char62, char63),
-                                    ToBase64Character(bytes[2]& 0x3f, char62, char63),
-                                };
-                        default:
-                            throw new Exception();
-                    }
-                });
+                    yield return ToBase64Character(bytes[0] >> 2, char62, char63);
+                    yield return ToBase64Character(((bytes[0] << 4) | (bytes[1] >> 4)) & 0x3f, char62, char63);
+                    yield return ToBase64Character(((bytes[1] << 2) | (bytes[2] >> 6)) & 0x3f, char62, char63);
+                    yield return ToBase64Character(bytes[2] & 0x3f, char62, char63);
+                    index = 0;
+                }
+            }
+            switch (index)
+            {
+                case 0:
+                    break;
+                case 1:
+                    yield return ToBase64Character(bytes[0] >> 2, char62, char63);
+                    yield return ToBase64Character((bytes[0] << 4) & 0x3f, char62, char63);
+                    yield return '=';
+                    yield return '=';
+                    break;
+                case 2:
+                    yield return ToBase64Character(bytes[0] >> 2, char62, char63);
+                    yield return ToBase64Character(((bytes[0] << 4) | (bytes[1] >> 4)) & 0x3f, char62, char63);
+                    yield return ToBase64Character((bytes[1] << 2) & 0x3f, char62, char63);
+                    yield return '=';
+                    break;
+                default:
+                    throw new InternalLogicalErrorException();
+            }
         }
 
         private static IEnumerable<byte> InternalGetBase64DecodedSequence(IEnumerable<char> source, bool ignoreSpace, bool ignoreInvalidCharacter, char char62, char char63)
         {
-            return
+            var charSource =
                 source
                 .Where(c =>
                 {
                     if (c.IsAnyOf('\r', '\n'))
                         return false;
                     else if (char.IsWhiteSpace(c))
-                        return ignoreSpace ? true : throw new FormatException();
+                        return ignoreSpace ? false : throw new FormatException();
                     else
                         return true;
                 })
                 .TakeWhile(c => c != '=')
                 .Select(c => FromBase64Character(c, char62, char63))
-                .Where(n =>
-                    n >= 0
-                    ? true
-                    : ignoreInvalidCharacter
-                        ? false
-                        : throw new FormatException())
-                .ToChunkOfReadOnlyArray(4)
-                .SelectMany(bitArray =>
+                .Where(n => n >= 0 || (ignoreInvalidCharacter ? false : throw new FormatException()));
+            var buffer = new Int32[4];
+            var index = 0;
+            foreach (var data in charSource)
+            {
+                buffer[index++] = data;
+                if (index >= buffer.Length)
                 {
-                    switch (bitArray.Length)
-                    {
-                        case 2:
-                            return new[]
-                            {
-                                (Byte)((bitArray[0] << 2) | (bitArray[1] >> 4)),
-                            };
-                        case 3:
-                            return new[]
-                            {
-                                (Byte)((bitArray[0] << 2) | (bitArray[1] >> 4)),
-                                (Byte)((bitArray[1] << 4) | (bitArray[2] >> 2)),
-                            };
-                        case 4:
-                            return new[]
-                            {
-                                (Byte)((bitArray[0] << 2) | (bitArray[1] >> 4)),
-                                (Byte)((bitArray[1] << 4) | (bitArray[2] >> 2)),
-                                (Byte)((bitArray[2] << 6) | (bitArray[3] >> 0)),
-                            };
-                        default:
-                            throw new FormatException();
-                    }
-                });
+                    yield return (Byte)((buffer[0] << 2) | (buffer[1] >> 4));
+                    yield return (Byte)((buffer[1] << 4) | (buffer[2] >> 2));
+                    yield return (Byte)((buffer[2] << 6) | (buffer[3] >> 0));
+                }
+            }
+            switch (index)
+            {
+                case 1:
+                    break;
+                case 2:
+                    yield return (Byte)((buffer[0] << 2) | (buffer[1] >> 4));
+                    break;
+                case 3:
+                    yield return (Byte)((buffer[0] << 2) | (buffer[1] >> 4));
+                    yield return (Byte)((buffer[1] << 4) | (buffer[2] >> 2));
+                    break;
+                default:
+                    throw new FormatException();
+            }
         }
 
-        private static char ToBase64Character(int n, char char62, char char63)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static char ToBase64Character(Int32 n, char char62, char char63)
         {
             if (n < 0)
-                throw new Exception();
+                throw new InternalLogicalErrorException();
             else if (n < 26)
                 return (char)('A' + n);
             else if (n < 52)
@@ -1163,10 +2337,11 @@ namespace Utility
             else if (n == 63)
                 return char63;
             else
-                throw new Exception();
+                throw new InternalLogicalErrorException();
         }
 
-        private static int FromBase64Character(char c, char char62, char char63)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Int32 FromBase64Character(char c, char char62, char char63)
         {
             if (c.IsBetween('A', 'Z'))
                 return c - 'A';
@@ -1181,5 +2356,450 @@ namespace Utility
             else
                 return -1;
         }
+
+        #region InternalToUInt16LE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static UInt16 InternalToUInt16LE(this byte[] array, Int32 startIndex)
+        {
+            return
+                (UInt16)(
+                    (array[startIndex + 0] << 0)
+                    | (array[startIndex + 1] << 8)
+                );
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static UInt16 InternalToUInt16LE(this ReadOnlySpan<byte> array)
+        {
+            return
+                (UInt16)(
+                    (array[0] << 0)
+                    | (array[1] << 8)
+                );
+        }
+
+        #endregion
+
+        #region InternalToUInt32LE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static UInt32 InternalToUInt32LE(this byte[] array, Int32 startIndex)
+        {
+            return
+                ((UInt32)array[startIndex + 0] << 00)
+                | ((UInt32)array[startIndex + 1] << 08)
+                | ((UInt32)array[startIndex + 2] << 16)
+                | ((UInt32)array[startIndex + 3] << 24);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static UInt32 InternalToUInt32LE(this ReadOnlySpan<byte> array)
+        {
+            return
+                ((UInt32)array[0] << 00)
+                | ((UInt32)array[1] << 08)
+                | ((UInt32)array[2] << 16)
+                | ((UInt32)array[3] << 24);
+        }
+
+        #endregion
+
+        #region InternalToUInt64LE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static UInt64 InternalToUInt64LE(this byte[] array, Int32 startIndex)
+        {
+            return
+                ((UInt64)array[startIndex + 0] << 0)
+                | ((UInt64)array[startIndex + 1] << 8)
+                | ((UInt64)array[startIndex + 2] << 16)
+                | ((UInt64)array[startIndex + 3] << 24)
+                | ((UInt64)array[startIndex + 4] << 32)
+                | ((UInt64)array[startIndex + 5] << 40)
+                | ((UInt64)array[startIndex + 6] << 48)
+                | ((UInt64)array[startIndex + 7] << 56);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static UInt64 InternalToUInt64LE(this ReadOnlySpan<byte> array)
+        {
+            return
+                ((UInt64)array[0] << 0)
+                | ((UInt64)array[1] << 8)
+                | ((UInt64)array[2] << 16)
+                | ((UInt64)array[3] << 24)
+                | ((UInt64)array[4] << 32)
+                | ((UInt64)array[5] << 40)
+                | ((UInt64)array[6] << 48)
+                | ((UInt64)array[7] << 56);
+        }
+
+        #endregion
+
+        #region InternalToSingleLE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Single InternalToSingleLE(this byte[] array, Int32 startIndex)
+        {
+            if (BitConverter.IsLittleEndian)
+                return BitConverter.ToSingle(array, startIndex);
+            else
+            {
+                Span<byte> value = stackalloc[]
+                {
+                    array[startIndex + 3],
+                    array[startIndex + 2],
+                    array[startIndex + 1],
+                    array[startIndex + 0],
+                };
+                return BitConverter.ToSingle(value);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Single InternalToSingleLE(this ReadOnlySpan<byte> array)
+        {
+            if (BitConverter.IsLittleEndian)
+                return BitConverter.ToSingle(array);
+            else
+            {
+                Span<byte> value = stackalloc[]
+                {
+                    array[3],
+                    array[2],
+                    array[1],
+                    array[0],
+                };
+                return BitConverter.ToSingle(value);
+            }
+        }
+
+        #endregion
+
+        #region InternalToDoubleLE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Double InternalToDoubleLE(this byte[] array, Int32 startIndex)
+        {
+            if (BitConverter.IsLittleEndian)
+                return BitConverter.ToDouble(array, startIndex);
+            else
+            {
+                ReadOnlySpan<byte> value = stackalloc[]
+                {
+                    array[startIndex + 7],
+                    array[startIndex + 6],
+                    array[startIndex + 5],
+                    array[startIndex + 4],
+                    array[startIndex + 3],
+                    array[startIndex + 2],
+                    array[startIndex + 1],
+                    array[startIndex + 0],
+                };
+                return BitConverter.ToDouble(value);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Double InternalToDoubleLE(this ReadOnlySpan<byte> array)
+        {
+            if (BitConverter.IsLittleEndian)
+                return BitConverter.ToDouble(array);
+            else
+            {
+                ReadOnlySpan<byte> value = stackalloc[]
+                {
+                    array[7],
+                    array[6],
+                    array[5],
+                    array[4],
+                    array[3],
+                    array[2],
+                    array[1],
+                    array[0],
+                };
+                return BitConverter.ToDouble(value);
+            }
+        }
+
+        #endregion
+
+        #region InternalToDecimalLE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Decimal InternalToDecimalLE(this byte[] array, Int32 startIndex)
+        {
+            ReadOnlySpan<Int32> buffer = stackalloc Int32[]
+            {
+                array.ToInt32LE(startIndex + sizeof(Int32) * 0),
+                array.ToInt32LE(startIndex + sizeof(Int32) * 1),
+                array.ToInt32LE(startIndex + sizeof(Int32) * 2),
+                array.ToInt32LE(startIndex + sizeof(Int32) * 3),
+            };
+            return new decimal(buffer);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Decimal InternalToDecimalLE(this ReadOnlySpan<byte> array)
+        {
+            Span<Int32> buffer = stackalloc Int32[]
+            {
+                array[(sizeof(Int32) * 0)..(sizeof(Int32) * 1)].ToInt32LE(),
+                array[(sizeof(Int32) * 1)..(sizeof(Int32) * 2)].ToInt32LE(),
+                array[(sizeof(Int32) * 2)..(sizeof(Int32) * 3)].ToInt32LE(),
+                array[(sizeof(Int32) * 3)..(sizeof(Int32) * 4)].ToInt32LE(),
+            };
+            return new decimal(buffer);
+        }
+
+        #endregion
+
+        #region InternalToUInt16BE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static UInt16 InternalToUInt16BE(this byte[] array, Int32 startIndex)
+        {
+            return
+                (UInt16)(
+                    (array[startIndex + 0] << 8)
+                    | (array[startIndex + 1] << 0)
+                );
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static UInt16 InternalToUInt16BE(this ReadOnlySpan<byte> array)
+        {
+            return
+                (UInt16)(
+                    (array[0] << 8)
+                    | (array[1] << 0)
+                );
+        }
+
+        #endregion
+
+        #region InternalToUInt32BE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static UInt32 InternalToUInt32BE(this byte[] array, Int32 startIndex)
+        {
+            return
+                ((UInt32)array[startIndex + 0] << 24)
+                | ((UInt32)array[startIndex + 1] << 16)
+                | ((UInt32)array[startIndex + 2] << 08)
+                | ((UInt32)array[startIndex + 3] << 00);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static UInt32 InternalToUInt32BE(this ReadOnlySpan<byte> array)
+        {
+            return
+                ((UInt32)array[0] << 24)
+                | ((UInt32)array[1] << 16)
+                | ((UInt32)array[2] << 08)
+                | ((UInt32)array[3] << 00);
+        }
+
+        #endregion
+
+        #region InternalToUInt64BE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static UInt64 InternalToUInt64BE(this byte[] array, Int32 startIndex)
+        {
+            return
+                ((UInt64)array[startIndex + 0] << 56)
+                | ((UInt64)array[startIndex + 1] << 48)
+                | ((UInt64)array[startIndex + 2] << 40)
+                | ((UInt64)array[startIndex + 3] << 32)
+                | ((UInt64)array[startIndex + 4] << 24)
+                | ((UInt64)array[startIndex + 5] << 16)
+                | ((UInt64)array[startIndex + 6] << 08)
+                | ((UInt64)array[startIndex + 7] << 00);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static UInt64 InternalToUInt64BE(this ReadOnlySpan<byte> array)
+        {
+            return
+                ((UInt64)array[0] << 56)
+                | ((UInt64)array[1] << 48)
+                | ((UInt64)array[2] << 40)
+                | ((UInt64)array[3] << 32)
+                | ((UInt64)array[4] << 24)
+                | ((UInt64)array[5] << 16)
+                | ((UInt64)array[6] << 08)
+                | ((UInt64)array[7] << 00);
+        }
+
+        #endregion
+
+        #region InternalToSingleBE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Single InternalToSingleBE(this byte[] array, Int32 startIndex)
+        {
+            if (BitConverter.IsLittleEndian)
+            {
+                ReadOnlySpan<byte> value =
+                    stackalloc[]
+                    {
+                    array[startIndex + 3],
+                    array[startIndex + 2],
+                    array[startIndex + 1],
+                    array[startIndex + 0],
+                };
+                return BitConverter.ToSingle(value);
+            }
+            else
+                return BitConverter.ToSingle(array, startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Single InternalToSingleBE(this ReadOnlySpan<byte> array)
+        {
+            if (BitConverter.IsLittleEndian)
+            {
+                ReadOnlySpan<byte> value =
+                    stackalloc[]
+                    {
+                    array[3],
+                    array[2],
+                    array[1],
+                    array[0],
+                };
+                return BitConverter.ToSingle(value);
+            }
+            else
+                return BitConverter.ToSingle(array);
+        }
+
+        #endregion
+
+        #region InternalToDoubleBE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Double InternalToDoubleBE(this byte[] array, Int32 startIndex)
+        {
+            if (BitConverter.IsLittleEndian)
+            {
+                ReadOnlySpan<byte> value =
+                    new[]
+                    {
+                        array[startIndex + 7],
+                        array[startIndex + 6],
+                        array[startIndex + 5],
+                        array[startIndex + 4],
+                        array[startIndex + 3],
+                        array[startIndex + 2],
+                        array[startIndex + 1],
+                        array[startIndex + 0],
+                    };
+                return BitConverter.ToDouble(value);
+            }
+            else
+                return BitConverter.ToDouble(array, startIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Double InternalToDoubleBE(this ReadOnlySpan<byte> array)
+        {
+            if (BitConverter.IsLittleEndian)
+            {
+                ReadOnlySpan<byte> value =
+                    new[]
+                    {
+                        array[7],
+                        array[6],
+                        array[5],
+                        array[4],
+                        array[3],
+                        array[2],
+                        array[1],
+                        array[0],
+                    };
+                return BitConverter.ToDouble(value);
+            }
+            else
+                return BitConverter.ToDouble(array);
+        }
+
+        #endregion
+
+        #region InternalToDecimalBE
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Decimal InternalToDecimalBE(this byte[] array, Int32 startIndex)
+        {
+            ReadOnlySpan<Int32> buffer = stackalloc Int32[]
+            {
+                array.ToInt32BE(startIndex + sizeof(Int32) * 3),
+                array.ToInt32BE(startIndex + sizeof(Int32) * 2),
+                array.ToInt32BE(startIndex + sizeof(Int32) * 1),
+                array.ToInt32BE(startIndex + sizeof(Int32) * 0),
+            };
+            return new decimal(buffer);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Decimal InternalToDecimalBE(this ReadOnlySpan<byte> array)
+        {
+            Span<Int32> buffer = stackalloc Int32[]
+            {
+                array[(sizeof(Int32) * 3)..(sizeof(Int32) * 4)].ToInt32BE(),
+                array[(sizeof(Int32) * 2)..(sizeof(Int32) * 3)].ToInt32BE(),
+                array[(sizeof(Int32) * 1)..(sizeof(Int32) * 2)].ToInt32BE(),
+                array[(sizeof(Int32) * 0)..(sizeof(Int32) * 1)].ToInt32BE(),
+            };
+            return new decimal(buffer);
+        }
+
+        #endregion
+
+#if false
+        //
+        // 32bit の場合：
+        //   32バイト未満の場合=>パターン2
+        //   32バイト以上の場合=>パターン1
+        //
+        // 64bitの場合
+        //   32バイト未満の場合=>パターン2
+        //   32バイト以上の場合=>パターン1
+        //
+        public static unsafe bool ArrayEqualPattern1(Byte* pointer1, Byte* pointer2, Int32 count)
+        {
+            if (pointer1 == pointer2)
+                return true;
+            return
+                Environment.Is64BitProcess
+                ? ArrayEqual64(pointer1, pointer2, count)
+                : ArrayEqual32(pointer1, pointer2, count);
+        }
+
+        public static unsafe bool ArrayEqualPattern2(Byte* pointer1, Byte* pointer2, Int32 count)
+        {
+            return
+                pointer1 == pointer2
+                || ArrayEqualByte(pointer1, pointer2, count);
+        }
+
+        public static unsafe bool ArrayEqualPattern3(Byte* pointer1, Byte* pointer2, Int32 count)
+        {
+            if (pointer1 == pointer2)
+                return true;
+            return
+                Environment.Is64BitProcess
+                ? ArrayEqual64_2(pointer1, pointer2, count)
+                : ArrayEqual32_2(pointer1, pointer2, count);
+        }
+
+        public static unsafe bool ArrayEqualPattern4(Byte* pointer1, Byte* pointer2, Int32 count)
+        {
+            return
+                pointer1 == pointer2
+                || ArrayEqualByte_2(pointer1, pointer2, count);
+        }
+#endif
     }
 }

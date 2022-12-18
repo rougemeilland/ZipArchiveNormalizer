@@ -10,16 +10,17 @@ namespace ZipUtility.ZipFileHeader
     class ZipEntryCentralDirectoryHeader
         : ZipEntryInternalHeader<Zip64ExtendedInformationExtraFieldForCentraHeader>
     {
-        private static byte[] _centralHeaderSignature;
+        private static readonly ReadOnlyMemory<byte> _centralHeaderSignature;
+
         private ZipStreamPosition _localFileHeaderPosition;
 
         static ZipEntryCentralDirectoryHeader()
         {
-            _centralHeaderSignature = new byte[] { 0x50, 0x4b, 0x01, 0x02 };
+            _centralHeaderSignature = new byte[] { 0x50, 0x4b, 0x01, 0x02 }.AsReadOnly();
         }
 
-        private ZipEntryCentralDirectoryHeader(IZipInputStream zipInputStream, UInt64 index, ZipEntryHostSystem hostSystem, ZipEntryGeneralPurposeBitFlag generalPurposeBitFlag, ZipEntryCompressionMethodId compressionMethod, DateTime? dosDateTime, UInt32 crc, UInt32 packedSizeValueInCentralDirectory, UInt32 sizeValueInCentralDirectory, UInt16 diskStartNumberValueInCentralDirectory, UInt32 externalFileAttributes, UInt32 localFileHeaderOffsetValueInCentralDirectory, IReadOnlyArray<byte> fullNameBytes, IReadOnlyArray<byte> commentBytes, IReadOnlyArray<byte> extraFieldDataSource)
-            : base(generalPurposeBitFlag, compressionMethod, dosDateTime, fullNameBytes, commentBytes, new ExtraFieldStorage(ZipEntryHeaderType.CentralDirectoryHeader, extraFieldDataSource))
+        private ZipEntryCentralDirectoryHeader(IZipInputStream zipInputStream, UInt64 index, ZipEntryHostSystem hostSystem, ZipEntryGeneralPurposeBitFlag generalPurposeBitFlag, ZipEntryCompressionMethodId compressionMethod, DateTime? dosDateTime, UInt32 crc, UInt32 packedSizeValueInCentralDirectory, UInt32 sizeValueInCentralDirectory, UInt16 diskStartNumberValueInCentralDirectory, UInt32 externalFileAttributes, UInt32 localFileHeaderOffsetValueInCentralDirectory, ReadOnlyMemory<byte> fullNameBytes, ReadOnlyMemory<byte> commentBytes, ExtraFieldStorage extraFields)
+            : base(generalPurposeBitFlag, compressionMethod, dosDateTime, fullNameBytes, commentBytes, extraFields, extraFields.GetData<Zip64ExtendedInformationExtraFieldForCentraHeader>())
         {
             Index = index;
             HostSystem = hostSystem;
@@ -29,8 +30,6 @@ namespace ZipUtility.ZipFileHeader
             DiskStartNumberInHeader = diskStartNumberValueInCentralDirectory;
             ExternalFileAttributes = externalFileAttributes;
             RelativeHeaderOffsetInHeader = localFileHeaderOffsetValueInCentralDirectory;
-            
-            ApplyZip64ExtraField(ExtraFields.GetData<Zip64ExtendedInformationExtraFieldForCentraHeader>());
 
             _localFileHeaderPosition = zipInputStream.GetPosition(Zip64ExtraField.DiskStartNumber, Zip64ExtraField.RelativeHeaderOffset);
             IsDirectiry = CheckIfEntryNameIsDirectoryName();
@@ -49,9 +48,7 @@ namespace ZipUtility.ZipFileHeader
 
             set
             {
-                var rawPosition = value as IZipStreamPositionValue;
-                if (rawPosition == null)
-                    throw new Exception();
+                var rawPosition = (IZipStreamPositionValue)value;
                 _localFileHeaderPosition = value;
                 Zip64ExtraField.DiskStartNumber = rawPosition.DiskNumber;
                 Zip64ExtraField.RelativeHeaderOffset = rawPosition.OffsetOnTheDisk;
@@ -79,28 +76,28 @@ namespace ZipUtility.ZipFileHeader
         {
             var minimumLengthOfHeader = 46;
             var minimumHeaderBytes = zipInputStream.ReadBytes(minimumLengthOfHeader);
-            var signature = minimumHeaderBytes.GetSequence(0, _centralHeaderSignature.Length);
-            if (!signature.SequenceEqual(_centralHeaderSignature))
+            var signature = minimumHeaderBytes[.._centralHeaderSignature.Length];
+            if (!signature.Span.SequenceEqual(_centralHeaderSignature.Span))
                 throw new BadZipFileFormatException("Not found central header in expected position");
-            var versionMadeBy = minimumHeaderBytes.ToUInt16LE(4);
+            var versionMadeBy = minimumHeaderBytes[4..].ToUInt16LE();
             var hostSystem = (ZipEntryHostSystem)(versionMadeBy >> 8);
-            var generalPurposeBitFlag = (ZipEntryGeneralPurposeBitFlag)minimumHeaderBytes.ToUInt16LE(8);
+            var generalPurposeBitFlag = (ZipEntryGeneralPurposeBitFlag)minimumHeaderBytes[8..].ToUInt16LE();
             if (generalPurposeBitFlag.HasEncryptionFlag())
                 throw new EncryptedZipFileNotSupportedException((generalPurposeBitFlag & (ZipEntryGeneralPurposeBitFlag.Encrypted | ZipEntryGeneralPurposeBitFlag.EncryptedCentralDirectory | ZipEntryGeneralPurposeBitFlag.StrongEncrypted)).ToString());
             if (generalPurposeBitFlag.HasFlag(ZipEntryGeneralPurposeBitFlag.CompressedPatchedData))
                 throw new NotSupportedSpecificationException("Not supported \"Compressed Patched Data\".");
-            var compressionMethod = (ZipEntryCompressionMethodId)minimumHeaderBytes.ToUInt16LE(10);
-            var dosTime = minimumHeaderBytes.ToUInt16LE(12);
-            var dosDate = minimumHeaderBytes.ToUInt16LE(14);
-            var crc = minimumHeaderBytes.ToUInt32LE(16);
-            var packedSize = minimumHeaderBytes.ToUInt32LE(20);
-            var size = minimumHeaderBytes.ToUInt32LE(24);
-            var fileNameLength = minimumHeaderBytes.ToUInt16LE(28);
-            var extraFieldLength = minimumHeaderBytes.ToUInt16LE(30);
-            var commentLength = minimumHeaderBytes.ToUInt16LE(32);
-            var diskStartNumber = minimumHeaderBytes.ToUInt16LE(34);
-            var externalFileAttribute = minimumHeaderBytes.ToUInt32LE(38);
-            var relativeLocalFileHeaderOffset = minimumHeaderBytes.ToUInt32LE(42);
+            var compressionMethod = (ZipEntryCompressionMethodId)minimumHeaderBytes[10..].ToUInt16LE();
+            var dosTime = minimumHeaderBytes[12..].ToUInt16LE();
+            var dosDate = minimumHeaderBytes[14..].ToUInt16LE();
+            var crc = minimumHeaderBytes[16..].ToUInt32LE();
+            var packedSize = minimumHeaderBytes[20..].ToUInt32LE();
+            var size = minimumHeaderBytes[24..].ToUInt32LE();
+            var fileNameLength = minimumHeaderBytes[28..].ToUInt16LE();
+            var extraFieldLength = minimumHeaderBytes[30..].ToUInt16LE();
+            var commentLength = minimumHeaderBytes[32..].ToUInt16LE();
+            var diskStartNumber = minimumHeaderBytes[34..].ToUInt16LE();
+            var externalFileAttribute = minimumHeaderBytes[38..].ToUInt32LE();
+            var relativeLocalFileHeaderOffset = minimumHeaderBytes[42..].ToUInt32LE();
 
             var fullNameBytes = zipInputStream.ReadBytes(fileNameLength);
             var extraDataSource = zipInputStream.ReadBytes(extraFieldLength);
@@ -109,7 +106,9 @@ namespace ZipUtility.ZipFileHeader
             var dosDateTime =
                 (dosDate == 0 && dosTime == 0)
                     ? (DateTime?)null
-                    :  new[] { dosDate, dosTime }.FromDosDateTimeToDateTime(DateTimeKind.Local).ToUniversalTime();
+                    : (dosDate, dosTime).FromDosDateTimeToDateTime(DateTimeKind.Local).ToUniversalTime();
+
+            var extraFields = new ExtraFieldStorage(ZipEntryHeaderType.CentralDirectoryHeader, extraDataSource);
 
             return
                 new ZipEntryCentralDirectoryHeader(
@@ -127,7 +126,7 @@ namespace ZipUtility.ZipFileHeader
                     relativeLocalFileHeaderOffset,
                     fullNameBytes,
                     commentBytes,
-                    extraDataSource);
+                    extraFields);
         }
 
         private bool CheckIfEntryNameIsDirectoryName()
@@ -148,33 +147,18 @@ namespace ZipUtility.ZipFileHeader
                 }
             }
 
-            switch (HostSystem)
-            {
-                case ZipEntryHostSystem.Amiga:
-                    switch (ExternalFileAttributes & 0x0c000000)
+            return
+                HostSystem switch
+                {
+                    ZipEntryHostSystem.Amiga => (ExternalFileAttributes & 0x0c000000U) switch
                     {
-                        case 0x08000000:
-                            return true;
-                        case 0x04000000:
-                        default:
-                            return false;
-                    }
-                case ZipEntryHostSystem.FAT:
-                case ZipEntryHostSystem.Windows_NTFS:
-                case ZipEntryHostSystem.OS2_HPFS:
-                case ZipEntryHostSystem.VFAT:
-                    return ((ExternalFileAttributes & 0x0010) != 0);
-                case ZipEntryHostSystem.UNIX:
-                    return ((ExternalFileAttributes & 0xf0000000) == 0x40000000);
-                case ZipEntryHostSystem.Atari_ST:
-                case ZipEntryHostSystem.Macintosh:
-                case ZipEntryHostSystem.OpenVMS:
-                case ZipEntryHostSystem.VM_CMS:
-                case ZipEntryHostSystem.AcornRisc:
-                case ZipEntryHostSystem.MVS:
-                default:
-                    return false;
-            }
+                        0x08000000 => true,
+                        _ => false,
+                    },
+                    ZipEntryHostSystem.FAT or ZipEntryHostSystem.Windows_NTFS or ZipEntryHostSystem.OS2_HPFS or ZipEntryHostSystem.VFAT => (ExternalFileAttributes & 0x0010U) != 0,
+                    ZipEntryHostSystem.UNIX => (ExternalFileAttributes & 0xf0000000U) == 0x40000000U,
+                    _ => false,
+                };
         }
     }
 }

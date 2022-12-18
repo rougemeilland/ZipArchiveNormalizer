@@ -9,11 +9,11 @@ namespace Utility
     public class FilePathNameComparer
         : IComparer<string>
     {
-        private static IReadOnlyCollection<Tuple<int, Regex>> _contentFileNamePatterns;
-        private static Regex _digitsPattern;
+        private static readonly IReadOnlyCollection<Tuple<Int32, Regex>> _contentFileNamePatterns;
+        private static readonly Regex _digitsPattern;
 
-        private CultureInfo _culture;
-        private FilePathNameComparerrOption _option;
+        private readonly CultureInfo? _culture;
+        private readonly FilePathNameComparerrOption _option;
 
         static FilePathNameComparer()
         {
@@ -23,7 +23,7 @@ namespace Utility
                 new Regex(@"^mimetype$", RegexOptions.Compiled | RegexOptions.CultureInvariant),
                 new Regex(@"^META-INF([\\/].*)?$", RegexOptions.Compiled | RegexOptions.CultureInvariant),
             }
-            .Select((pattern, index) => new Tuple<int, Regex>(index, pattern))
+            .Select((pattern, index) => new Tuple<Int32, Regex>(index, pattern))
             .ToReadOnlyCollection();
             _digitsPattern = new Regex(@"(?<digits>[0-9]+)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
         }
@@ -43,23 +43,23 @@ namespace Utility
         {
         }
 
-        public FilePathNameComparer(FilePathNameComparerrOption option, CultureInfo culture)
+        public FilePathNameComparer(FilePathNameComparerrOption option, CultureInfo? culture)
         {
             _option = option;
             _culture = culture;
         }
 
-        public int Compare(string x, string y)
+        public Int32 Compare(string? x, string? y)
         {
-            if (x == null)
-                return y == null ? 0 : -1;
-            else if (y == null)
+            if (x is null)
+                return y is null ? 0 : -1;
+            else if (y is null)
                 return 1;
             else if (_option.HasFlag(FilePathNameComparerrOption.ConsiderContentFile))
             {
-                var x_priority = _contentFileNamePatterns.Select(pattern => pattern.Item2.IsMatch(x) ? pattern.Item1 : -1).Where(value => value >= 0).Concat(new[] { int.MaxValue }).First();
-                var y_priority = _contentFileNamePatterns.Select(pattern => pattern.Item2.IsMatch(y) ? pattern.Item1 : -1).Where(value => value >= 0).Concat(new[] { int.MaxValue }).First();
-                int c;
+                var x_priority = _contentFileNamePatterns.Select(pattern => pattern.Item2.IsMatch(x) ? pattern.Item1 : -1).Where(value => value >= 0).Concat(new[] { Int32.MaxValue }).First();
+                var y_priority = _contentFileNamePatterns.Select(pattern => pattern.Item2.IsMatch(y) ? pattern.Item1 : -1).Where(value => value >= 0).Concat(new[] { Int32.MaxValue }).First();
+                Int32 c;
                 if ((c = x_priority.CompareTo(y_priority)) != 0)
                     return c;
             }
@@ -70,7 +70,7 @@ namespace Utility
                 return InternalCompareForSimpleString(x, y);
         }
 
-        private int InternalCompare(string x, string y)
+        private Int32 InternalCompare(string x, string y)
         {
             /*
              * InvariantCulture において(そして多分他のCultureでも)、ある文字列の比較結果とそれらの文字列の部分文字列の比較結果が異なるなど、
@@ -87,7 +87,7 @@ namespace Utility
             {
                 // x と y に出現する連続する数字(先頭の0を除く)の長さの最大値を求める
                 // ただし、0 の場合は 1 にする。
-                Func<Match, int> digitsSelecter = m => m.Groups["digits"].Value.TrimStart('0').Length;
+                static Int32 digitsSelecter(Match m) => m.Groups["digits"].Value.TrimStart('0').Length;
                 var maxDigitsLength =
                     _digitsPattern.Matches(x)
                     .Cast<Match>()
@@ -99,7 +99,7 @@ namespace Utility
                     .Concat(new[] { 1 })
                     .Max();
                 // x と y に出現する連続する数字を、'0'を先頭にパディングすることによって桁数がmaxDigitsLength桁になるように置換する。
-                Func<Match, string> replacer = s => s.Groups["digits"].Value.TrimStart('0').PadLeft(maxDigitsLength, '0');
+                string replacer(Match s) => s.Groups["digits"].Value.TrimStart('0').PadLeft(maxDigitsLength, '0');
                 x = _digitsPattern.Replace(x, m => replacer(m));
                 y = _digitsPattern.Replace(y, m => replacer(m));
             }
@@ -132,7 +132,7 @@ namespace Utility
             }
         }
 
-        private static CultureInfo GetCultureFromStringComparison(StringComparison comparisonMethod)
+        private static CultureInfo? GetCultureFromStringComparison(StringComparison comparisonMethod)
         {
             if (comparisonMethod.IsAnyOf(StringComparison.CurrentCulture, StringComparison.CurrentCultureIgnoreCase))
                 return CultureInfo.CurrentCulture;
@@ -142,16 +142,16 @@ namespace Utility
                 return null;
         }
 
-        private int InternalCompareForSimpleString(string x, string y)
+        private Int32 InternalCompareForSimpleString(string x, string y)
         {
 #if DEBUG
-            if (x == null)
+            if (x is null)
                 throw new Exception();
-            if (y == null)
+            if (y is null)
                 throw new Exception();
 #endif
             var ignoreCase = _option.HasFlag(FilePathNameComparerrOption.IgnoreCase);
-            if (_culture == null)
+            if (_culture is null)
                 return string.Compare(x, y, ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
             else
                 return string.Compare(x, y, ignoreCase, _culture);

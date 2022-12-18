@@ -1618,7 +1618,7 @@ Value     Size      Description
          
    Third-party Mappings:
           
-   4.6.4 -ZipIt Macintosh Extra Field (long) (0x2605):
+   4.6.4 -ZipIt Macintosh Extra Field (Int64) (0x2605):
 
       The following is the layout of the ZipIt extra block 
       for Macintosh. The local-header and central-header versions 
@@ -2095,9 +2095,9 @@ Value     Size      Description
 
         The first byte indicates 3 values in this table.  Decoding the
         bytes:
-                0x42 = 5 codes of 3 bits long
-                0x01 = 1 code  of 2 bits long
-                0x13 = 2 codes of 4 bits long
+                0x42 = 5 codes of 3 bits Int64
+                0x01 = 1 code  of 2 bits Int64
+                0x13 = 2 codes of 4 bits Int64
 
         This would generate the original bit length array of:
         (3, 3, 3, 3, 3, 2, 4, 4)

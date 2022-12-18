@@ -1,7 +1,7 @@
 ﻿using System;
-using System.Threading;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace Utility.FileWorker
 {
@@ -11,7 +11,7 @@ namespace Utility.FileWorker
         private class ExecutionResult
             : IFileWorkerExecutionResult
         {
-            public ExecutionResult(IEnumerable<FileInfo> sourceFiles, IEnumerable<FileInfo> destinationFiles, long totalChangedFileCount)
+            public ExecutionResult(IEnumerable<FileInfo> sourceFiles, IEnumerable<FileInfo> destinationFiles, Int64 totalChangedFileCount)
             {
                 SourceFiles = sourceFiles.ToReadOnlyCollection();
                 DestinationFiles = destinationFiles.ToReadOnlyCollection();
@@ -22,25 +22,26 @@ namespace Utility.FileWorker
 
             public IReadOnlyCollection<FileInfo> DestinationFiles { get; }
 
-            public long TotalChangedFileCount { get; }
+            public Int64 TotalChangedFileCount { get; }
         }
 
-        private IWorkerCancellable _canceller;
+        private readonly IWorkerCancellable _canceller;
+        private readonly ICollection<FileInfo> _destinationFiles;
+
         private bool _walkingNow;
         private IEnumerable<FileInfo> _sourceFiles;
-        private ICollection<FileInfo> _destinationFiles;
-        private long _changedFileCount;
+        private Int64 _changedFileCount;
         private bool _cancelledbyUser;
         private bool _aborted;
 
-        public event EventHandler<FileMessageReportedEventArgs> InformationReported;
-        public event EventHandler<FileMessageReportedEventArgs> WarningReported;
-        public event EventHandler<FileMessageReportedEventArgs> ErrorReported;
-        public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
+        public event EventHandler<FileMessageReportedEventArgs>? InformationReported;
+        public event EventHandler<FileMessageReportedEventArgs>? WarningReported;
+        public event EventHandler<FileMessageReportedEventArgs>? ErrorReported;
+        public event EventHandler<ProgressChangedEventArgs>? ProgressChanged;
 
         protected FileWorker(IWorkerCancellable canceller)
         {
-            _canceller = canceller;
+            _canceller = canceller ?? throw new ArgumentNullException(nameof(canceller));
             _walkingNow = false;
             _sourceFiles = new List<FileInfo>();
             _destinationFiles = new List<FileInfo>();
@@ -51,8 +52,11 @@ namespace Utility.FileWorker
 
         public abstract string Description { get; }
 
-        public IFileWorkerExecutionResult Execute(IEnumerable<string> args, IFileWorkerExecutionResult previousWorkerResult)
+        public IFileWorkerExecutionResult Execute(IEnumerable<string> args, IFileWorkerExecutionResult? previousWorkerResult)
         {
+            if (args is null)
+                throw new ArgumentNullException(nameof(args));
+
             lock (this)
             {
                 if (_walkingNow)
@@ -93,6 +97,11 @@ namespace Utility.FileWorker
 
         public IFileWorkerExecutionResult Execute(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult previousWorkerResult)
         {
+            if (sourceFiles is null)
+                throw new ArgumentNullException(nameof(sourceFiles));
+            if (previousWorkerResult is null)
+                throw new ArgumentNullException(nameof(previousWorkerResult));
+
             lock (this)
             {
                 if (_walkingNow)
@@ -164,10 +173,13 @@ namespace Utility.FileWorker
             }
         }
 
-        protected abstract void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult previousWorkerResult);
+        protected abstract void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult? previousWorkerResult);
 
         protected void SetToSourceFiles(IEnumerable<FileInfo> sourceFiles)
         {
+            if (sourceFiles is null)
+                throw new ArgumentNullException(nameof(sourceFiles));
+
             lock (this)
             {
                 _sourceFiles = sourceFiles;
@@ -176,6 +188,9 @@ namespace Utility.FileWorker
 
         protected void AddToDestinationFiles(FileInfo destinationFile)
         {
+            if (destinationFile is null)
+                throw new ArgumentNullException(nameof(destinationFile));
+
             lock (this)
             {
                 _destinationFiles.Add(destinationFile);
@@ -186,9 +201,12 @@ namespace Utility.FileWorker
 
         protected void RaiseInformationReportedEvent(string messsage)
         {
+            if (string.IsNullOrEmpty(messsage))
+                throw new ArgumentException($"'{nameof(messsage)}' を NULL または空にすることはできません。", nameof(messsage));
+
             try
             {
-                if (InformationReported != null)
+                if (InformationReported is not null)
                     InformationReported(this, new FileMessageReportedEventArgs(null, messsage));
             }
             catch (Exception)
@@ -200,11 +218,14 @@ namespace Utility.FileWorker
             }
         }
 
-        protected void RaiseInformationReportedEvent(FileInfo sourceFile, string messsage)
+        protected void RaiseInformationReportedEvent(FileInfo? sourceFile, string messsage)
         {
+            if (string.IsNullOrEmpty(messsage))
+                throw new ArgumentException($"'{nameof(messsage)}' を NULL または空にすることはできません。", nameof(messsage));
+
             try
             {
-                if (InformationReported != null)
+                if (InformationReported is not null)
                     InformationReported(this, new FileMessageReportedEventArgs(sourceFile, messsage));
             }
             catch (Exception)
@@ -218,9 +239,12 @@ namespace Utility.FileWorker
 
         protected void RaiseWarningReportedEvent(string messsage)
         {
+            if (string.IsNullOrEmpty(messsage))
+                throw new ArgumentException($"'{nameof(messsage)}' を NULL または空にすることはできません。", nameof(messsage));
+
             try
             {
-                if (WarningReported != null)
+                if (WarningReported is not null)
                     WarningReported(this, new FileMessageReportedEventArgs(null, messsage));
             }
             catch (Exception)
@@ -232,11 +256,14 @@ namespace Utility.FileWorker
             }
         }
 
-        protected void RaiseWarningReportedEvent(FileInfo sourceFile, string messsage)
+        protected void RaiseWarningReportedEvent(FileInfo? sourceFile, string messsage)
         {
+            if (string.IsNullOrEmpty(messsage))
+                throw new ArgumentException($"'{nameof(messsage)}' を NULL または空にすることはできません。", nameof(messsage));
+
             try
             {
-                if (WarningReported != null)
+                if (WarningReported is not null)
                     WarningReported(this, new FileMessageReportedEventArgs(sourceFile, messsage));
             }
             catch (Exception)
@@ -250,9 +277,12 @@ namespace Utility.FileWorker
 
         protected void RaiseErrorReportedEvent(string messsage)
         {
+            if (string.IsNullOrEmpty(messsage))
+                throw new ArgumentException($"'{nameof(messsage)}' を NULL または空にすることはできません。", nameof(messsage));
+
             try
             {
-                if (ErrorReported != null)
+                if (ErrorReported is not null)
                     ErrorReported(this, new FileMessageReportedEventArgs(null, messsage));
             }
             catch (Exception)
@@ -264,11 +294,14 @@ namespace Utility.FileWorker
             }
         }
 
-        protected void RaiseErrorReportedEvent(FileInfo sourceFile, string messsage)
+        protected void RaiseErrorReportedEvent(FileInfo? sourceFile, string messsage)
         {
+            if (string.IsNullOrEmpty(messsage))
+                throw new ArgumentException($"'{nameof(messsage)}' を NULL または空にすることはできません。", nameof(messsage));
+
             try
             {
-                if (ErrorReported != null)
+                if (ErrorReported is not null)
                     ErrorReported(this, new FileMessageReportedEventArgs(sourceFile, messsage));
             }
             catch (Exception)
@@ -284,7 +317,7 @@ namespace Utility.FileWorker
         {
             try
             {
-                if (ProgressChanged != null)
+                if (ProgressChanged is not null)
                     ProgressChanged(this, new ProgressChangedEventArgs());
             }
             catch (Exception)
@@ -296,7 +329,7 @@ namespace Utility.FileWorker
             }
         }
 
-        protected void UpdateProgress(long totalCount, long countOfDone)
+        protected void UpdateProgress(UInt64 totalCount, UInt64 countOfDone)
         {
 #if DEBUG
             if (countOfDone > totalCount)
@@ -304,7 +337,7 @@ namespace Utility.FileWorker
 #endif
             try
             {
-                if (ProgressChanged != null)
+                if (ProgressChanged is not null)
                     ProgressChanged(this, new ProgressChangedEventArgs(totalCount, countOfDone));
             }
             catch (Exception)

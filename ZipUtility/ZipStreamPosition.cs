@@ -1,19 +1,19 @@
 ﻿using System;
-using System.IO;
 using System.Globalization;
+using System.IO;
 
 namespace ZipUtility
 {
-    internal struct ZipStreamPosition
+    readonly struct ZipStreamPosition
         : IEquatable<ZipStreamPosition>, IComparable<ZipStreamPosition>, IZipStreamPositionValue
     {
-        private UInt32 _diskNumber;
-        private UInt64 _offsetOnTheDisk;
-        private IVirtualZipFile _multiVolumeInfo;
+        private readonly UInt32 _diskNumber;
+        private readonly UInt64 _offsetOnTheDisk;
+        private readonly IVirtualZipFile _multiVolumeInfo;
 
         internal ZipStreamPosition(UInt32 diskNumber, UInt64 offsetOnTheDisk, IVirtualZipFile multiVolumeInfo)
         {
-            if (multiVolumeInfo == null)
+            if (multiVolumeInfo is null)
                 throw new ArgumentNullException(nameof(multiVolumeInfo));
 
             _diskNumber = diskNumber;
@@ -70,17 +70,15 @@ namespace ZipUtility
 
         public ZipStreamPosition Add(UInt64 x)
         {
-            if (_multiVolumeInfo == null)
+            if (_multiVolumeInfo is null)
                 throw new InvalidOperationException("multiVolumeInfo not set");
 
-            return _multiVolumeInfo.Add(this, x) ?? throw new IOException("Invalid file position");
+            return _multiVolumeInfo.Add(this, x) ?? throw new OverflowException();
         }
 
         public ZipStreamPosition Add(Int32 x)
         {
-#if DEBUG
             checked
-#endif
             {
                 if (x >= 0)
                     return Add((UInt64)x);
@@ -95,7 +93,7 @@ namespace ZipUtility
 
         public UInt64 Subtract(ZipStreamPosition x)
         {
-            if (_multiVolumeInfo == null)
+            if (_multiVolumeInfo is null)
                 throw new InvalidOperationException("multiVolumeInfo not set");
 
             return _multiVolumeInfo.Subtract(this, x);
@@ -103,9 +101,7 @@ namespace ZipUtility
 
         public ZipStreamPosition Subtract(Int64 x)
         {
-#if DEBUG
             checked
-#endif
             {
                 if (x >= 0)
                     return Subtract((UInt64)x);
@@ -120,7 +116,7 @@ namespace ZipUtility
 
         public ZipStreamPosition Subtract(UInt64 x)
         {
-            if (_multiVolumeInfo == null)
+            if (_multiVolumeInfo is null)
                 throw new InvalidOperationException("multiVolumeInfo not set");
 
             return _multiVolumeInfo.Subtract(this, x) ?? throw new IOException("Invalid file position");
@@ -128,9 +124,7 @@ namespace ZipUtility
 
         public ZipStreamPosition Subtract(Int32 x)
         {
-#if DEBUG
             checked
-#endif
             {
                 if (x >= 0)
                     return Subtract((UInt64)x);
@@ -141,9 +135,9 @@ namespace ZipUtility
 
         #endregion
 
-        public int CompareTo(ZipStreamPosition other)
+        public Int32 CompareTo(ZipStreamPosition other)
         {
-            int c;
+            Int32 c;
             if ((c = _diskNumber.CompareTo(other._diskNumber)) != 0)
                 return c;
             if ((c = _offsetOnTheDisk.CompareTo(other._offsetOnTheDisk)) != 0)
@@ -158,31 +152,27 @@ namespace ZipUtility
                 _offsetOnTheDisk.Equals(other._offsetOnTheDisk);
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
-            if (obj == null || GetType() != obj.GetType())
+            if (obj is null || GetType() != obj.GetType())
                 return false;
             return Equals((ZipStreamPosition)obj);
         }
 
-        public override int GetHashCode()
+        public override Int32 GetHashCode()
         {
             return _diskNumber.GetHashCode() ^ _offsetOnTheDisk.GetHashCode();
         }
 
-        public string ToString(string format)
+        public string ToString(string? format)
         {
-            switch (format.ToUpperInvariant())
-            {
-                case "G":
-                case "":
-                case null:
-                    return string.Format(CultureInfo.InvariantCulture, "{0}:{1}", _diskNumber, _offsetOnTheDisk);
-                case "X":
-                    return string.Format(CultureInfo.InvariantCulture, "0x{0:x8}:0x{1:x16}", _diskNumber, _offsetOnTheDisk);
-                default:
-                    throw new FormatException();
-            }
+            return
+                (format ?? "G").ToUpperInvariant() switch
+                {
+                    "G" or "" or null => string.Format(CultureInfo.InvariantCulture, "{0}:{1}", _diskNumber, _offsetOnTheDisk),
+                    "X" => string.Format(CultureInfo.InvariantCulture, "0x{0:x8}:0x{1:x16}", _diskNumber, _offsetOnTheDisk),
+                    _ => throw new FormatException(),
+                };
         }
 
         public override string ToString()

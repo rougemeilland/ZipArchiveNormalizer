@@ -1,7 +1,7 @@
 ﻿namespace ZipUtility.IO.Compression
 {
     public class LzmaCompressionOption
-        : ICompressionOption
+        : ICoderOption
     {
         public bool UseEndOfStreamMarker { get; set; }
     }

@@ -3,30 +3,30 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Utility
 {
-    internal class InternalBitQueue
-        : IReadOnlyArray<bool>, IEquatable<InternalBitQueue>, ICloneable<InternalBitQueue>
+    class InternalBitQueue
+        : IEnumerable<bool>, IEquatable<InternalBitQueue>, ICloneable<InternalBitQueue>
 
     {
         private class RandomAccessBitQueue
-                : IReadOnlyArray<bool>, ICloneable<RandomAccessBitQueue>, IEquatable<RandomAccessBitQueue>
+                : IEnumerable<bool>, ICloneable<RandomAccessBitQueue>, IEquatable<RandomAccessBitQueue>
         {
             //
             //          _firstBitArray                   _queue                     _LastBitArray
             //  [LSB..........................MSB]([LSB...MSB][LSB...MSB]...)[LSB..........................MSB]
-            //  |<=_firstBitArrayLength=>|                                   |<=_LastBitArrayLength=>|
-            //  <- FIRST..................         ............................................LAST ->
+            //  |<=_firstBitArrayLength=>|<============== array of UInt64 ===========>|<=_LastBitArrayLength=>|
+            //  <- FIRST................................................................................LAST ->
             //
 
+            private readonly RandomAccessQueue<UInt64> _queue;
+
             private UInt64 _firstBitArray;
-            private int _firstBitArrayLength;
-            private RandomAccessQueue<UInt64> _queue;
+            private Int32 _firstBitArrayLength;
             private UInt64 _lastBitArray;
-            private int _lastBitArrayLength;
-            private int _totalBitLength;
+            private Int32 _lastBitArrayLength;
+            private Int32 _totalBitLength;
 
             public RandomAccessBitQueue()
                 : this(0, 0, new RandomAccessQueue<UInt64>(), 0, 0)
@@ -35,18 +35,7 @@ namespace Utility
 
             public RandomAccessBitQueue(IEnumerable<bool> sequence)
             {
-                var uint64Array =
-                    sequence
-                    .ToChunkOfReadOnlyArray(BIT_LENGTH_OF_UINT64)
-                    .Select(bitArray => new
-                    {
-                        bitLength = bitArray.Length,
-                        uint64Array =
-                            Enumerable.Range(0, bitArray.Length)
-                            .Select(bitIndex => bitArray[bitIndex] ? (1UL << bitIndex) : 0UL)
-                            .Aggregate(0UL, (x, y) => x | y)
-                    })
-                    .ToArray();
+                var uint64Array = Chunk(sequence).ToArray();
                 if (uint64Array.Length <= 0)
                 {
                     _firstBitArray = 0;
@@ -56,7 +45,7 @@ namespace Utility
                     _lastBitArrayLength = 0;
                     _totalBitLength = 0;
                 }
-                else if (uint64Array[uint64Array.Length - 1].bitLength >= BIT_LENGTH_OF_UINT64)
+                else if (uint64Array[^1].bitLength >= BIT_LENGTH_OF_UINT64)
                 {
                     _firstBitArray = 0;
                     _firstBitArrayLength = 0;
@@ -70,8 +59,8 @@ namespace Utility
                     _firstBitArray = 0;
                     _firstBitArrayLength = 0;
                     _queue = new RandomAccessQueue<UInt64>(uint64Array.Select(item => item.uint64Array).Take(uint64Array.Length - 1));
-                    _lastBitArray = uint64Array[uint64Array.Length - 1].uint64Array;
-                    _lastBitArrayLength = uint64Array[uint64Array.Length - 1].bitLength;
+                    _lastBitArray = uint64Array[^1].uint64Array;
+                    _lastBitArrayLength = uint64Array[^1].bitLength;
                     _totalBitLength = _queue.Length * BIT_LENGTH_OF_UINT64 + _lastBitArrayLength;
                 }
                 Normalize();
@@ -80,7 +69,7 @@ namespace Utility
 #endif
             }
 
-            private RandomAccessBitQueue(UInt64 firstBitArray, int firstBitArrayLength, RandomAccessQueue<UInt64> queue, UInt64 lastBitArray, int lastBitArrayLength)
+            private RandomAccessBitQueue(UInt64 firstBitArray, Int32 firstBitArrayLength, RandomAccessQueue<UInt64> queue, UInt64 lastBitArray, Int32 lastBitArrayLength)
             {
                 _firstBitArray = firstBitArray;
                 _firstBitArrayLength = firstBitArrayLength;
@@ -94,7 +83,7 @@ namespace Utility
 #endif
             }
 
-            public void Enqueue(UInt64 bitArray, int bitCount)
+            public void Enqueue(UInt64 bitArray, Int32 bitCount)
             {
                 while (bitCount > 0)
                 {
@@ -104,29 +93,27 @@ namespace Utility
                 }
             }
 
-            public UInt64 Dequeue(int bitCount)
+            public UInt64 Dequeue(Int32 bitCount)
             {
                 var result = 0UL;
                 var bitIndex = 0;
                 while (bitIndex < bitCount)
                 {
-                    UInt64 value;
-                    var length = InternalDequeue(bitCount - bitIndex, out value);
+                    var (length, value) = InternalDequeue(bitCount - bitIndex);
                     result |= value << bitIndex;
                     bitIndex += length;
                 }
                 return result;
             }
 
+            public Int32 Length => _totalBitLength;
 
-            public int Length => _totalBitLength;
-
-            public bool this[int index]
+            public bool this[Int32 index]
             {
                 get
                 {
                     if (index < 0)
-                        throw new IndexOutOfRangeException();
+                        throw new ArgumentOutOfRangeException(nameof(index));
                     if (index < _firstBitArrayLength)
                         return (_firstBitArray & (1UL << index)) != 0;
                     index -= _firstBitArrayLength;
@@ -139,71 +126,138 @@ namespace Utility
                     index -= _queue.Length * BIT_LENGTH_OF_UINT64;
                     if (index < _lastBitArrayLength)
                         return (_lastBitArray & (1UL << index)) != 0;
-                    throw new IndexOutOfRangeException();
+                    throw new ArgumentOutOfRangeException(nameof(index));
                 }
             }
 
-            public void CopyTo(bool[] destinationArray, int destinationOffset)
+            public IEnumerator<bool> GetEnumerator()
             {
-                if (destinationArray == null)
-                    throw new ArgumentNullException(nameof(destinationArray));
-                if (destinationOffset < 0)
-                    throw new IndexOutOfRangeException();
-                if (destinationOffset > destinationArray.Length)
-                    throw new IndexOutOfRangeException();
-                if (destinationArray.Length - destinationOffset > _totalBitLength)
-                    throw new IndexOutOfRangeException();
-                InternalCopyTo(0, destinationArray, destinationOffset, destinationArray.Length - destinationOffset);
+                {
+                    var firstBitArray = _firstBitArray;
+                    var firstBitArrayLength = _firstBitArrayLength;
+                    while (firstBitArrayLength-- > 0)
+                    {
+                        yield return (firstBitArray & 1U) != 0;
+                        firstBitArray >>= 1;
+                    }
+                }
+                foreach (var queueElement in _queue)
+                {
+                    yield return (queueElement & (1UL << 0)) != 0;
+                    yield return (queueElement & (1UL << 1)) != 0;
+                    yield return (queueElement & (1UL << 2)) != 0;
+                    yield return (queueElement & (1UL << 3)) != 0;
+                    yield return (queueElement & (1UL << 4)) != 0;
+                    yield return (queueElement & (1UL << 5)) != 0;
+                    yield return (queueElement & (1UL << 6)) != 0;
+                    yield return (queueElement & (1UL << 7)) != 0;
+                    yield return (queueElement & (1UL << 8)) != 0;
+                    yield return (queueElement & (1UL << 9)) != 0;
+                    yield return (queueElement & (1UL << 10)) != 0;
+                    yield return (queueElement & (1UL << 11)) != 0;
+                    yield return (queueElement & (1UL << 12)) != 0;
+                    yield return (queueElement & (1UL << 13)) != 0;
+                    yield return (queueElement & (1UL << 14)) != 0;
+                    yield return (queueElement & (1UL << 15)) != 0;
+                    yield return (queueElement & (1UL << 16)) != 0;
+                    yield return (queueElement & (1UL << 17)) != 0;
+                    yield return (queueElement & (1UL << 18)) != 0;
+                    yield return (queueElement & (1UL << 19)) != 0;
+                    yield return (queueElement & (1UL << 20)) != 0;
+                    yield return (queueElement & (1UL << 21)) != 0;
+                    yield return (queueElement & (1UL << 22)) != 0;
+                    yield return (queueElement & (1UL << 23)) != 0;
+                    yield return (queueElement & (1UL << 24)) != 0;
+                    yield return (queueElement & (1UL << 25)) != 0;
+                    yield return (queueElement & (1UL << 26)) != 0;
+                    yield return (queueElement & (1UL << 27)) != 0;
+                    yield return (queueElement & (1UL << 28)) != 0;
+                    yield return (queueElement & (1UL << 29)) != 0;
+                    yield return (queueElement & (1UL << 30)) != 0;
+                    yield return (queueElement & (1UL << 31)) != 0;
+                    yield return (queueElement & (1UL << 32)) != 0;
+                    yield return (queueElement & (1UL << 33)) != 0;
+                    yield return (queueElement & (1UL << 34)) != 0;
+                    yield return (queueElement & (1UL << 35)) != 0;
+                    yield return (queueElement & (1UL << 36)) != 0;
+                    yield return (queueElement & (1UL << 37)) != 0;
+                    yield return (queueElement & (1UL << 38)) != 0;
+                    yield return (queueElement & (1UL << 39)) != 0;
+                    yield return (queueElement & (1UL << 40)) != 0;
+                    yield return (queueElement & (1UL << 41)) != 0;
+                    yield return (queueElement & (1UL << 42)) != 0;
+                    yield return (queueElement & (1UL << 43)) != 0;
+                    yield return (queueElement & (1UL << 44)) != 0;
+                    yield return (queueElement & (1UL << 45)) != 0;
+                    yield return (queueElement & (1UL << 46)) != 0;
+                    yield return (queueElement & (1UL << 47)) != 0;
+                    yield return (queueElement & (1UL << 48)) != 0;
+                    yield return (queueElement & (1UL << 49)) != 0;
+                    yield return (queueElement & (1UL << 50)) != 0;
+                    yield return (queueElement & (1UL << 51)) != 0;
+                    yield return (queueElement & (1UL << 52)) != 0;
+                    yield return (queueElement & (1UL << 53)) != 0;
+                    yield return (queueElement & (1UL << 54)) != 0;
+                    yield return (queueElement & (1UL << 55)) != 0;
+                    yield return (queueElement & (1UL << 56)) != 0;
+                    yield return (queueElement & (1UL << 57)) != 0;
+                    yield return (queueElement & (1UL << 58)) != 0;
+                    yield return (queueElement & (1UL << 59)) != 0;
+                    yield return (queueElement & (1UL << 60)) != 0;
+                    yield return (queueElement & (1UL << 61)) != 0;
+                    yield return (queueElement & (1UL << 62)) != 0;
+                    yield return (queueElement & (1UL << 63)) != 0;
+                }
+                {
+                    var lastBitArray = _lastBitArray;
+                    var lastBitArrayLength = _lastBitArrayLength;
+                    while (lastBitArrayLength-- > 0)
+                    {
+                        yield return (lastBitArray & 1U) != 0;
+                        lastBitArray >>= 1;
+                    }
+                }
             }
-
-            public void CopyTo(int sourceOffset, bool[] destinationArray, int destinationOffset, int count)
-            {
-                if (sourceOffset < 0)
-                    throw new IndexOutOfRangeException();
-                if (destinationArray == null)
-                    throw new ArgumentNullException(nameof(destinationArray));
-                if (destinationOffset < 0)
-                    throw new IndexOutOfRangeException();
-                if (count < 0)
-                    throw new IndexOutOfRangeException();
-                if (sourceOffset + count > _totalBitLength)
-                    throw new IndexOutOfRangeException();
-                if (destinationOffset + count > destinationArray.Length)
-                    throw new IndexOutOfRangeException();
-                InternalCopyTo(sourceOffset, destinationArray, destinationOffset, count);
-            }
-
-            public bool[] DuplicateAsWritableArray()
-            {
-                var buffer = new bool[_totalBitLength];
-                InternalCopyTo(0, buffer, 0, buffer.Length);
-                return buffer;
-            }
-
-            public IEnumerator<bool> GetEnumerator() =>
-                Enumerable.Range(0, _firstBitArrayLength)
-                .Select(bitIndex => (_firstBitArray & (1UL << bitIndex)) != 0)
-                .Concat(
-                    _queue
-                    .SelectMany(bitArray =>
-                        Enumerable.Range(0, BIT_LENGTH_OF_UINT64)
-                        .Select(bitIndex => (bitArray & (1UL << bitIndex)) != 0)))
-                .Concat(
-                    Enumerable.Range(0, _lastBitArrayLength)
-                    .Select(bitIndex => (_lastBitArray & (1UL << bitIndex)) != 0))
-                .GetEnumerator();
 
             IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-            public RandomAccessBitQueue Clone() => new RandomAccessBitQueue(_firstBitArray, _firstBitArrayLength, _queue.Clone(), _lastBitArray, _lastBitArrayLength);
-            public bool Equals(RandomAccessBitQueue other) => other != null && this.SequenceEqual(other);
+            public RandomAccessBitQueue Clone() => new(_firstBitArray, _firstBitArrayLength, _queue.Clone(), _lastBitArray, _lastBitArrayLength);
+            public bool Equals(RandomAccessBitQueue? other) => other is not null && this.SequenceEqual(other);
+            public override bool Equals(object? obj) => obj != null && GetType() == obj.GetType() && Equals((RandomAccessBitQueue)obj);
 
-            [Obsolete]
-            bool[] IReadOnlyArray<bool>.ToArray() => throw new NotSupportedException();
-
-            private int InternalEnqueue(UInt64 bitArray, int bitCount)
+            public override Int32 GetHashCode()
             {
-                if (bitCount.IsBetween(1, BIT_LENGTH_OF_UINT64) == false)
-                    throw new ArgumentException();
+                var hashCode = 0UL;
+                foreach (var value in this)
+                {
+                    hashCode = (hashCode << 1) | (hashCode >> 63);
+                    if (value)
+                        hashCode ^= 1;
+                }
+                return hashCode.GetHashCode();
+            }
+
+            private static IEnumerable<(UInt64 uint64Array, Int32 bitLength)> Chunk(IEnumerable<bool> source)
+            {
+                var value = 0UL;
+                var index = 0;
+                foreach (var element in source)
+                {
+                    value <<= 1;
+                    if (element)
+                        value |= 1;
+                    if (++index >= BIT_LENGTH_OF_UINT64)
+                    {
+                        yield return (value, index);
+                        index = 0;
+                    }
+                }
+                yield return (value, index);
+            }
+
+            private Int32 InternalEnqueue(UInt64 bitArray, Int32 bitCount)
+            {
+                if (!bitCount.IsBetween(1, BIT_LENGTH_OF_UINT64))
+                    throw new ArgumentOutOfRangeException(nameof(bitCount));
 #if DEBUG
                 if (_lastBitArrayLength >= BIT_LENGTH_OF_UINT64)
                     throw new Exception();
@@ -224,10 +278,10 @@ namespace Utility
                 return actualBitCount;
             }
 
-            private int InternalDequeue(int bitCount, out UInt64 resultBitArray)
+            private (Int32, UInt64) InternalDequeue(Int32 bitCount)
             {
-                if (bitCount.IsBetween(1, BIT_LENGTH_OF_UINT64) == false)
-                    throw new ArgumentException();
+                if (!bitCount.IsBetween(1, BIT_LENGTH_OF_UINT64))
+                    throw new ArgumentOutOfRangeException(nameof(bitCount));
 #if DEBUG
                 if (_lastBitArrayLength >= BIT_LENGTH_OF_UINT64)
                     throw new Exception();
@@ -242,57 +296,25 @@ namespace Utility
                 var actualBitCount = bitCount.Minimum(_firstBitArrayLength);
                 if (actualBitCount >= BIT_LENGTH_OF_UINT64)
                 {
-                    resultBitArray = _firstBitArray;
+                    var resultBitArray = _firstBitArray;
                     _firstBitArray = 0;
                     _firstBitArrayLength = 0;
+                    Normalize();
+#if DEBUG
+                    Check();
+#endif
+                    return (actualBitCount, resultBitArray);
                 }
                 else
                 {
-                    resultBitArray = _firstBitArray & (UInt64.MaxValue >> (BIT_LENGTH_OF_UINT64 - actualBitCount));
+                    var resultBitArray = _firstBitArray & (UInt64.MaxValue >> (BIT_LENGTH_OF_UINT64 - actualBitCount));
                     _firstBitArray >>= actualBitCount;
                     _firstBitArrayLength -= actualBitCount;
-                }
-                Normalize();
+                    Normalize();
 #if DEBUG
-                Check();
+                    Check();
 #endif
-                return actualBitCount;
-            }
-
-            private void InternalCopyTo(int sourceOffset, bool[] destinationArray, int destinationOffset, int count)
-            {
-                var sourceIndex = sourceOffset;
-                var destinationIndex = destinationOffset;
-                var base1 = 0;
-                var limit1 = _firstBitArrayLength;
-                while (sourceIndex < limit1 && count > 0)
-                {
-                    var sourceShiftCount = sourceIndex - base1;
-                    destinationArray[destinationIndex] = (_firstBitArray & (1UL << sourceShiftCount)) != 0;
-                    ++sourceIndex;
-                    ++destinationIndex;
-                    --count;
-                }
-                var base2 = _firstBitArrayLength;
-                var limit2 = _firstBitArrayLength + _queue.Length * BIT_LENGTH_OF_UINT64;
-                while (sourceIndex < limit2 && count > 0)
-                {
-                    var sourceArrayIndex = (sourceIndex - base2) / BIT_LENGTH_OF_UINT64;
-                    var sourceShiftCount = (sourceIndex - base2) % BIT_LENGTH_OF_UINT64;
-                    destinationArray[destinationIndex] = (_queue[sourceArrayIndex] & (1UL << sourceShiftCount)) != 0;
-                    ++sourceIndex;
-                    ++destinationIndex;
-                    --count;
-                }
-                var base3 = _firstBitArrayLength + _queue.Length * BIT_LENGTH_OF_UINT64;
-                var limit3 = _firstBitArrayLength + _queue.Length * BIT_LENGTH_OF_UINT64 + _lastBitArrayLength;
-                while (sourceIndex < limit3 && count > 0)
-                {
-                    var sourceShiftCount = sourceIndex - base3;
-                    destinationArray[destinationIndex] = (_lastBitArray & (1UL << sourceShiftCount)) != 0;
-                    ++sourceIndex;
-                    ++destinationIndex;
-                    --count;
+                    return (actualBitCount, resultBitArray);
                 }
             }
 
@@ -311,9 +333,9 @@ namespace Utility
 #if DEBUG
             private void Check()
             {
-                if (_firstBitArrayLength < 0 || _firstBitArrayLength >= BIT_LENGTH_OF_UINT64)
+                if (!_firstBitArrayLength.InRange(0, BIT_LENGTH_OF_UINT64))
                     throw new Exception();
-                if (_lastBitArrayLength < 0 || _lastBitArrayLength >= BIT_LENGTH_OF_UINT64)
+                if (!_lastBitArrayLength.InRange(0, BIT_LENGTH_OF_UINT64))
                     throw new Exception();
                 if ((_firstBitArray & (UInt64.MaxValue << _firstBitArrayLength)) != 0)
                     throw new Exception();
@@ -326,11 +348,11 @@ namespace Utility
 #endif
         }
 
-        public const int BIT_LENGTH_OF_BYTE = sizeof(Byte) << 3;
-        public const int BIT_LENGTH_OF_UINT16 = sizeof(UInt16) << 3;
-        public const int BIT_LENGTH_OF_UINT32 = sizeof(UInt32) << 3;
-        public const int BIT_LENGTH_OF_UINT64 = sizeof(UInt64) << 3;
-        public const int RecommendedMaxCount = BIT_LENGTH_OF_UINT64;
+        public const Int32 BIT_LENGTH_OF_BYTE = sizeof(Byte) << 3;
+        public const Int32 BIT_LENGTH_OF_UINT16 = sizeof(UInt16) << 3;
+        public const Int32 BIT_LENGTH_OF_UINT32 = sizeof(UInt32) << 3;
+        public const Int32 BIT_LENGTH_OF_UINT64 = sizeof(UInt64) << 3;
+        public const Int32 RecommendedMaxCount = BIT_LENGTH_OF_UINT64;
 
         //
         // internal bit packing of _bitArray:
@@ -340,44 +362,37 @@ namespace Utility
         //  bit index:  0............63
         //
         private UInt64 _bitArray;
-        private int _bitLength;
-        private RandomAccessBitQueue _additionalBitArray;
-        private int _totalBitLength;
+        private Int32 _bitLength;
+        private RandomAccessBitQueue? _additionalBitArray;
+        private Int32 _totalBitLength;
 
         public InternalBitQueue()
             : this(0, 0, null)
         {
         }
 
-        public InternalBitQueue(IEnumerable<bool> bitPattern)
+        public InternalBitQueue(ReadOnlySpan<bool> bitPattern)
         {
             _bitLength = 0;
             _bitArray = 0;
             _additionalBitArray = null;
             _totalBitLength = 0;
-            using (var enumerator = bitPattern.GetEnumerator())
+            var index = 0;
+            while (index < BIT_LENGTH_OF_UINT64)
             {
-                var endOFSequence = false;
-                for (var index = 0; index < BIT_LENGTH_OF_UINT64; ++index)
-                {
-                    if (enumerator.MoveNext() == false)
-                    {
-                        endOFSequence = true;
-                        break;
-                    }
-                    if (enumerator.Current)
-                        _bitArray |= 1UL << index;
-                    ++_bitLength;
-                }
-                if (endOFSequence == false)
-                {
-                    while (enumerator.MoveNext())
-                    {
-                        if (_additionalBitArray == null)
-                            _additionalBitArray = new RandomAccessBitQueue();
-                        _additionalBitArray.Enqueue(enumerator.Current ? 1UL : 0UL, 1);
-                    }
-                }
+                if (index >= bitPattern.Length)
+                    break;
+                if (bitPattern[index])
+                    _bitArray |= 1UL << index;
+                ++_bitLength;
+                ++index;
+            }
+            while (index < bitPattern.Length)
+            {
+                if (_additionalBitArray is null)
+                    _additionalBitArray = new RandomAccessBitQueue();
+                _additionalBitArray.Enqueue(bitPattern[index] ? 1UL : 0UL, 1);
+                ++index;
             }
             Normalize();
 #if DEBUG
@@ -391,24 +406,24 @@ namespace Utility
                   .Where(c => c != '-')
                   .Select(c =>
                     {
-                        switch (c)
-                        {
-                            case '0':
-                                return false;
-                            case '1':
-                                return true;
-                            default:
-                                throw new ArgumentException();
-                        }
-                    }))
+                        return
+                            c switch
+                            {
+                                '0' => false,
+                                '1' => true,
+                                _ => throw new ArgumentException("Contained illegal character", nameof(bitPattern)),
+                            };
+                    })
+                  .ToArray()
+                  .AsReadOnlySpan())
         {
         }
 
-        private InternalBitQueue(UInt64 bitArray, int bitLength, RandomAccessBitQueue additionalBitArray)
+        private InternalBitQueue(UInt64 bitArray, Int32 bitLength, RandomAccessBitQueue? additionalBitArray)
         {
             _bitArray = bitArray;
             _bitLength = bitLength;
-            _additionalBitArray = additionalBitArray != null && additionalBitArray.Any() ? additionalBitArray : null;
+            _additionalBitArray = additionalBitArray is not null && additionalBitArray.Any() ? additionalBitArray : null;
             _totalBitLength = 0;
             Normalize();
         }
@@ -418,13 +433,14 @@ namespace Utility
             return new InternalBitQueue(value ? 1UL : 0UL, 1, null);
         }
 
-        public static InternalBitQueue FromInteger(UInt64 value, int bitCount, BitPackingDirection packingDirection)
+        public static InternalBitQueue FromInteger(UInt64 value, Int32 bitCount, BitPackingDirection bitPackingDirection)
         {
             if (bitCount < 1)
-                throw new ArgumentException();
+                throw new ArgumentOutOfRangeException(nameof(bitCount));
             if (bitCount > BIT_LENGTH_OF_UINT64)
-                throw new ArgumentException();
-            return new InternalBitQueue(value.ConvertBitOrder(bitCount, packingDirection), bitCount, null);
+                throw new ArgumentOutOfRangeException(nameof(bitCount));
+
+            return new InternalBitQueue(value.ConvertBitOrder(bitCount, bitPackingDirection), bitCount, null);
         }
 
         public void Enqueue(bool value)
@@ -437,41 +453,41 @@ namespace Utility
             }
             else
             {
-                if (_additionalBitArray == null)
+                if (_additionalBitArray is null)
                     _additionalBitArray = new RandomAccessBitQueue();
                 _additionalBitArray.Enqueue(value ? 1UL : 0UL, 1);
             }
             Normalize();
         }
 
-        public void Enqueue(UInt64 value, int bitCount, BitPackingDirection packingDirection)
+        public void Enqueue(UInt64 value, Int32 bitCount, BitPackingDirection bitPackingDirection)
         {
             if (bitCount < 1)
-                throw new ArgumentException();
+                throw new ArgumentOutOfRangeException(nameof(bitCount));
 
             if (_bitLength >= BIT_LENGTH_OF_UINT64)
             {
-                if (_additionalBitArray == null)
+                if (_additionalBitArray is null)
                     _additionalBitArray = new RandomAccessBitQueue();
-                var data = value.ConvertBitOrder(bitCount, packingDirection);
+                var data = value.ConvertBitOrder(bitCount, bitPackingDirection);
                 _additionalBitArray.Enqueue(data, bitCount);
             }
             else if (_bitLength + bitCount > BIT_LENGTH_OF_UINT64)
             {
                 //var bitLength1 = BIT_LENGTH_OF_UINT64 -_bitLength;
                 var bitLength2 = bitCount + _bitLength - BIT_LENGTH_OF_UINT64;
-                var data = value.ConvertBitOrder(bitCount, packingDirection);
+                var data = value.ConvertBitOrder(bitCount, bitPackingDirection);
                 var data1 = data << _bitLength;
                 var data2 = data >> (BIT_LENGTH_OF_UINT64 - _bitLength);
                 _bitArray |= data1;
                 _bitLength = BIT_LENGTH_OF_UINT64;
-                if (_additionalBitArray == null)
+                if (_additionalBitArray is null)
                     _additionalBitArray = new RandomAccessBitQueue();
                 _additionalBitArray.Enqueue(data2, bitLength2);
             }
             else
             {
-                _bitArray |= value.ConvertBitOrder(bitCount, packingDirection) << _bitLength;
+                _bitArray |= value.ConvertBitOrder(bitCount, bitPackingDirection) << _bitLength;
                 _bitLength += bitCount;
             }
             Normalize();
@@ -482,23 +498,23 @@ namespace Utility
 
         public void Enqueue(InternalBitQueue bitQueue)
         {
-            if (bitQueue == null)
-                throw new ArgumentNullException();
+            if (bitQueue is null)
+                throw new ArgumentNullException(nameof(bitQueue));
 
             if (_bitLength >= BIT_LENGTH_OF_UINT64)
             {
                 foreach (var value in bitQueue)
                 {
-                    if (_additionalBitArray == null)
+                    if (_additionalBitArray is null)
                         _additionalBitArray = new RandomAccessBitQueue();
                     _additionalBitArray.Enqueue(value ? 1UL : 0UL, 1);
                 }
             }
             else if (_bitLength + bitQueue.Length > BIT_LENGTH_OF_UINT64)
             {
-                foreach (var value in bitQueue.GetSequence(BIT_LENGTH_OF_UINT64 - _bitLength))
+                foreach (var value in bitQueue.Skip(BIT_LENGTH_OF_UINT64 - _bitLength))
                 {
-                    if (_additionalBitArray == null)
+                    if (_additionalBitArray is null)
                         _additionalBitArray = new RandomAccessBitQueue();
                     _additionalBitArray.Enqueue(value ? 1UL : 0UL, 1);
                 }
@@ -519,7 +535,7 @@ namespace Utility
         public bool DequeueBoolean()
         {
             if (_bitLength < 1)
-                throw new ArgumentException();
+                throw new InvalidOperationException();
 
             var value = (_bitArray & 1) != 0;
             _bitArray >>= 1;
@@ -528,32 +544,33 @@ namespace Utility
             return value;
         }
 
-        public UInt64 DequeueInteger(int bitCount, BitPackingDirection packingDirection)
+        public UInt64 DequeueInteger(Int32 bitCount, BitPackingDirection bitPackingDirection)
         {
             if (bitCount < 1)
-                throw new ArgumentException();
+                throw new ArgumentOutOfRangeException(nameof(bitCount));
             if (bitCount > BIT_LENGTH_OF_UINT64)
-                throw new ArgumentException();
+                throw new ArgumentOutOfRangeException(nameof(bitCount));
             if (bitCount > _totalBitLength)
-                throw new ArgumentException();
+                throw new ArgumentOutOfRangeException(nameof(bitCount));
 #if DEBUG
             if (bitCount > _bitLength)
                 throw new Exception();
 #endif
 
-            var value = _bitArray.ConvertBitOrder(bitCount, packingDirection);
+            var value = _bitArray.ConvertBitOrder(bitCount, bitPackingDirection);
             _bitArray >>= bitCount;
             _bitLength -= bitCount;
             Normalize();
             return value;
         }
 
-        public InternalBitQueue DequeueBitQueue(int bitCount)
+        public InternalBitQueue DequeueBitQueue(Int32 bitCount)
         {
             if (bitCount < 1)
-                throw new ArgumentException();
+                throw new ArgumentOutOfRangeException(nameof(bitCount));
             if (bitCount > _totalBitLength)
-                throw new ArgumentException();
+                throw new ArgumentOutOfRangeException(nameof(bitCount));
+
             if (bitCount < BIT_LENGTH_OF_UINT64)
             {
                 var mask = UInt64.MaxValue >> (BIT_LENGTH_OF_UINT64 - bitCount);
@@ -563,7 +580,7 @@ namespace Utility
                 Normalize();
                 return value;
             }
-            else if (_additionalBitArray != null && _additionalBitArray.Length > 0)
+            else if (_additionalBitArray is not null && _additionalBitArray.Length > 0)
             {
                 var newAdditionalBitArray = new RandomAccessBitQueue();
                 var count = bitCount - _bitLength;
@@ -599,37 +616,47 @@ namespace Utility
             return (_bitArray & 1) != 0;
         }
 
-        public UInt64 ToInteger(int bitCount, BitPackingDirection packingDirection)
+        public UInt64 ToInteger(Int32 bitCount, BitPackingDirection bitPackingDirection)
         {
             if (_totalBitLength < 1)
                 throw new InvalidOperationException();
             if (bitCount < 1)
-                throw new ArgumentException();
+                throw new ArgumentOutOfRangeException(nameof(bitCount));
             if (bitCount > BIT_LENGTH_OF_UINT64)
-                throw new ArgumentException();
+                throw new ArgumentOutOfRangeException(nameof(bitCount));
             if (_totalBitLength > bitCount)
                 throw new OverflowException();
-            return _bitArray.ConvertBitOrder(bitCount, packingDirection);
+
+            return _bitArray.ConvertBitOrder(bitCount, bitPackingDirection);
         }
 
-        public string ToString(string format)
+        public void Clear()
+        {
+            _bitArray = 0;
+            _bitLength = 0;
+            _additionalBitArray = null;
+            _totalBitLength = 0;
+            Normalize();
+        }
+
+        public string ToString(string? format)
         {
             var sb = new StringBuilder();
-            switch (format.ToUpperInvariant())
+            switch ((format ?? "G").ToUpperInvariant())
             {
                 case "R":
                     foreach (var value in GetSequenceSource())
                         sb.Append(value ? '1' : '0');
                     break;
                 case "G":
-                    sb.Append("{");
+                    sb.Append('{');
                     foreach (var item in GetSequenceSource().Select((value, index) => new { value, index }))
                     {
                         if (item.index > 0 && item.index % 8 == 0)
                             sb.Append('-');
                         sb.Append(item.value ? '1' : '0');
                     }
-                    sb.Append("}");
+                    sb.Append('}');
                     break;
                 default:
                     throw new FormatException();
@@ -637,73 +664,32 @@ namespace Utility
             return sb.ToString();
         }
 
-        public int Length => _totalBitLength;
+        public Int32 Length => _totalBitLength;
 
-        public bool this[int index] =>
+        public bool this[Int32 index] =>
             index < _bitLength
             ? (_bitArray & (1UL << index)) != 0
-            : _additionalBitArray != null
+            : _additionalBitArray is not null
                 ? _additionalBitArray[index - _bitLength]
-                : throw new IndexOutOfRangeException();
+                : throw new ArgumentOutOfRangeException(nameof(index));
 
-        public void CopyTo(bool[] destinationArray, int destinationOffset)
-        {
-            if (destinationArray == null)
-                throw new ArgumentNullException();
-            if (destinationOffset < 0)
-                throw new IndexOutOfRangeException();
-            if (destinationOffset > destinationArray.Length)
-                throw new IndexOutOfRangeException();
-            if (destinationArray.Length - destinationOffset > _totalBitLength)
-                throw new IndexOutOfRangeException();
-            InternalCopyTo(0, destinationArray, destinationOffset, destinationArray.Length - destinationOffset);
-        }
+        public bool this[UInt32 index] => this[checked((Int32)index)];
 
-        public void CopyTo(int sourceOffset, bool[] destinationArray, int destinationOffset, int count)
-        {
-            if (sourceOffset < 0)
-                throw new IndexOutOfRangeException();
-            if (destinationArray == null)
-                throw new ArgumentNullException();
-            if (destinationOffset < 0)
-                throw new IndexOutOfRangeException();
-            if (count < 0)
-                throw new IndexOutOfRangeException();
-            if (sourceOffset + count > _totalBitLength)
-                throw new IndexOutOfRangeException();
-            if (destinationOffset + count > destinationArray.Length)
-                throw new IndexOutOfRangeException();
-            InternalCopyTo(sourceOffset, destinationArray, destinationOffset, count);
-        }
+        public IEnumerator<bool> GetEnumerator() => GetSequenceSource().GetEnumerator();
 
-        public bool[] DuplicateAsWritableArray()
-        {
-            var buffer = new bool[_totalBitLength];
-            CopyTo(buffer, 0);
-            return buffer;
-        }
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-        public IEnumerator<bool> GetEnumerator()
+        public bool Equals(InternalBitQueue? other)
         {
-            return GetSequenceSource().GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
-
-        public bool Equals(InternalBitQueue other)
-        {
-            if (other == null)
+            if (other is null)
                 return false;
             if (_bitArray != other._bitArray)
                 return false;
             if (_bitLength != other._bitLength)
                 return false;
-            if (_additionalBitArray == null)
-                return other._additionalBitArray == null;
-            if (_additionalBitArray.Equals(_additionalBitArray) == false)
+            if (_additionalBitArray is null)
+                return other._additionalBitArray is null;
+            if (!_additionalBitArray.Equals(_additionalBitArray))
                 return false;
             return true;
         }
@@ -718,54 +704,41 @@ namespace Utility
             return ToString("G");
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
-            if (obj == null || GetType() != obj.GetType())
+            if (obj is null || GetType() != obj.GetType())
                 return false;
             return Equals((InternalBitQueue)obj);
         }
 
-        public override int GetHashCode()
+        public override Int32 GetHashCode()
         {
             var hashCode = _bitArray.GetHashCode() ^ _bitLength.GetHashCode();
-            if (_additionalBitArray != null && _additionalBitArray.Length > 0)
+            if (_additionalBitArray is not null && _additionalBitArray.Length > 0)
                 hashCode ^= _additionalBitArray.GetHashCode();
             return hashCode;
         }
 
-        [Obsolete]
-        bool[] IReadOnlyArray<bool>.ToArray() => throw new NotSupportedException();
-
         private IEnumerable<bool> GetSequenceSource()
         {
-            var sequence =
-                Enumerable.Range(0, _bitLength)
-                .Select(index => (_bitArray & (1UL << index)) != 0);
-            if (_additionalBitArray != null)
-                sequence = sequence.Concat(_additionalBitArray);
-            return sequence;
-        }
-
-        private void InternalCopyTo(int sourceOffset, bool[] destinationArray, int destinationOffset, int count)
-        {
-            var sourceIndex = sourceOffset;
-            var destinationIndex = destinationOffset;
-            var index = 0;
-            while (sourceIndex < BIT_LENGTH_OF_UINT64 && index < count)
+            var bitArray = _bitArray;
+            var bitLength = _bitLength;
+            while (bitLength-- > 0)
             {
-                destinationArray[destinationIndex] = (1UL << sourceIndex) != 0;
-                ++sourceIndex;
-                ++destinationIndex;
-                ++index;
+                yield return (bitArray & 1U) != 0;
+                bitArray >>= 1;
             }
-            if (_additionalBitArray != null && index < count)
-                _additionalBitArray.CopyTo(0, destinationArray, destinationIndex, count - index);
+            if (_additionalBitArray is not null)
+            {
+                foreach (var bit in _additionalBitArray)
+                    yield return bit;
+            }
         }
 
         private void Normalize()
         {
-            _totalBitLength = _additionalBitArray != null ? _bitLength + _additionalBitArray.Length : _bitLength;
-            if (_bitLength < BIT_LENGTH_OF_UINT64 && _additionalBitArray != null && _additionalBitArray.Length > 0)
+            _totalBitLength = _additionalBitArray is not null ? _bitLength + _additionalBitArray.Length : _bitLength;
+            if (_bitLength < BIT_LENGTH_OF_UINT64 && _additionalBitArray is not null && _additionalBitArray.Length > 0)
             {
                 var actualBitCount = (BIT_LENGTH_OF_UINT64 - _bitLength).Minimum(_additionalBitArray.Length);
                 _bitArray |= _additionalBitArray.Dequeue(actualBitCount) << _bitLength;
@@ -786,7 +759,7 @@ namespace Utility
                 if ((_bitArray & mask) != 0)
                     throw new Exception();
             }
-            if (_bitLength < BIT_LENGTH_OF_UINT64 && _additionalBitArray != null && _additionalBitArray.Length > 0)
+            if (_bitLength < BIT_LENGTH_OF_UINT64 && _additionalBitArray is not null && _additionalBitArray.Length > 0)
                 throw new Exception();
         }
 #endif

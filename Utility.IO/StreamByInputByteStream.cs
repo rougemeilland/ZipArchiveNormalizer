@@ -1,21 +1,23 @@
 ﻿using System;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace Utility.IO
 {
     class StreamByInputByteStream
         : Stream
     {
+        private readonly IInputByteStream<UInt64> _baseStream;
+        private readonly bool _leaveOpen;
+        private readonly IRandomInputByteStream<UInt64>? _randomAccessStream;
+
         private bool _isDisposed;
-        private IInputByteStream<UInt64> _baseStream;
-        private bool _leaveOpen;
-        private IRandomInputByteStream<UInt64> _randomAccessStream;
 
         public StreamByInputByteStream(IInputByteStream<UInt64> baseStream, bool leaveOpen)
         {
             try
             {
-                if (baseStream == null)
+                if (baseStream is null)
                     throw new ArgumentNullException(nameof(baseStream));
 
                 _isDisposed = false;
@@ -25,137 +27,121 @@ namespace Utility.IO
             }
             catch (Exception)
             {
-                if (leaveOpen == false)
+                if (!leaveOpen)
                     baseStream?.Dispose();
                 throw;
             }
         }
 
-        public override bool CanSeek => _randomAccessStream != null;
+        public override bool CanSeek => _randomAccessStream is not null;
         public override bool CanRead => true;
         public override bool CanWrite => false;
 
-        public override long Length
+        public override Int64 Length
         {
             get
             {
-                if (_randomAccessStream == null)
+                if (_randomAccessStream is null)
                     throw new NotSupportedException();
                 if (_isDisposed)
                     throw new ObjectDisposedException(GetType().FullName);
-                if (_randomAccessStream.Length > long.MaxValue)
+                if (_randomAccessStream.Length > Int64.MaxValue)
                     throw new IOException();
 
-                return (long)_randomAccessStream.Length;
+                return (Int64)_randomAccessStream.Length;
             }
         }
 
-        public override void SetLength(long value)
+        public override void SetLength(Int64 value)
         {
-            if (_randomAccessStream == null)
+            if (_randomAccessStream is null)
                 throw new NotSupportedException();
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
             if (value < 0)
-                throw new ArgumentException();
+                throw new ArgumentOutOfRangeException(nameof(value));
 
-            _randomAccessStream.Length = (ulong)value;
+            _randomAccessStream.Length = (UInt64)value;
         }
 
-        public override long Position
+        public override Int64 Position
         {
             get
             {
                 if (_isDisposed)
                     throw new ObjectDisposedException(GetType().FullName);
-                if (_baseStream.Position > long.MaxValue)
+                if (_baseStream.Position > Int64.MaxValue)
                     throw new IOException();
 
-                return (long)_baseStream.Position;
+                return (Int64)_baseStream.Position;
             }
 
             set
             {
-                if (_randomAccessStream == null)
+                if (_randomAccessStream is null)
                     throw new NotSupportedException();
                 if (_isDisposed)
                     throw new ObjectDisposedException(GetType().FullName);
                 if (value < 0)
-                    throw new ArgumentException();
+                    throw new ArgumentOutOfRangeException(nameof(value));
 
-                _randomAccessStream.Seek((ulong)value);
+                _randomAccessStream.Seek((UInt64)value);
             }
         }
 
-        public override long Seek(long offset, SeekOrigin origin)
+        public override Int64 Seek(Int64 offset, SeekOrigin origin)
         {
-            if (_randomAccessStream == null)
+            if (_randomAccessStream is null)
                 throw new NotSupportedException();
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
 
-            ulong absoluteOffset;
+            UInt64 absoluteOffset;
             switch (origin)
             {
                 case SeekOrigin.Begin:
                     if (offset < 0)
-                        throw new ArgumentException();
-                    absoluteOffset = (ulong)offset;
+                        throw new ArgumentOutOfRangeException(nameof(offset));
+                    absoluteOffset = (UInt64)offset;
                     break;
                 case SeekOrigin.Current:
                     try
                     {
-#if DEBUG
-                        checked
-#endif
-                        {
-                            if (offset >= 0)
-                                absoluteOffset = _randomAccessStream.Position + (ulong)offset;
-                            else
-                                absoluteOffset = _randomAccessStream.Position - (ulong)-offset;
-                        }
+                        absoluteOffset = _randomAccessStream.Position.AddAsUInt(offset);
                     }
                     catch (OverflowException ex)
                     {
-                        throw new ArgumentException("Invalid offset value", nameof(offset), ex);
+                        throw new ArgumentOutOfRangeException($"Invalid {nameof(offset)} value", ex);
                     }
                     break;
                 case SeekOrigin.End:
                     try
                     {
-#if DEBUG
-                        checked
-#endif
-                        {
-                            if (offset >= 0)
-                                absoluteOffset = _randomAccessStream.Length + (ulong)offset;
-                            else
-                                absoluteOffset = _randomAccessStream.Length - (ulong)-offset;
-                        }
+                        absoluteOffset = _randomAccessStream.Length.AddAsUInt(offset);
                     }
                     catch (OverflowException ex)
                     {
-                        throw new ArgumentException("Invalid offset value", nameof(offset), ex);
+                        throw new ArgumentOutOfRangeException($"Invalid {nameof(offset)} value", ex);
                     }
                     break;
                 default:
-                    throw new ArgumentException();
+                    throw new ArgumentException($"Invalid {nameof(SeekOrigin)} value", nameof(origin));
             }
-            if (absoluteOffset > long.MaxValue)
-                throw new ArgumentException();
+            if (absoluteOffset > Int64.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(offset));
             _randomAccessStream.Seek(absoluteOffset);
-            return (long)absoluteOffset;
+            return (Int64)absoluteOffset;
         }
 
-        public override int Read(byte[] buffer, int offset, int count)
+        public override Int32 Read(byte[] buffer, Int32 offset, Int32 count)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
 
-            return _baseStream.Read(buffer, offset, count);
+            return _baseStream.Read(buffer.AsSpan());
         }
 
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, Int32 offset, Int32 count) => throw new NotSupportedException();
 
         public override void Flush() { }
 
@@ -165,16 +151,23 @@ namespace Utility.IO
             {
                 if (disposing)
                 {
-                    if (_baseStream != null)
-                    {
-                        if (_leaveOpen == false)
-                            _baseStream.Dispose();
-                        _baseStream = null;
-                    }
+                    if (!_leaveOpen)
+                        _baseStream.Dispose();
                 }
-                base.Dispose(disposing);
                 _isDisposed = true;
             }
+            base.Dispose(disposing);
+        }
+
+        protected virtual async ValueTask DisposeAsyncCore()
+        {
+            if (!_isDisposed)
+            {
+                if (!_leaveOpen)
+                    _baseStream.Dispose();
+                _isDisposed = true;
+            }
+            await base.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

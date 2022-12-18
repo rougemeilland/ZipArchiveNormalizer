@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>False</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SharpCompress" Version="0.30.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Utility.IO\Utility.IO.csproj" />
+    <ProjectReference Include="..\Utility\Utility.csproj" />
+    <ProjectReference Include="..\ZipUtility.IO.Compression\ZipUtility.IO.Compression.csproj" />
+    <ProjectReference Include="..\ZipUtility.IO\ZipUtility.IO.csproj" />
+  </ItemGroup>
+
+</Project>

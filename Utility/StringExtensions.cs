@@ -1,114 +1,114 @@
 ﻿using System;
-using System.Text;
 using System.Collections.Generic;
-using System.Collections;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace Utility
 {
     public static class StringExtensions
     {
-        private class StringEnumerable
-            : IEnumerable<char>
+        #region ChunkAsString
+
+        public static IEnumerable<string> ChunkAsString(this IEnumerable<char> source, Int32 count)
         {
-            private class Enumerator
-                : IEnumerator<char>
+            if (count <= 0)
+                throw new ArgumentOutOfRangeException(nameof(count));
+
+            var sb = new StringBuilder();
+            foreach (var c in source)
             {
-                private string _originalString;
-                private int _offset;
-                private int _index;
-                private int _limit;
-
-                public Enumerator(string originalString, int offset, int count)
+                sb.Append(c);
+                if (sb.Length >= count)
                 {
-                    if (offset < 0)
-                        throw new ArgumentException();
-                    if (count < 0)
-                        throw new ArgumentException();
-                    if (offset + count > originalString.Length)
-                        throw new ArgumentException();
-                    _originalString = originalString;
-                    _offset = offset;
-                    _index = offset - 1;
-                    _limit = offset + count;
+                    yield return sb.ToString();
+                    sb.Clear();
                 }
-
-                public char Current => _index >= _offset && _index < _limit ? _originalString[_index] : throw new InvalidOperationException();
-
-                object IEnumerator.Current => Current;
-
-                public void Dispose()
-                {
-                    // NOP
-                }
-
-                public bool MoveNext()
-                {
-                    if (_index >= _limit)
-                        throw new InvalidOperationException();
-                    ++_index;
-                    return _index < _limit;
-                }
-
-                public void Reset()
-                {
-                    _index = _offset - 1;
-                }
-            }
-
-            private string _originalString;
-            private int _offset;
-            private int _count;
-
-            public StringEnumerable(string originalString, int offset, int count)
-            {
-                _originalString = originalString;
-                _offset = offset;
-                _count = count;
-            }
-
-            public IEnumerator<char> GetEnumerator()
-            {
-                return new Enumerator(_originalString, _offset, _count);
-            }
-
-            IEnumerator IEnumerable.GetEnumerator()
-            {
-                return GetEnumerator();
             }
         }
 
+        #endregion
+
+        #region Slice
+
+        public static ReadOnlyMemory<char> Slice(this string sourceString, Int32 offset)
+        {
+            if (sourceString is null)
+                throw new ArgumentNullException(nameof(sourceString));
+            if (!offset.IsBetween(0, sourceString.Length))
+                throw new ArgumentOutOfRangeException(nameof(offset));
+
+            return (ReadOnlyMemory<char>)sourceString[offset..].ToCharArray();
+        }
+
+        public static ReadOnlyMemory<char> Slice(this string sourceString, UInt32 offset) =>
+            sourceString.Slice(checked((Int32)offset));
+
+        public static ReadOnlyMemory<char> Slice(this string sourceString, Range range)
+        {
+            if (sourceString is null)
+                throw new ArgumentNullException(nameof(sourceString));
+            var sourceArray = sourceString.ToCharArray();
+            var (isOk, offset, count) = sourceArray.GetOffsetAndLength(range);
+            if (!isOk)
+                throw new ArgumentOutOfRangeException(nameof(range));
+
+            return (ReadOnlyMemory<char>)sourceString.Substring(offset, count).ToCharArray();
+        }
+
+        public static ReadOnlyMemory<char> Slice(this string sourceString, Int32 offset, Int32 count)
+        {
+            if (sourceString is null)
+                throw new ArgumentNullException(nameof(sourceString));
+            var sourceArray = sourceString.ToCharArray();
+            if (offset < 0)
+                throw new ArgumentOutOfRangeException(nameof(offset));
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count));
+            checked
+            {
+                if (count + offset > sourceArray.Length)
+                    throw new ArgumentException($"The specified range ({nameof(offset)} and {nameof(count)}) is not within the {nameof(sourceArray)}.");
+            }
+
+            return (ReadOnlyMemory<char>)sourceString.Substring(offset, count).ToCharArray();
+        }
+
+        public static ReadOnlyMemory<char> Slice(this string sourceString, UInt32 offset, UInt32 count) =>
+            sourceString.Slice(checked((Int32)offset), checked((Int32)count));
+
+        #endregion
+
         public static IEnumerable<FileInfo> EnumerateFilesFromArgument(this IEnumerable<string> args)
         {
+            if (args is null)
+                throw new ArgumentNullException(nameof(args));
+
             return
                 args
                 .SelectMany(arg =>
                 {
                     var file = TryParseAsFilePath(arg);
-                    if (file != null)
+                    if (file is not null)
                         return new[] { file };
                     var directory = TryParseAsDirectoryPath(arg);
-                    if (directory != null)
+                    if (directory is not null)
                         return directory.EnumerateFiles("*", SearchOption.AllDirectories);
-                    return new FileInfo[0];
+                    return Array.Empty<FileInfo>();
                 });
         }
 
-        public static string GetLeadingCommonPart(this string s1, string s2, bool ignoreCase = false)
+        public static string? GetLeadingCommonPart(this string? s1, string? s2, bool ignoreCase = false)
         {
-            if (s1 == null)
+            if (s1 is null)
                 return s2;
-            if (s2 == null)
+            if (s2 is null)
                 return s1;
             if (s1.Length == 0 || s2.Length == 0)
                 return "";
             if (s1.Length > s2.Length)
-            {
-                var t = s1;
-                s1 = s2;
-                s2 = t;
-            }
+                (s2, s1) = (s1, s2);
 #if DEBUG
             if (s1.Length > s2.Length)
                 throw new Exception();
@@ -117,24 +117,20 @@ namespace Utility
                 s1
                 .Zip(s2, (c1, c2) => new { c1, c2 })
                 .Select((item, index) => new { item.c1, item.c2, index })
-                .FirstOrDefault(item => CharacterEqual(item.c1, item.c2, ignoreCase) == false);
-            return found != null ? s1.Substring(0, found.index) : s1;
+                .FirstOrDefault(item => !CharacterEqual(item.c1, item.c2, ignoreCase));
+            return found is not null ? s1[..found.index] : s1;
         }
 
-        public static string GetTrailingCommonPart(this string s1, string s2, bool ignoreCase = false)
+        public static string? GetTrailingCommonPart(this string? s1, string? s2, bool ignoreCase = false)
         {
-            if (s1 == null)
+            if (s1 is null)
                 return s2;
-            if (s2 == null)
+            if (s2 is null)
                 return s1;
             if (s1.Length == 0 || s2.Length == 0)
                 return "";
             if (s1.Length > s2.Length)
-            {
-                var t = s1;
-                s1 = s2;
-                s2 = t;
-            }
+                (s2, s1) = (s1, s2);
 #if DEBUG
             if (s1.Length > s2.Length)
                 throw new Exception();
@@ -143,106 +139,137 @@ namespace Utility
                 s1.Reverse()
                 .Zip(s2.Reverse(), (c1, c2) => new { c1, c2 })
                 .Select((item, index) => new { item.c1, item.c2, index })
-                .FirstOrDefault(item => CharacterEqual(item.c1, item.c2, ignoreCase) == false);
-            return found != null ? s1.Substring(s1.Length - found.index, found.index) : s1;
+                .FirstOrDefault(item => !CharacterEqual(item.c1, item.c2, ignoreCase));
+            return found is not null ? s1.Substring(s1.Length - found.index, found.index) : s1;
         }
 
+        #region IsNoneOf
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNoneOf(this string s, string s1, string s2, StringComparison stringComparison = StringComparison.Ordinal)
         {
-            return !s.IsAnyOf(s1, s2, stringComparison);
+            return
+                !string.Equals(s, s1, stringComparison)
+                && !string.Equals(s, s2, stringComparison);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNoneOf(this string s, string s1, string s2, string s3, StringComparison stringComparison = StringComparison.Ordinal)
         {
-            return !s.IsAnyOf(s1, s2, s3, stringComparison);
+            return
+                !string.Equals(s, s1, stringComparison)
+                && !string.Equals(s, s2, stringComparison)
+                && !string.Equals(s, s3, stringComparison);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNoneOf(this string s, string s1, string s2, string s3, string s4, StringComparison stringComparison = StringComparison.Ordinal)
         {
-            return !s.IsAnyOf(s1, s2, s3, s4, stringComparison);
+            return
+                !string.Equals(s, s1, stringComparison)
+                && !string.Equals(s, s2, stringComparison)
+                && !string.Equals(s, s3, stringComparison)
+                && !string.Equals(s, s4, stringComparison);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNoneOf(this string s, string s1, string s2, string s3, string s4, string s5, StringComparison stringComparison = StringComparison.Ordinal)
         {
-            return !s.IsAnyOf(s1, s2, s3, s4, s5, stringComparison);
+            return
+                !string.Equals(s, s1, stringComparison)
+                && !string.Equals(s, s2, stringComparison)
+                && !string.Equals(s, s3, stringComparison)
+                && !string.Equals(s, s4, stringComparison)
+                && !string.Equals(s, s5, stringComparison);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNoneOf(this string s, string s1, string s2, string s3, string s4, string s5, string s6, StringComparison stringComparison = StringComparison.Ordinal)
         {
-            return !s.IsAnyOf(s1, s2, s3, s4, s5, s6, stringComparison);
+            return
+                !string.Equals(s, s1, stringComparison)
+                && !string.Equals(s, s2, stringComparison)
+                && !string.Equals(s, s3, stringComparison)
+                && !string.Equals(s, s4, stringComparison)
+                && !string.Equals(s, s5, stringComparison)
+                && !string.Equals(s, s6, stringComparison);
         }
 
+        #endregion
+
+        #region IsAnyOf
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsAnyOf(this string s, string s1, string s2, StringComparison stringComparison = StringComparison.Ordinal)
         {
             return
-                string.Equals(s, s1, stringComparison) ||
-                string.Equals(s, s2, stringComparison);
+                string.Equals(s, s1, stringComparison)
+                || string.Equals(s, s2, stringComparison);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsAnyOf(this string s, string s1, string s2, string s3, StringComparison stringComparison = StringComparison.Ordinal)
         {
             return
-                string.Equals(s, s1, stringComparison) ||
-                string.Equals(s, s2, stringComparison) ||
-                string.Equals(s, s3, stringComparison);
+                string.Equals(s, s1, stringComparison)
+                || string.Equals(s, s2, stringComparison)
+                || string.Equals(s, s3, stringComparison);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsAnyOf(this string s, string s1, string s2, string s3, string s4, StringComparison stringComparison = StringComparison.Ordinal)
         {
             return
-                string.Equals(s, s1, stringComparison) ||
-                string.Equals(s, s2, stringComparison) ||
-                string.Equals(s, s3, stringComparison) ||
-                string.Equals(s, s4, stringComparison);
+                string.Equals(s, s1, stringComparison)
+                || string.Equals(s, s2, stringComparison)
+                || string.Equals(s, s3, stringComparison)
+                || string.Equals(s, s4, stringComparison);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsAnyOf(this string s, string s1, string s2, string s3, string s4, string s5, StringComparison stringComparison = StringComparison.Ordinal)
         {
             return
-                string.Equals(s, s1, stringComparison) ||
-                string.Equals(s, s2, stringComparison) ||
-                string.Equals(s, s3, stringComparison) ||
-                string.Equals(s, s4, stringComparison) ||
-                string.Equals(s, s5, stringComparison);
+                string.Equals(s, s1, stringComparison)
+                || string.Equals(s, s2, stringComparison)
+                || string.Equals(s, s3, stringComparison)
+                || string.Equals(s, s4, stringComparison)
+                || string.Equals(s, s5, stringComparison);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsAnyOf(this string s, string s1, string s2, string s3, string s4, string s5, string s6, StringComparison stringComparison = StringComparison.Ordinal)
         {
             return
-                string.Equals(s, s1, stringComparison) ||
-                string.Equals(s, s2, stringComparison) ||
-                string.Equals(s, s3, stringComparison) ||
-                string.Equals(s, s4, stringComparison) ||
-                string.Equals(s, s5, stringComparison) ||
-                string.Equals(s, s6, stringComparison);
+                string.Equals(s, s1, stringComparison)
+                || string.Equals(s, s2, stringComparison)
+                || string.Equals(s, s3, stringComparison)
+                || string.Equals(s, s4, stringComparison)
+                || string.Equals(s, s5, stringComparison)
+                || string.Equals(s, s6, stringComparison);
         }
 
-        public static IEnumerable<char> GetSequence(this string s)
+        #endregion
+
+        public static string GetString(this Encoding encoding, ReadOnlyMemory<byte> bytes)
         {
-            return new StringEnumerable(s, 0, s.Length);
+            if (encoding is null)
+                throw new ArgumentNullException(nameof(encoding));
+
+            return encoding.GetString(bytes.Span);
         }
 
-        public static IEnumerable<char> GetSequence(this string s, int offset)
+        public static ReadOnlyMemory<byte> GetReadOnlyBytes(this Encoding encoding, string s)
         {
-            return new StringEnumerable(s, offset, s.Length - offset);
-        }
+            if (encoding is null)
+                throw new ArgumentNullException(nameof(encoding));
+            if (s is null)
+                throw new ArgumentNullException(nameof(s));
 
-        public static IEnumerable<char> GetSequence(this string s, int offset, int count)
-        {
-            return new StringEnumerable(s, offset, count);
-        }
-
-        public static string GetString(this Encoding encoding, IReadOnlyArray<byte> bytes)
-        {
-            return encoding.GetString(bytes.GetRawArray());
-        }
-
-        public static IReadOnlyArray<byte> GetReadOnlyBytes(this Encoding encoding, string s)
-        {
             return encoding.GetBytes(s).AsReadOnly();
         }
 
-        private static FileInfo TryParseAsFilePath(string path)
+        private static FileInfo? TryParseAsFilePath(string path)
         {
             try
             {
@@ -257,7 +284,7 @@ namespace Utility
             }
         }
 
-        private static DirectoryInfo TryParseAsDirectoryPath(string path)
+        private static DirectoryInfo? TryParseAsDirectoryPath(string path)
         {
             try
             {
@@ -272,6 +299,7 @@ namespace Utility
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool CharacterEqual(char c1, char c2, bool ignoreCase)
         {
             if (ignoreCase)

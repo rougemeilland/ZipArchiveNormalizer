@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Utility;
 using Utility.FileWorker;
 using Utility.IO;
@@ -12,10 +13,11 @@ namespace ZipArchiveNormalizer.Phase2
     class Phase2Worker
         : FileWorker, IPhaseWorker
     {
-        private static IComparer<FileInfo> _archiveFileImportanceComparer;
-        private Func<FileInfo, bool> _isBadFileSelecter;
+        private static readonly IComparer<FileInfo> _archiveFileImportanceComparer;
 
-        public event EventHandler<BadFileFoundEventArgs> BadFileFound;
+        private readonly Func<FileInfo, bool> _isBadFileSelecter;
+
+        public event EventHandler<BadFileFoundEventArgs>? BadFileFound;
 
         static Phase2Worker()
         {
@@ -30,14 +32,14 @@ namespace ZipArchiveNormalizer.Phase2
 
         public override string Description => "同一内容のファイル(.zip/.pdf/.epub)がないか調べます。";
 
-        protected override void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult previoousWorkerResult)
+        protected override void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult? previoousWorkerResult)
         {
             UpdateProgress();
 
             var targetSourceFiles =
                 sourceFiles
                 .Where(file =>
-                    _isBadFileSelecter(file) == false &&
+                    !_isBadFileSelecter(file) &&
                     file.Extension.IsAnyOf(".zip", ".epub", ".pdf", StringComparison.OrdinalIgnoreCase))
                 .ToReadOnlyCollection();
             SetToSourceFiles(targetSourceFiles);
@@ -52,8 +54,8 @@ namespace ZipArchiveNormalizer.Phase2
                 .Select(g => new { length = g.Key, files = g.ToReadOnlyCollection() })
                 .Where(item => item.files.Count > 1);
 
-            var totalCount = groupedArchiveFiles.Sum(item => item.files.Count) * 2;
-            var counrOfDone = 0L;
+            var totalCount = (UInt64)groupedArchiveFiles.Sum(item => item.files.Count) * 2;
+            var counrOfDone = 0UL;
 
             var workingList =
                 groupedArchiveFiles
@@ -116,7 +118,7 @@ namespace ZipArchiveNormalizer.Phase2
                                         ex);
                             }
                         }
-                        UpdateProgress(totalCount, Interlocked.Add(ref counrOfDone, item.files.Count));
+                        UpdateProgress(totalCount, Interlocked.Add(ref counrOfDone, (UInt32)item.files.Count));
                     });
                 if (cancellationTokenSource.IsCancellationRequested)
                     throw new OperationCanceledException();
@@ -141,14 +143,14 @@ namespace ZipArchiveNormalizer.Phase2
 
         private IEnumerable<FileInfo> DeleteAndExcludeUselessFile(IEnumerable<FileInfo> files, Action<FileInfo> onDeleteFile)
         {
-            FileInfo fileToDelete = null;
-            FileInfo otherFile = null;
+            FileInfo? fileToDelete = null;
+            FileInfo? otherFile = null;
             var fileInfo1 = files.First();
             foreach (var fileInfo2 in files.Skip(1))
             {
                 SafetyCancellationCheck();
                 UpdateProgress();
-                if (fileInfo1.OpenRead().StreamBytesEqual(fileInfo2.OpenRead(), progressNotification: count => UpdateProgress()))
+                if (fileInfo1.OpenRead().StreamBytesEqual(fileInfo2.OpenRead(), progress: new Progress<UInt64>(_ => UpdateProgress())))
                 {
                     // ファイルの内容が一致している場合
 
@@ -166,7 +168,7 @@ namespace ZipArchiveNormalizer.Phase2
                     break;
                 }
             }
-            if (fileToDelete != null)
+            if (fileToDelete is not null && otherFile is not null)
             {
 #if DEBUG
                 if (string.Equals(fileToDelete.FullName, otherFile.FullName, StringComparison.OrdinalIgnoreCase))
@@ -190,10 +192,14 @@ namespace ZipArchiveNormalizer.Phase2
             }
         }
 
+#pragma warning disable IDE0051 // 使用されていないプライベート メンバーを削除する
         private void RaiseBadFileFoundEvent(FileInfo targetFile)
+#pragma warning restore IDE0051 // 使用されていないプライベート メンバーを削除する
         {
-            if (BadFileFound != null)
+            if (BadFileFound is not null)
+            {
                 BadFileFound(this, new BadFileFoundEventArgs(targetFile));
+            }
         }
     }
 }

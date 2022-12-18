@@ -10,7 +10,7 @@ namespace Utility.FileWorker
         event EventHandler<FileMessageReportedEventArgs> ErrorReported;
         event EventHandler<ProgressChangedEventArgs> ProgressChanged;
         string Description { get; }
-        IFileWorkerExecutionResult Execute(IEnumerable<string> args, IFileWorkerExecutionResult previousWorkerResult);
+        IFileWorkerExecutionResult Execute(IEnumerable<string> args, IFileWorkerExecutionResult? previousWorkerResult);
         bool IsRequestedToCancel { get; }
     }
 }

@@ -15,16 +15,18 @@ namespace ZipArchiveNormalizer
     class NormalizerWorker
         : ConsoleWorker, IDisposable
     {
-        private static FileInfo _errorLogFile;
-        private static FileInfo _warningLogFile;
+        private static readonly FileInfo _errorLogFile;
+        private static readonly FileInfo _warningLogFile;
+
+        private readonly IDictionary<string, object> _badArchiveFiles;
+
         private bool _isDisposed;
-        private IDictionary<string, object> _badArchiveFiles;
         private IReadOnlyCollection<IPhaseWorker> _workers;
 
         static NormalizerWorker()
         {
-            _errorLogFile = new FileInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Properties.Settings.Default.ApplicationName, "errorlog.txt"));
-            _warningLogFile = new FileInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Properties.Settings.Default.ApplicationName, "warninglog.txt"));
+            _errorLogFile = new FileInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Settings.Default.ApplicationName, "errorlog.txt"));
+            _warningLogFile = new FileInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Settings.Default.ApplicationName, "warninglog.txt"));
         }
 
         public NormalizerWorker(IWorkerCancellable canceller)
@@ -65,56 +67,47 @@ namespace ZipArchiveNormalizer
 
         protected override void OnError(DateTime now, FileInfo sourceFile, string message)
         {
-            _errorLogFile.Directory.Create();
-            using (var writer = _errorLogFile.AppendText())
-            {
-                if (sourceFile == null)
-                    writer.WriteLine(string.Format("{0:O}:message={1}", now, message));
-                else
-                    writer.WriteLine(string.Format("{0:O}:file=\"{1}\":message={2}", now, sourceFile, message));
-            }
+            _errorLogFile.Directory?.Create();
+            using var writer = _errorLogFile.AppendText();
+            if (sourceFile is null)
+                writer.WriteLine(string.Format("{0:O}:message={1}", now, message));
+            else
+                writer.WriteLine(string.Format("{0:O}:file=\"{1}\":message={2}", now, sourceFile, message));
         }
 
         protected override void OnWarning(DateTime now, FileInfo sourceFile, string message)
         {
-            _warningLogFile.Directory.Create();
-            using (var writer = _warningLogFile.AppendText())
-            {
-                if (sourceFile == null)
-                    writer.WriteLine(string.Format("{0:O}:message={1}", now, message));
-                else
-                    writer.WriteLine(string.Format("{0:O}:file=\"{1}\":message={2}", now, sourceFile, message));
-            }
+            _warningLogFile.Directory?.Create();
+            using var writer = _warningLogFile.AppendText();
+            if (sourceFile is null)
+                writer.WriteLine(string.Format("{0:O}:message={1}", now, message));
+            else
+                writer.WriteLine(string.Format("{0:O}:file=\"{1}\":message={2}", now, sourceFile, message));
         }
 
         protected override void OnWarningExists()
         {
-            using (var proccess = System.Diagnostics.Process.Start(_warningLogFile.FullName))
-            {
-            }
+            using var proccess = System.Diagnostics.Process.Start(_warningLogFile.FullName);
         }
 
         protected override void OnErrorExists()
         {
-            using (var proccess = System.Diagnostics.Process.Start(_errorLogFile.FullName))
-            {
-            }
+            using var proccess = System.Diagnostics.Process.Start(_errorLogFile.FullName);
         }
 
         protected override void OnExceptionExists(Exception ex, DateTime now)
         {
-            _errorLogFile.Directory.Create();
-            using (var writer = _errorLogFile.AppendText())
+            _errorLogFile.Directory?.Create();
+            using var writer = _errorLogFile.AppendText();
+            writer.WriteLine("====================");
+            var ex2 = ex;
+            while (ex2 is not null)
             {
-                writer.WriteLine("====================");
-                while (ex != null)
-                {
-                    writer.WriteLine(string.Format("{0}:", now));
-                    writer.WriteLine(ex.Message);
-                    writer.WriteLine(ex.StackTrace);
-                    writer.WriteLine("----------");
-                    ex = ex.InnerException;
-                }
+                writer.WriteLine(string.Format("{0}:", now));
+                writer.WriteLine(ex.Message);
+                writer.WriteLine(ex.StackTrace);
+                writer.WriteLine("----------");
+                ex2 = ex2.InnerException;
             }
         }
 
@@ -126,15 +119,15 @@ namespace ZipArchiveNormalizer
                 {
                     foreach (var worker in _workers)
                         worker.BadFileFound -= Worker_BadFileFound;
-                    _workers = new IPhaseWorker[0];
+                    _workers = Array.Empty<IPhaseWorker>();
                 }
                 _isDisposed = true;
             }
         }
 
-        private void Worker_BadFileFound(object sender, BadFileFoundEventArgs e)
+        private void Worker_BadFileFound(object? sender, BadFileFoundEventArgs e)
         {
-            _badArchiveFiles[e.TargetFile.FullName] = null;
+            _badArchiveFiles[e.TargetFile.FullName] = new object();
         }
 
     }

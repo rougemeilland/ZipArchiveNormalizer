@@ -1,18 +1,21 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using System;
+using System.Collections.Generic;
 using ZipUtility;
 
 namespace ZipArchiveNormalizer.Phase1
 {
     class ModifiedEntry
     {
-        public ModifiedEntry(IEnumerable<string> directoryPathElements, ZipArchiveEntry entry)
+        private readonly ZipArchiveEntry? _sourceEntry;
+
+        public ModifiedEntry(IEnumerable<string> directoryPathElements, ZipArchiveEntry? entry)
         {
-            SourceEntry = entry;
+            _sourceEntry = entry;
             NewEntryFullName = string.Join("/", directoryPathElements);
         }
 
-        public ZipArchiveEntry SourceEntry { get; }
+        public bool ExistsSourceEntry => _sourceEntry is not null;
+        public ZipArchiveEntry SourceEntry => _sourceEntry ?? throw new InvalidOperationException();
         public string NewEntryFullName { get; }
     }
 }

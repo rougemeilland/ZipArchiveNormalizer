@@ -1,4 +1,5 @@
-﻿using System;
+﻿//#define TRACE_PARSER
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,13 +21,13 @@ namespace Utility.Text
 
         private interface IParserSource
         {
-            ShiftJisChar PeekChar(int index, bool causeExceptionOnUnexpectedEndOfSequence = true);
+            ShiftJisChar PeekChar(Int32 index, bool causeExceptionOnUnexpectedEndOfSequence = true);
             ShiftJisChar ProcessChar(Func<ShiftJisChar, CacheType> matchHandler);
         }
 
         private class AozoraBunkoParser
         {
-            private IParserSource _source;
+            private readonly IParserSource _source;
 
             public AozoraBunkoParser(IParserSource source)
             {
@@ -41,7 +42,7 @@ namespace Utility.Text
                 // process image name (== alt attribute)
                 while (true)
                 {
-                    if (!IsImageNameChar( _source.PeekChar(0)))
+                    if (!IsImageNameChar(_source.PeekChar(0)))
                         break;
 
                     // process image name char
@@ -86,10 +87,10 @@ namespace Utility.Text
             private static bool IsImagSizeChar(ShiftJisChar c) => !c.IsBetween(0x00, 0x1f) && c.IsNoneOf(0x8169, 0x816a, 0x816d, 0x816e, 0x8141); // control code, zenkaku '（', zenkaku '）', zenkaku '［', zenkaku '］', zenkaku '、'
         }
 
-
         private class XhtmlParser
         {
-            private IParserSource _source;
+            private readonly IParserSource _source;
+
             private bool _proccessedSrcAttribute;
 
             public XhtmlParser(IParserSource source)
@@ -246,22 +247,26 @@ namespace Utility.Text
         private class Enumerator
             : IEnumerator<ShiftJisChar>, IParserSource
         {
-            private static Encoding _shiftJisEncoding;
+            private static readonly Encoding _shiftJisEncoding;
+
+            private readonly IEnumerable<ShiftJisChar> _source;
+            private readonly Func<string, string> _replacer;
+            private readonly AozoraBunkoParser _aozoraBunkoParser;
+            private readonly XhtmlParser _xhtmlParser;
+            private readonly Queue<ShiftJisChar> _prefix;
+            private readonly Queue<ShiftJisChar> _imagePath;
+            private readonly Queue<ShiftJisChar> _suffix;
+            private readonly RandomAccessQueue<ShiftJisChar> _sourceCache;
+
             private bool _isDisposed;
-            private IEnumerable<ShiftJisChar> _source;
-            private Func<string, string> _replacer;
-            private AozoraBunkoParser _aozoraBunkoParser;
-            private XhtmlParser _xhtmlParser;
             private IEnumerator<ShiftJisChar> _sourceEnumerator;
-            private Queue<ShiftJisChar> _prefix;
-            private Queue<ShiftJisChar> _imagePath;
-            private Queue<ShiftJisChar> _suffix;
-            private RandomAccessQueue<ShiftJisChar> _sourceCache;
             private ShiftJisChar? _currentValue;
             private bool _isEndOfSequence;
 
             static Enumerator()
             {
+                Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
                 _shiftJisEncoding = Encoding.GetEncoding("shift_jis");
             }
 
@@ -289,9 +294,8 @@ namespace Utility.Text
                         throw new ObjectDisposedException(GetType().FullName);
                     if (_isEndOfSequence)
                         throw new InvalidOperationException();
-                    if (_currentValue == null)
-                        throw new InvalidOperationException();
-                    return _currentValue.Value;
+
+                    return _currentValue ?? throw new InvalidOperationException();
                 }
             }
 
@@ -321,7 +325,7 @@ namespace Utility.Text
                 // Load the first 4 characters into the cache to determine the type of tag.
                 FillCache(4);
 
-#if DEBUG && false
+#if DEBUG && TRACE_PARSER
                 System.Diagnostics.Debug.Write(string.Format("first: {{{0}}}, ", _sourceCache.Length <= 0 ? "null" : GetFriendlyString(_sourceCache[0])));
 #endif
                 if (_sourceCache.Count <= 0)
@@ -356,7 +360,7 @@ namespace Utility.Text
                     }
                 }
                 else if (
-                    _sourceCache.Length >= 4 && 
+                    _sourceCache.Length >= 4 &&
                     _sourceCache[0].Equals(0x3c) &&         // hankaku '<'
                     _sourceCache[1].IsAnyOf(0x49, 0x69) &&  // hankaku 'I' or 'i'
                     _sourceCache[2].IsAnyOf(0x4d, 0x6d) &&  // hankaku 'M' or 'm'
@@ -377,10 +381,10 @@ namespace Utility.Text
                                 : "";
                             imagePath = imagePath.Substring(enclosureChar.Length, imagePath.Length - enclosureChar.Length * 2);
                             imagePath = ReplaceImagePath(WebUtility.HtmlDecode(imagePath));
-                            if (enclosureChar == "" && imagePath.Contains(" "))
+                            if (enclosureChar == "" && imagePath.Contains(' '))
                             {
-                                var containsSingleQuote = imagePath.Contains("\'");
-                                var containsDoubleQuote = imagePath.Contains("\"");
+                                var containsSingleQuote = imagePath.Contains('\'');
+                                var containsDoubleQuote = imagePath.Contains('"');
                                 if (containsSingleQuote)
                                 {
                                     if (containsDoubleQuote)
@@ -440,21 +444,21 @@ namespace Utility.Text
                 _isEndOfSequence = false;
             }
 
-            public void FillCache(int index)
+            public void FillCache(Int32 index)
             {
                 while (_sourceCache.Count <= index)
                 {
-                    if (_sourceEnumerator.MoveNext() == false)
+                    if (!_sourceEnumerator.MoveNext())
                         return;
                     _sourceCache.Enqueue(_sourceEnumerator.Current);
                 }
             }
 
-            public ShiftJisChar PeekChar(int index, bool causeExceptionOnUnexpectedEndOfSequence = true)
+            public ShiftJisChar PeekChar(Int32 index, bool causeExceptionOnUnexpectedEndOfSequence = true)
             {
                 while (_sourceCache.Count <= index)
                 {
-                    if (_sourceEnumerator.MoveNext() == false)
+                    if (!_sourceEnumerator.MoveNext())
                     {
                         if (causeExceptionOnUnexpectedEndOfSequence)
                             throw new UnexpectedEndOfSequenceException();
@@ -472,29 +476,27 @@ namespace Utility.Text
                     ? _sourceCache.Dequeue()
                     : _sourceEnumerator.MoveNext()
                     ? _sourceEnumerator.Current
-                    : (ShiftJisChar?)null;
-#if DEBUG && false
-                System.Diagnostics.Debug.Write(string.Format("{{{0}}}, ", c == null ? "null" : GetFriendlyString(c.Value)));
+                    : throw new UnexpectedEndOfSequenceException();
+#if DEBUG && TRACE_PARSER
+                System.Diagnostics.Debug.Write(string.Format("{{{0}}}, ",GetFriendlyString(c)));
 #endif
-                if (c == null)
-                    throw new UnexpectedEndOfSequenceException();
-                switch (matchHandler(c.Value))
+                switch (matchHandler(c))
                 {
                     case CacheType.Prefix:
-                        _prefix.Enqueue(c.Value);
+                        _prefix.Enqueue(c);
                         break;
                     case CacheType.ImagePath:
-                        _imagePath.Enqueue(c.Value);
+                        _imagePath.Enqueue(c);
                         break;
                     case CacheType.Suffix:
-                        _suffix.Enqueue(c.Value);
+                        _suffix.Enqueue(c);
                         break;
                     case CacheType.Invalid:
                     default:
-                        _suffix.Enqueue(c.Value);
+                        _suffix.Enqueue(c);
                         throw new BadAozoraBunkoFormatException();
                 }
-                return c.Value;
+                return c;
             }
 
             public void Dispose()
@@ -508,13 +510,7 @@ namespace Utility.Text
                 if (!_isDisposed)
                 {
                     if (disposing)
-                    {
-                        if (_sourceEnumerator != null)
-                        {
-                            _sourceEnumerator.Dispose();
-                            _sourceEnumerator = null;
-                        }
-                    }
+                        _sourceEnumerator.Dispose();
                     _isDisposed = true;
                 }
             }
@@ -534,7 +530,7 @@ namespace Utility.Text
 
             private void Fallback()
             {
-#if DEBUG && false
+#if DEBUG && TRACE_PARSER
                 System.Diagnostics.Debug.WriteLine("");
                 System.Diagnostics.Debug.WriteLine("fallback");
 #endif
@@ -542,28 +538,28 @@ namespace Utility.Text
                 _sourceCache.Clear();
                 foreach (var c in _prefix)
                 {
-#if DEBUG && false
+#if DEBUG && TRACE_PARSER
                     System.Diagnostics.Debug.WriteLine(string.Format("redo {{{0}}} (from prefix)", GetFriendlyString(c)));
 #endif
                     _sourceCache.Enqueue(c);
                 }
                 foreach (var c in _imagePath)
                 {
-#if DEBUG && false
+#if DEBUG && TRACE_PARSER
                     System.Diagnostics.Debug.WriteLine(string.Format("redo {{{0}}} (from image path)", GetFriendlyString(c)));
 #endif
                     _sourceCache.Enqueue(c);
                 }
                 foreach (var c in _suffix)
                 {
-#if DEBUG && false
+#if DEBUG && TRACE_PARSER
                     System.Diagnostics.Debug.WriteLine(string.Format("redo {{{0}}} (from suffix)", GetFriendlyString(c)));
 #endif
                     _sourceCache.Enqueue(c);
                 }
                 foreach (var c in copyOfsouceQueue)
                 {
-#if DEBUG && false
+#if DEBUG && TRACE_PARSER
                     System.Diagnostics.Debug.WriteLine(string.Format("redo {{{0}}} (from remaining of source cache)", c));
 #endif
                     _sourceCache.Enqueue(c);
@@ -573,7 +569,7 @@ namespace Utility.Text
                 _suffix.Clear();
             }
 
-#if DEBUG && false
+#if DEBUG && TRACE_PARSER
             private string GetFriendlyString(ShiftJisChar c)
             {
                 return
@@ -588,14 +584,14 @@ namespace Utility.Text
 #endif
         }
 
-        private IEnumerable<ShiftJisChar> _source;
-        private Func<string, string> _replacer;
+        private readonly IEnumerable<ShiftJisChar> _source;
+        private readonly Func<string, string> _replacer;
 
         public ReplaceImageTagEnumerable(IEnumerable<ShiftJisChar> source, Func<string, string> replacer)
         {
-            if (source == null)
+            if (source is null)
                 throw new ArgumentNullException(nameof(source));
-            if (replacer == null)
+            if (replacer is null)
                 throw new ArgumentNullException(nameof(replacer));
 
             _source = source;

@@ -7,12 +7,12 @@ namespace ZipUtility
     public class ZipArchiveEntryCollection
         : IReadOnlyCollection<ZipArchiveEntry>
     {
-        private IDictionary<ulong, ZipArchiveEntry> _collectionByIndex;
-        private IDictionary<string, ZipArchiveEntry> _collectionByFullName;
+        private readonly IDictionary<UInt64, ZipArchiveEntry> _collectionByIndex;
+        private readonly IDictionary<string, ZipArchiveEntry> _collectionByFullName;
 
         internal ZipArchiveEntryCollection(IEnumerable<ZipArchiveEntry> sourceEntryCollection)
         {
-            _collectionByIndex = new SortedList<ulong, ZipArchiveEntry>();
+            _collectionByIndex = new SortedList<UInt64, ZipArchiveEntry>();
             _collectionByFullName = new Dictionary<string, ZipArchiveEntry>(StringComparer.OrdinalIgnoreCase);
             foreach (var sourceEntry in sourceEntryCollection)
             {
@@ -35,12 +35,11 @@ namespace ZipUtility
         /// If it does not exist, null is returned.
         /// </para>
         /// </returns>
-        public ZipArchiveEntry this[ulong index]
+        public ZipArchiveEntry? this[UInt64 index]
         {
             get
             {
-                ZipArchiveEntry entry;
-                if (!_collectionByIndex.TryGetValue(index, out entry))
+                if (!_collectionByIndex.TryGetValue(index, out ZipArchiveEntry entry))
                     return null;
                 return entry;
             }
@@ -60,18 +59,17 @@ namespace ZipUtility
         /// If it does not exist, null is returned.
         /// </para>
         /// </returns>
-        public ZipArchiveEntry this[string entryName]
+        public ZipArchiveEntry? this[string entryName]
         {
             get
             {
-                ZipArchiveEntry entry;
-                if (!_collectionByFullName.TryGetValue(entryName, out entry))
+                if (!_collectionByFullName.TryGetValue(entryName, out ZipArchiveEntry entry))
                     return null;
                 return entry;
             }
         }
 
-        public int Count => _collectionByIndex.Count;
+        public Int32 Count => _collectionByIndex.Count;
         public IEnumerator<ZipArchiveEntry> GetEnumerator() => _collectionByIndex.Values.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }

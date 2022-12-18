@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Linq;
 using Utility;
 using Utility.IO;
@@ -8,15 +7,16 @@ namespace ZipUtility.ZipFileHeader
 {
     class ZipFileEOCDR
     {
-        private static byte[] _eocdSignature;
-        private UInt16 _numberOfCentralDirectoryRecordsOnThisDisk;
+        private static readonly ReadOnlyMemory<byte> _eocdSignature;
+
+        private readonly UInt16 _numberOfCentralDirectoryRecordsOnThisDisk;
 
         static ZipFileEOCDR()
         {
-            _eocdSignature = new byte[] { 0x50, 0x4b, 0x05, 0x06 };
+            _eocdSignature = new byte[] { 0x50, 0x4b, 0x05, 0x06 }.AsReadOnly();
         }
 
-        private ZipFileEOCDR(UInt64 offsetOfThisHeader, UInt16 numberOfThisDisk, UInt16 diskWhereCentralDirectoryStarts, UInt16 numberOfCentralDirectoryRecordsOnThisDisk, UInt16 totalNumberOfCentralDirectoryRecords, UInt32 sizeOfCentralDirectory, UInt32 offsetOfStartOfCentralDirectory, IReadOnlyArray<byte> commentBytes)
+        private ZipFileEOCDR(UInt64 offsetOfThisHeader, UInt16 numberOfThisDisk, UInt16 diskWhereCentralDirectoryStarts, UInt16 numberOfCentralDirectoryRecordsOnThisDisk, UInt16 totalNumberOfCentralDirectoryRecords, UInt32 sizeOfCentralDirectory, UInt32 offsetOfStartOfCentralDirectory, ReadOnlyMemory<byte> commentBytes)
         {
             OffsetOfThisHeader = offsetOfThisHeader;
             NumberOfThisDisk = numberOfThisDisk;
@@ -40,10 +40,10 @@ namespace ZipUtility.ZipFileHeader
         public UInt16 DiskWhereCentralDirectoryStarts { get; }
 
         /// <summary>
-        /// EOCDのあるディスクに含まれるセントラルディレクトリレコードの数。
+        /// EOCDRのあるディスクに含まれるセントラルディレクトリレコードの数。
         /// </summary>
         /// <remarks>
-        /// PKZIPの実装では、最後のディスクがEOCDから始まっている場合でも、このプロパティが1になってしまう。
+        /// PKZIPの実装では、最後のディスクがEOCDRから始まっている場合 (つまり最後のディスクにセントラルディレクトリヘッダが存在しない) でも、このプロパティが1になってしまう。
         /// このプロパティの値をもとにセントラルディレクトリヘッダを探してはならない。
         /// </remarks>
         [Obsolete]
@@ -52,7 +52,7 @@ namespace ZipUtility.ZipFileHeader
         public UInt16 TotalNumberOfCentralDirectoryRecords { get; }
         public UInt32 SizeOfCentralDirectory { get; }
         public UInt32 OffsetOfStartOfCentralDirectory { get; }
-        public IReadOnlyArray<byte> CommentBytes { get; }
+        public ReadOnlyMemory<byte> CommentBytes { get; }
         public bool IsRequiresZip64 { get; }
 
         public static ZipFileEOCDR Find(IRandomInputByteStream<UInt64> zipInputStream)
@@ -65,12 +65,12 @@ namespace ZipUtility.ZipFileHeader
                 ? zipFileLength - maximumLengthOfHeader
                 : 0;
             var offsetUpperLimit =
-                zipFileLength > minimumLengthOfHeader - (uint)_eocdSignature.Length
-                ? zipFileLength - minimumLengthOfHeader + (uint)_eocdSignature.Length
+                zipFileLength > minimumLengthOfHeader - (UInt32)_eocdSignature.Length
+                ? zipFileLength - minimumLengthOfHeader + (UInt32)_eocdSignature.Length
                 : 0;
             if (zipFileLength < offsetLowerLimit + minimumLengthOfHeader)
                 throw new BadZipFileFormatException("Too short Zip file");
-            while (offsetUpperLimit >= offsetLowerLimit + (uint)_eocdSignature.Length)
+            while (offsetUpperLimit >= offsetLowerLimit + (UInt32)_eocdSignature.Length)
             {
                 var offsetOfThisHeader =
                     zipInputStream.FindLastSigunature(_eocdSignature, offsetLowerLimit, offsetUpperLimit - offsetLowerLimit)
@@ -79,16 +79,16 @@ namespace ZipUtility.ZipFileHeader
                 try
                 {
                     var minimumHeader = zipInputStream.ReadBytes(minimumLengthOfHeader);
-                    var signature = minimumHeader.GetSequence(0, _eocdSignature.Length);
-                    if (!signature.SequenceEqual(_eocdSignature))
+                    var signature = minimumHeader[.._eocdSignature.Length];
+                    if (!signature.Span.SequenceEqual(_eocdSignature.Span))
                         throw new BadZipFileFormatException();
-                    var numberOfThisDisk = minimumHeader.ToUInt16LE(4);
-                    var diskWhereCentralDirectoryStarts = minimumHeader.ToUInt16LE(6);
-                    var numberOfCentralDirectoryRecordsOnThisDisk = minimumHeader.ToUInt16LE(8);
-                    var totalNumberOfCentralDirectoryRecords = minimumHeader.ToUInt16LE(10);
-                    var sizeOfCentralDirectory = minimumHeader.ToUInt32LE(12);
-                    var offsetOfStartOfCentralDirectory = minimumHeader.ToUInt32LE(16);
-                    var commentLength = minimumHeader.ToUInt16LE(20);
+                    var numberOfThisDisk = minimumHeader[4..].ToUInt16LE();
+                    var diskWhereCentralDirectoryStarts = minimumHeader[6..].ToUInt16LE();
+                    var numberOfCentralDirectoryRecordsOnThisDisk = minimumHeader[8..].ToUInt16LE();
+                    var totalNumberOfCentralDirectoryRecords = minimumHeader[10..].ToUInt16LE();
+                    var sizeOfCentralDirectory = minimumHeader[12..].ToUInt32LE();
+                    var offsetOfStartOfCentralDirectory = minimumHeader[16..].ToUInt32LE();
+                    var commentLength = minimumHeader[20..].ToUInt16LE();
                     var commentBytes = zipInputStream.ReadBytes(commentLength);
                     return
                         new ZipFileEOCDR(
@@ -104,7 +104,7 @@ namespace ZipUtility.ZipFileHeader
                 catch (UnexpectedEndOfStreamException)
                 {
                 }
-                offsetUpperLimit = (offsetOfThisHeader + (uint)_eocdSignature.Length - 1U).Maximum(0U);
+                offsetUpperLimit = (offsetOfThisHeader + (UInt32)_eocdSignature.Length - 1U).Maximum(0U);
             }
             throw new BadZipFileFormatException("EOCD Not found in Zip file");
         }

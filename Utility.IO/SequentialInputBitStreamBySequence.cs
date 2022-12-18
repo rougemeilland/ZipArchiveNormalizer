@@ -1,47 +1,52 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Utility.IO
 {
     class SequentialInputBitStreamBySequence
         : SequentialInputBitStreamBy
     {
-        private bool _isDisosed;
-        private IEnumerator<byte> _sourceSequenceEnumerator;
+        private readonly IEnumerator<byte> _sourceSequenceEnumerator;
 
-        public SequentialInputBitStreamBySequence(IEnumerable<byte> sourceSequence, BitPackingDirection packingDirection)
-            : base(packingDirection)
+        private bool _isDisposed;
+
+        public SequentialInputBitStreamBySequence(IEnumerable<byte> sourceSequence, BitPackingDirection bitPackingDirection)
+            : base(bitPackingDirection)
         {
-            if (sourceSequence == null)
+            if (sourceSequence is null)
                 throw new ArgumentNullException(nameof(sourceSequence));
 
-            _isDisosed = false;
+            _isDisposed = false;
             _sourceSequenceEnumerator = sourceSequence.GetEnumerator();
         }
 
-        protected override byte? GetNextByte()
-        {
-            if (_sourceSequenceEnumerator.MoveNext())
-                return _sourceSequenceEnumerator.Current;
-            else
-                return null;
-        }
+        protected override byte? GetNextByte() =>
+            _sourceSequenceEnumerator.MoveNext() ? _sourceSequenceEnumerator.Current : null;
+
+        protected override Task<byte?> GetNextByteAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(_sourceSequenceEnumerator.MoveNext() ? _sourceSequenceEnumerator.Current : (byte?)null);
 
         protected override void Dispose(bool disposing)
         {
-            if (!_isDisosed)
+            if (!_isDisposed)
             {
                 if (disposing)
-                {
-                    if (_sourceSequenceEnumerator != null)
-                    {
-                        _sourceSequenceEnumerator.Dispose();
-                        _sourceSequenceEnumerator = null;
-                    }
-                }
-                base.Dispose();
-                _isDisosed = true;
+                    _sourceSequenceEnumerator.Dispose();
+                _isDisposed = true;
             }
+            base.Dispose(disposing);
+        }
+
+        protected async override ValueTask DisposeAsyncCore()
+        {
+            if (!_isDisposed)
+            {
+                _sourceSequenceEnumerator.Dispose();
+                _isDisposed = true;
+            }
+            await base.DisposeAsyncCore().ConfigureAwait(false);
         }
     }
 }

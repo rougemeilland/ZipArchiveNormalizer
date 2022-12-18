@@ -1,6 +1,5 @@
-﻿using Utility;
+﻿using System;
 using Utility.IO;
-using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -14,37 +13,37 @@ namespace ZipUtility.ZipExtraField
 
         public const ushort ExtraFieldId = 0x5455;
 
-        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
+        public override ReadOnlyMemory<byte>? GetData(ZipEntryHeaderType headerType)
         {
             var flag = 0x00;
-            var writer = new ByteArrayOutputStream();
-            if (LastWriteTimeUtc.HasValue)
+            var writer = new ByteArrayRenderer();
+            if (LastWriteTimeUtc is not null)
                 flag |= 0x01;
-            if (LastAccessTimeUtc.HasValue)
+            if (LastAccessTimeUtc is not null)
                 flag |= 0x02;
-            if (CreationTimeUtc.HasValue)
+            if (CreationTimeUtc is not null)
                 flag |= 0x04;
             if (flag == 0)
                 return null;
             writer.WriteByte((byte)flag);
-            if (LastWriteTimeUtc.HasValue)
+            if (LastWriteTimeUtc is not null)
                 writer.WriteInt32LE(ToUnixTimeStamp(LastWriteTimeUtc.Value));
             if (headerType == ZipEntryHeaderType.LocalFileHeader)
             {
-                if (LastAccessTimeUtc.HasValue)
+                if (LastAccessTimeUtc is not null)
                     writer.WriteInt32LE(ToUnixTimeStamp(LastAccessTimeUtc.Value));
-                if (CreationTimeUtc.HasValue)
+                if (CreationTimeUtc is not null)
                     writer.WriteInt32LE(ToUnixTimeStamp(CreationTimeUtc.Value));
             }
             return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> data)
         {
             LastWriteTimeUtc = null;
             LastAccessTimeUtc = null;
             CreationTimeUtc = null;
-            var reader = new ByteArrayInputStream(data, index, count);
+            var reader = new ByteArrayParser(data);
             var success = false;
             try
             {
@@ -59,12 +58,12 @@ namespace ZipUtility.ZipExtraField
                         CreationTimeUtc = FromUnixTimeStamp(reader.ReadInt32LE());
                 }
                 if (reader.ReadAllBytes().Length > 0)
-                    throw GetBadFormatException(headerType, data, index, count);
+                    throw GetBadFormatException(headerType, data);
                 success = true;
             }
             catch (UnexpectedEndOfStreamException)
             {
-                throw GetBadFormatException(headerType, data, index, count);
+                throw GetBadFormatException(headerType, data);
             }
             finally
             {

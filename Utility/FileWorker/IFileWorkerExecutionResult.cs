@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Utility.FileWorker
@@ -7,6 +8,6 @@ namespace Utility.FileWorker
     {
         IReadOnlyCollection<FileInfo> SourceFiles { get; }
         IReadOnlyCollection<FileInfo> DestinationFiles { get; }
-        long TotalChangedFileCount { get; }
+        Int64 TotalChangedFileCount { get; }
     }
 }

@@ -1,27 +1,48 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Utility.IO
 {
     public interface IBasicInputByteStream
-        : IDisposable
+        : IDisposable, IAsyncDisposable
     {
         /// <summary>
-        /// バイトストリームから指定バイト数だけ読み込みます。
+        /// バイトストリームからデータを同期的に読み込みます。
         /// </summary>
         /// <param name="buffer">
-        /// 読み込んだデータを格納するためのバイト配列です。
-        /// </param>
-        /// <param name="offset">
-        /// <paramref name="buffer"/>上の読み込み開始位置を示す<see cref="int"/>値です。
-        /// </param>
-        /// <param name="count">
-        /// 読み込むバイト数を示す<see cref="int"/>値です。
+        /// 読み込んだデータを格納するための <see cref="Span{byte}">Span&lt;<see cref="Byte"/>&gt;</see> です。
         /// </param>
         /// <returns>
-        /// <see cref="int"/>値を返します。
-        /// 復帰値が正の値である場合、 それは実際に読み込まれたデータの長さ(バイト数)を示します。この値は<paramref name="count"/>を超えることはありません。
-        /// 復帰値が0である場合、それはバイトストリームの終端に達したことを示します。
+        /// <see cref="Int32"/> を返します。
+        /// 戻り値が正の値である場合、 それは実際に読み込まれたデータの長さ (バイト数) を示します。この値は <paramref name="buffer"/> の長さを超えることはありません。
+        /// 戻り値が 0 である場合、それはバイトストリームの終端に達したことを示します。
         /// </returns>
-        int Read(byte[] buffer, int offset, int count);
+        /// <exception cref="ObjectDisposedException">
+        /// バイトストリームが既に破棄されています。
+        /// </exception>
+        Int32 Read(Span<byte> buffer);
+
+        /// <summary>
+        /// バイトストリームからデータを非同期的に読み込みます。
+        /// </summary>
+        /// <param name="buffer">
+        /// 読み込んだデータを格納するための <see cref="Memory{byte}">Memory&lt;<see cref="Byte"/>&gt;</see> です。
+        /// </param>
+        /// <param name="cancellationToken">
+        /// 読み込みの中断を検出するための <see cref="CancellationToken"/> です。
+        /// </param>
+        /// <returns>
+        /// <see cref="Int32"/> を返します。
+        /// 戻り値が正の値である場合、 それは実際に読み込まれたデータの長さ (バイト数) を示します。この値は <paramref name="buffer"/> の長さを超えることはありません。
+        /// 戻り値が 0 である場合、それはバイトストリームの終端に達したことを示します。
+        /// </returns>
+        /// <exception cref="ObjectDisposedException">
+        /// バイトストリームが既に破棄されています。
+        /// </exception>
+        /// <exception cref="OperationCanceledException">
+        /// 読み込みが中断されました。
+        /// </exception>
+        Task<Int32> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default);
     }
 }

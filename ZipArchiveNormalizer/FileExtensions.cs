@@ -1,5 +1,4 @@
-﻿using ICSharpCode.SharpZipLib.Zip;
-using Microsoft.VisualBasic.FileIO;
+﻿using Microsoft.VisualBasic.FileIO;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -14,25 +13,23 @@ namespace ZipArchiveNormalizer
 {
     static class FileExtensions
     {
-        private static Regex _imageCollectionArchiveFileNamePattern;
-        private static Regex _aozoraBunkoArchiveFileNamePattern;
-        private static Regex _contentArchiveFileNamePattern;
-        private static Regex _mimeTypeEntryFileNamePattern;
+        private static readonly Regex _imageCollectionArchiveFileNamePattern;
+        private static readonly Regex _aozoraBunkoArchiveFileNamePattern;
+        private static readonly Regex _contentArchiveFileNamePattern;
+        private static readonly Regex _mimeTypeEntryFileNamePattern;
 
         static FileExtensions()
         {
-            _imageCollectionArchiveFileNamePattern = new Regex(Properties.Settings.Default.ImageCollectionArchiveFileNamePatternText, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            _aozoraBunkoArchiveFileNamePattern = new Regex(Properties.Settings.Default.AozoraBunkoArchiveFileNamePatternText, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            _contentArchiveFileNamePattern = new Regex(Properties.Settings.Default.ContentArchiveFileNamePatternText, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            _mimeTypeEntryFileNamePattern = new Regex(Properties.Settings.Default.MimeTypeEntryNamePatternText, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            _imageCollectionArchiveFileNamePattern = new Regex(Settings.Default.ImageCollectionArchiveFileNamePatternText, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            _aozoraBunkoArchiveFileNamePattern = new Regex(Settings.Default.AozoraBunkoArchiveFileNamePatternText, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            _contentArchiveFileNamePattern = new Regex(Settings.Default.ContentArchiveFileNamePatternText, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            _mimeTypeEntryFileNamePattern = new Regex(Settings.Default.MimeTypeEntryNamePatternText, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         }
 
         public static ArchiveType GetArchiveType(this FileInfo file)
         {
-            using (var zipFile = file.OpenAsZipFile())
-            {
-                return file.GetArchiveType(() => zipFile.GetEntries(), item => item.FullName);
-            }
+            using var zipFile = file.OpenAsZipFile();
+            return file.GetArchiveType(() => zipFile.GetEntries(), item => item.FullName);
         }
 
         public static ArchiveType GetArchiveType<ELEMENT_T>(this FileInfo file, Func<IEnumerable<ELEMENT_T>> entriesGetter, Func<ELEMENT_T, string> entryNameSelecter)
@@ -46,8 +43,8 @@ namespace ZipArchiveNormalizer
                 matchedTypes.Add(ArchiveType.Content);
             if (matchedTypes.None())
                 return ArchiveType.Unknown;
-            if (matchedTypes.Count == 1)
-                return matchedTypes.First();
+            if (matchedTypes.IsSingle())
+                return matchedTypes.Single();
             if (matchedTypes.Contains(ArchiveType.Content))
             {
                 if (entriesGetter().Any(entry => _mimeTypeEntryFileNamePattern.IsMatch(entryNameSelecter(entry))))
@@ -74,23 +71,26 @@ namespace ZipArchiveNormalizer
             {
                 using (var sourceZipFile = archiveFile.OpenAsZipFile())
                 {
-                    foreach (var sourceEntry in  sourceZipFile.GetEntries().Where(entry => entry.IsFile == true))
+                    foreach (var sourceEntry in  sourceZipFile.GetEntries().Where(entry => entry.IsFile))
                     {
                         var localFile = new FileInfo(Path.Combine(outputDirectoryPath, sourceEntry.GetRelativeLocalFilePath()));
-                        localFile.Directory.Create();
-                        using (var inputStream = sourceZipFile.GetInputStream(sourceEntry))
-                        using (var outputStream = localFile.Create().AsOutputByteStream())
+                        if (localFile.Directory is not null)
                         {
-                            inputStream.CopyTo(outputStream);
-                        }
-                        localFile.Attributes = FileAttributes.Archive; ;
-                        sourceEntry.SeTimeStampToExtractedFile(localFile.FullName);
-                        try
-                        {
-                            actionOnExtracted(new FileInfo(localFile.FullName));
-                        }
-                        catch (Exception)
-                        {
+                            localFile.Directory.Create();
+                            using (var inputStream = sourceZipFile.GetContentStream(sourceEntry))
+                            using (var outputStream = localFile.Create().AsOutputByteStream())
+                            {
+                                inputStream.CopyTo(outputStream);
+                            }
+                            localFile.Attributes = FileAttributes.Archive; ;
+                            sourceEntry.SeTimeStampToExtractedFile(localFile.FullName);
+                            try
+                            {
+                                actionOnExtracted(new FileInfo(localFile.FullName));
+                            }
+                            catch (Exception)
+                            {
+                            }
                         }
                     }
                 }
@@ -120,18 +120,18 @@ namespace ZipArchiveNormalizer
         private static string GetDestinationDirectoryPath(FileInfo archiveFile)
         {
             var pattern = new Regex(@"^(?<mainpart>[^\\/]*?)(\s*\((?<suffix>[0-9]+)\))?$", RegexOptions.Compiled);
-            var outputFileBasePath = archiveFile.DirectoryName;
+            var outputFileBasePath = archiveFile.DirectoryName ?? ".";
             var zipArchiveFileName = Path.GetFileNameWithoutExtension(archiveFile.FullName);
             var outputDirectoryPath = Path.Combine(outputFileBasePath, zipArchiveFileName);
             while (Directory.Exists(outputDirectoryPath) || File.Exists(outputDirectoryPath + ".zip"))
             {
                 var matchDirectoryName = pattern.Match(Path.GetFileName(outputDirectoryPath));
                 if (!matchDirectoryName.Success)
-                    throw new Exception();
+                    throw new InternalLogicalErrorException();
                 var mainPart = matchDirectoryName.Groups["mainpart"].Value;
                 var suffixNumber =
                     matchDirectoryName.Groups["suffix"].Success
-                    ? int.Parse(matchDirectoryName.Groups["suffix"].Value, NumberStyles.None, CultureInfo.InvariantCulture.NumberFormat) + 1
+                    ? Int32.Parse(matchDirectoryName.Groups["suffix"].Value, NumberStyles.None, CultureInfo.InvariantCulture.NumberFormat) + 1
                     : 2;
                 outputDirectoryPath =
                     Path.Combine(

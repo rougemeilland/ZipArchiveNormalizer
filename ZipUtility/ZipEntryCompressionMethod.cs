@@ -1,9 +1,12 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using Utility;
 using Utility.IO;
 using ZipUtility.IO.Compression;
 
@@ -11,97 +14,130 @@ namespace ZipUtility
 {
     public class ZipEntryCompressionMethod
     {
-        private static Regex _pluginFileNamePattern;
-        private static IDictionary<ZipUtility.IO.Compression.CompressionMethodId, ICompressionMethod> _compresssionMethods;
-        private static ZipEntryCompressionMethod _stored;
-        private static ZipEntryCompressionMethod _deflateWithNormal;
-        private static ZipEntryCompressionMethod _deflateWithMaximum;
-        private static ZipEntryCompressionMethod _deflateWithFast;
-        private static ZipEntryCompressionMethod _deflateWithSuperFast;
-        private static ZipEntryCompressionMethod _deflate64WithNormal;
-        private static ZipEntryCompressionMethod _deflate64WithMaximum;
-        private static ZipEntryCompressionMethod _deflate64WithFast;
-        private static ZipEntryCompressionMethod _deflate64WithSuperFast;
-        private static ZipEntryCompressionMethod _bzip2;
-        private static ZipEntryCompressionMethod _lzmaWithEOS;
-        private static ZipEntryCompressionMethod _lzmaWithoutEOS;
-        private static ZipEntryCompressionMethod _ppmd;
-        private ICompressionMethod _plugin;
-        private ICompressionOption _option;
+        private enum CoderType
+        {
+            Decoder,
+            Encoder,
+        }
+
+        private static readonly Regex _pluginFileNamePattern;
+        private static readonly IDictionary<(CompressionMethodId CompressionMethodId, CoderType CoderType), ICompressionCoder> _compresssionMethods;
+        private static readonly ZipEntryCompressionMethod? _stored;
+        private static readonly ZipEntryCompressionMethod? _deflateWithNormal;
+        private static readonly ZipEntryCompressionMethod? _deflateWithMaximum;
+        private static readonly ZipEntryCompressionMethod? _deflateWithFast;
+        private static readonly ZipEntryCompressionMethod? _deflateWithSuperFast;
+        private static readonly ZipEntryCompressionMethod? _deflate64WithNormal;
+        private static readonly ZipEntryCompressionMethod? _deflate64WithMaximum;
+        private static readonly ZipEntryCompressionMethod? _deflate64WithFast;
+        private static readonly ZipEntryCompressionMethod? _deflate64WithSuperFast;
+        private static readonly ZipEntryCompressionMethod? _bzip2;
+        private static readonly ZipEntryCompressionMethod? _lzmaWithEOS;
+        private static readonly ZipEntryCompressionMethod? _lzmaWithoutEOS;
+        private static readonly ZipEntryCompressionMethod? _ppmd;
+
+        private readonly ICompressionCoder? _decoderPlugin;
+        private readonly IO.ICoderOption? _decoderOption;
+        private readonly ICompressionCoder? _encoderPlugin;
+        private readonly IO.ICoderOption? _encoderOption;
 
         static ZipEntryCompressionMethod()
         {
             _pluginFileNamePattern = new Regex(@"^ZipUtility\.IO\.Compression\.[a-zA-Z0-9_]+\.dll$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             _compresssionMethods = EnumeratePlugin();
-            ICompressionMethod plugin;
 
-            if (_compresssionMethods.TryGetValue(ZipUtility.IO.Compression.CompressionMethodId.Stored, out plugin))
-                _stored = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.Stored, plugin, null);
-            else
-                _stored = null;
-
-            if (_compresssionMethods.TryGetValue(ZipUtility.IO.Compression.CompressionMethodId.Deflate, out plugin))
-            {
-                _deflateWithNormal = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.Deflate, plugin, new DeflateCompressionOption { CompressionLevel =  DeflateCompressionLevel.Normal });
-                _deflateWithMaximum = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.Deflate, plugin, new DeflateCompressionOption { CompressionLevel = DeflateCompressionLevel.Maximum });
-                _deflateWithFast = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.Deflate, plugin, new DeflateCompressionOption { CompressionLevel = DeflateCompressionLevel.Fast });
-                _deflateWithSuperFast = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.Deflate, plugin, new DeflateCompressionOption { CompressionLevel = DeflateCompressionLevel.SuperFast });
-            }
-            else
-            {
-                _deflateWithNormal = null;
-                _deflateWithMaximum = null;
-                _deflateWithFast = null;
-                _deflateWithSuperFast = null;
-            }
-
-            if (_compresssionMethods.TryGetValue(ZipUtility.IO.Compression.CompressionMethodId.Deflate64, out plugin))
-            {
-                _deflate64WithNormal = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.Deflate64, plugin, new DeflateCompressionOption { CompressionLevel = DeflateCompressionLevel.Normal });
-                _deflate64WithMaximum = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.Deflate64, plugin, new DeflateCompressionOption { CompressionLevel = DeflateCompressionLevel.Maximum });
-                _deflate64WithFast = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.Deflate64, plugin, new DeflateCompressionOption { CompressionLevel = DeflateCompressionLevel.Fast });
-                _deflate64WithSuperFast = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.Deflate64, plugin, new DeflateCompressionOption { CompressionLevel = DeflateCompressionLevel.SuperFast });
-            }
-            else
-            {
-                _deflate64WithNormal = null;
-                _deflate64WithMaximum = null;
-                _deflate64WithFast = null;
-                _deflate64WithSuperFast = null;
-            }
-
-            if (_compresssionMethods.TryGetValue(ZipUtility.IO.Compression.CompressionMethodId.BZIP2, out plugin))
-                _bzip2 = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.BZIP2, plugin, null);
-            else
-                _bzip2 = null;
-
-            if (_compresssionMethods.TryGetValue(ZipUtility.IO.Compression.CompressionMethodId.LZMA, out plugin))
-            {
-                _lzmaWithEOS = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.LZMA, plugin, new LzmaCompressionOption {  UseEndOfStreamMarker = true   });
-                _lzmaWithoutEOS = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.LZMA, plugin, new LzmaCompressionOption {  UseEndOfStreamMarker = false });
-            }
-            else
-            {
-                _lzmaWithEOS = null;
-                _lzmaWithoutEOS = null;
-            }
-
-            if (_compresssionMethods.TryGetValue(ZipUtility.IO.Compression.CompressionMethodId.PPMd, out plugin))
-                _ppmd = new ZipEntryCompressionMethod(ZipEntryCompressionMethodId.PPMd, plugin, null);
-            else
-                _ppmd = null;
+            _stored =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.Stored,
+                    plugin => plugin.DefaultOption);
+            _deflateWithNormal =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.Deflate,
+                    _ => CompressionOption.GetDeflateCompressionOption(DeflateCompressionLevel.Normal));
+            _deflateWithMaximum =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.Deflate,
+                    _ => CompressionOption.GetDeflateCompressionOption(DeflateCompressionLevel.Maximum));
+            _deflateWithFast =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.Deflate,
+                    _ => CompressionOption.GetDeflateCompressionOption(DeflateCompressionLevel.Fast));
+            _deflateWithSuperFast =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.Deflate,
+                    _ => CompressionOption.GetDeflateCompressionOption(DeflateCompressionLevel.SuperFast));
+            _deflate64WithNormal =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.Deflate64,
+                    _ => CompressionOption.GetDeflateCompressionOption(DeflateCompressionLevel.Normal));
+            _deflate64WithMaximum =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.Deflate64,
+                    _ => CompressionOption.GetDeflateCompressionOption(DeflateCompressionLevel.Maximum));
+            _deflate64WithFast =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.Deflate64,
+                    _ => CompressionOption.GetDeflateCompressionOption(DeflateCompressionLevel.Fast));
+            _deflate64WithSuperFast =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.Deflate64,
+                    _ => CompressionOption.GetDeflateCompressionOption(DeflateCompressionLevel.SuperFast));
+            _bzip2 =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.BZIP2,
+                    plugin => plugin.DefaultOption);
+            _lzmaWithEOS =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.LZMA,
+                    _ => CompressionOption.GetLzmaCompressionOption(true));
+            _lzmaWithoutEOS =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.LZMA,
+                    _ => CompressionOption.GetLzmaCompressionOption(false));
+            _ppmd =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    IO.Compression.CompressionMethodId.PPMd,
+                    plugin => plugin.DefaultOption);
         }
 
-        internal ZipEntryCompressionMethod(ZipEntryCompressionMethodId compressMethodId, ICompressionMethod plugin, ICompressionOption option)
+        internal ZipEntryCompressionMethod(ZipEntryCompressionMethodId compressMethodId, ICompressionCoder? decoderPlugin, IO.ICoderOption? decoderOption, ICompressionCoder? encoderPlugin, IO.ICoderOption? encoderOption)
         {
-            if (plugin == null)
-                throw new ArgumentNullException();
+            if (decoderPlugin is null && encoderPlugin is null)
+                throw new ArgumentException($"Both {nameof(decoderPlugin)} and {nameof(encoderPlugin)} are null.");
+            if (decoderPlugin is not null && decoderPlugin is not ICompressionDecoder && decoderPlugin is not ICompressionHierarchicalDecoder)
+                throw new ArgumentException($"{nameof(decoderPlugin)} does not implement the required interface.");
+            if (encoderPlugin is not null && encoderPlugin is not ICompressionEncoder && encoderPlugin is not ICompressionHierarchicalEncoder)
+                throw new ArgumentException($"{nameof(encoderPlugin)} does not implement the required interface.");
+            if (decoderPlugin is not null && decoderOption is null)
+                throw new ArgumentNullException(nameof(decoderOption));
+            if (encoderPlugin is not null && encoderOption is null)
+                throw new ArgumentNullException(nameof(encoderOption));
+
             CompressionMethodId = compressMethodId;
-            _plugin = plugin;
-            _option = option;
+            IsSupportedGetDecodingStream = decoderPlugin is ICompressionHierarchicalDecoder;
+            IsSupportedDecode = decoderPlugin is ICompressionDecoder;
+            IsSupportedGetEncodingStream = encoderPlugin is ICompressionHierarchicalEncoder;
+            IsSupportedEncode = encoderPlugin is ICompressionEncoder;
+            _decoderPlugin = decoderPlugin;
+            _decoderOption = decoderOption;
+            _encoderPlugin = encoderPlugin;
+            _encoderOption = encoderOption;
         }
 
-        public static IEnumerable<ZipEntryCompressionMethodId> SupportedCompresssionMethodIds => _compresssionMethods.Keys.Select(id => GetCompressionMethodId(id));
+        public static IEnumerable<ZipEntryCompressionMethodId> SupportedCompresssionMethodIds => _compresssionMethods.Keys.Select(key => GetCompressionMethodId(key.CompressionMethodId));
         public static ZipEntryCompressionMethod Stored => _stored ?? throw new CompressionMethodNotSupportedException(ZipEntryCompressionMethodId.Stored);
         public static ZipEntryCompressionMethod DeflateWithNormal => _deflateWithNormal ?? throw new CompressionMethodNotSupportedException(ZipEntryCompressionMethodId.Deflate);
         public static ZipEntryCompressionMethod DeflateWithMaximum => _deflateWithMaximum ?? throw new CompressionMethodNotSupportedException(ZipEntryCompressionMethodId.Deflate);
@@ -117,66 +153,114 @@ namespace ZipUtility
         public static ZipEntryCompressionMethod PPMd => _ppmd ?? throw new CompressionMethodNotSupportedException(ZipEntryCompressionMethodId.PPMd);
 
         public ZipEntryCompressionMethodId CompressionMethodId { get; }
+        public bool IsSupportedGetDecodingStream { get; }
+        public bool IsSupportedDecode { get; }
+        public bool IsSupportedGetEncodingStream { get; }
+        public bool IsSupportedEncode { get; }
 
-        public IInputByteStream<UInt64> GetDecodingStream(IInputByteStream<UInt64> baseStream, ulong size, ICodingProgressReportable progressReporter)
+        public IInputByteStream<UInt64> GetDecodingStream(IInputByteStream<UInt64> baseStream, UInt64 unpackedSize, UInt64 packedSize, IProgress<UInt64>? progress = null)
         {
-            try
-            {
-                return _plugin.GetDecodingStream(baseStream, _option, size, progressReporter);
-            }
-            catch (IOException ex)
-            {
-                throw new BadZipFileFormatException(string.Format("Failed to decompress: method='{0}'", CompressionMethodId), ex);
-            }
+            if (baseStream is null)
+                throw new ArgumentNullException(nameof(baseStream));
+
+            return InternalGetDecodingStream(baseStream, unpackedSize, packedSize, progress);
         }
 
-        public IOutputByteStream<UInt64> GetEncodingStream(IOutputByteStream<UInt64> baseStream, ICodingProgressReportable progressReporter)
+        public IOutputByteStream<UInt64> GetEncodingStream(IOutputByteStream<UInt64> baseStream, IProgress<UInt64>? progress = null)
         {
-            try
-            {
-                return _plugin.GetEncodingStream(baseStream, _option, null, progressReporter);
-            }
-            catch (IOException ex)
-            {
-                throw new BadZipFileFormatException(string.Format("Failed to compress: method='{0}'", CompressionMethodId), ex);
-            }
+            if (baseStream is null)
+                throw new ArgumentNullException(nameof(baseStream));
+
+            return InternalGetEncodingStream(baseStream, null, progress);
         }
 
-        public IOutputByteStream<UInt64> GetEncodingStream(IOutputByteStream<UInt64> baseStream, ulong size, ICodingProgressReportable progressReporter)
+        public IOutputByteStream<UInt64> GetEncodingStream(IOutputByteStream<UInt64> baseStream, UInt64 size, IProgress<UInt64>? progress = null)
         {
-            try
-            {
-                return _plugin.GetEncodingStream(baseStream, _option, size, progressReporter);
-            }
-            catch (IOException ex)
-            {
-                throw new BadZipFileFormatException(string.Format("Failed to compress: method='{0}'", CompressionMethodId), ex);
-            }
+            if (baseStream is null)
+                throw new ArgumentNullException(nameof(baseStream));
+
+            return InternalGetEncodingStream(baseStream, size, progress);
         }
 
         internal static ZipEntryCompressionMethod GetCompressionMethod(ZipEntryCompressionMethodId compressionMethodId, ZipEntryGeneralPurposeBitFlag flag)
         {
-            var pluginId = GetPluginId(compressionMethodId);
+            var instance =
+                CreateCompressionMethodDefaultInstance(
+                    _compresssionMethods,
+                    GetPluginId(compressionMethodId),
+                    plugin => plugin.GetOptionFromGeneralPurposeFlag(
 
-            ICompressionMethod plugin;
-            if (!_compresssionMethods.TryGetValue(pluginId, out plugin))
-                throw new CompressionMethodNotSupportedException(compressionMethodId);
-
-            var option =
-                plugin.CreateOptionFromGeneralPurposeFlag(
                     flag.HasFlag(ZipEntryGeneralPurposeBitFlag.CompresssionOption0),
-                    flag.HasFlag(ZipEntryGeneralPurposeBitFlag.CompresssionOption1));
-            return new ZipEntryCompressionMethod(compressionMethodId, plugin, option);
+                    flag.HasFlag(ZipEntryGeneralPurposeBitFlag.CompresssionOption1)));
+            if (instance is null)
+                throw new CompressionMethodNotSupportedException(compressionMethodId);
+            return instance;
         }
 
-        private static IDictionary<CompressionMethodId, ICompressionMethod> EnumeratePlugin()
+        internal (UInt32 Crc, UInt64 Length) CalculateCrc32(IZipInputStream zipInputStream, ZipStreamPosition offset, UInt64 size, UInt64 packedSize, IProgress<UInt64>? progress)
         {
+            if (_decoderPlugin is ICompressionHierarchicalDecoder hierarchicalDecoder)
+            {
+                if (_decoderOption is null)
+                    throw new InternalLogicalErrorException();
+                return
+                    hierarchicalDecoder
+                    .GetDecodingStream(
+                        zipInputStream.AsPartial(offset, packedSize),
+                        _decoderOption,
+                        size,
+                        packedSize,
+                        progress)
+                    .CalculateCrc32();
+            }
+            else if (_decoderPlugin is ICompressionDecoder decoder)
+            {
+                if (_decoderOption is null)
+                    throw new InternalLogicalErrorException();
+                using var outputStream = new NullOutputStream();
+                var valueHolder = new ValueHolder<(UInt32 Crc, UInt64 Length)>();
+                decoder.Decode(
+                    zipInputStream.AsPartial(offset, packedSize),
+                    outputStream.WithCrc32Calculation(valueHolder),
+                    _decoderOption,
+                    size,
+                    packedSize,
+                    progress ?? new Progress<UInt64>());
+                return valueHolder.Value;
+            }
+            else
+                throw new IllegalRuntimeEnvironmentException($"Can not uncompress content: method={CompressionMethodId}.");
+        }
 
-            var interfaceType = typeof(ICompressionMethod);
+        private static ZipEntryCompressionMethod? CreateCompressionMethodDefaultInstance(IDictionary<(CompressionMethodId CompressionMethodId, CoderType CoderType), ICompressionCoder> compresssionMethodSource, CompressionMethodId compressionMethodId, Func<ICompressionCoder, IO.ICoderOption> optionGetter)
+        {
+            if (!compresssionMethodSource.TryGetValue((compressionMethodId, CoderType.Decoder), out ICompressionCoder? deoderPlugin))
+                deoderPlugin = null;
+            if (!compresssionMethodSource.TryGetValue((compressionMethodId, CoderType.Encoder), out ICompressionCoder? enoderPlugin))
+                enoderPlugin = null;
+            if (deoderPlugin is null && enoderPlugin is null)
+                return null;
+            return
+                new ZipEntryCompressionMethod(
+                    GetCompressionMethodId(compressionMethodId),
+                    deoderPlugin,
+                    deoderPlugin is null ? null : optionGetter(deoderPlugin),
+                    enoderPlugin,
+                    enoderPlugin is null ? null : optionGetter(enoderPlugin));
+        }
+
+
+        private static IDictionary<(CompressionMethodId CompressionMethodId, CoderType CoderType), ICompressionCoder> EnumeratePlugin()
+        {
+            var interfaceType = typeof(ICompressionCoder);
             var interfaceTypeName = interfaceType.FullName;
+            if (interfaceTypeName is null)
+                throw new InvalidOperationException();
             var thisAssembly = typeof(ZipEntryCompressionMethodIdExtensions).Assembly;
             var pluginLocation = Path.GetDirectoryName(thisAssembly.Location);
-            return
+            if (pluginLocation is null)
+                throw new InvalidOperationException();
+            var pluginSequence =
                 Directory.EnumerateFiles(pluginLocation, "*.dll", SearchOption.AllDirectories)
                     .Where(filePath =>
                         _pluginFileNamePattern.IsMatch(Path.GetFileName(filePath)) &&
@@ -192,7 +276,7 @@ namespace ZipUtility
                             return null;
                         }
                     })
-                    .Where(assembly => assembly != null)
+                    .WhereNotNull()
                     .Select(assembly =>
                     {
 #if DEBUG
@@ -208,10 +292,10 @@ namespace ZipUtility
                     .SelectMany(item =>
                         item.assembly.GetTypes()
                         .Where(type =>
-                            type.IsClass == true &&
-                            (type.IsPublic == true || item.externalAssembly == false) &&
-                            type.IsAbstract == false &&
-                            type.GetInterface(interfaceTypeName) != null)
+                            type.IsClass &&
+                            (type.IsPublic || !item.externalAssembly) &&
+                            !type.IsAbstract &&
+                            type.GetInterface(interfaceTypeName) is not null)
                         .Select(type =>
                         {
                             try
@@ -219,56 +303,131 @@ namespace ZipUtility
 #if DEBUG
                                 System.Diagnostics.Debug.WriteLine(string.Format("create plugin {0}", type.FullName));
 #endif
-                                return item.assembly.CreateInstance(type.FullName) as ICompressionMethod;
+                                if (type.FullName is null)
+                                    return null;
+                                return item.assembly.CreateInstance(type.FullName) as ICompressionCoder;
                             }
                             catch (Exception)
                             {
                                 return null;
                             }
                         })
-                        .Where(plugin => plugin != null && plugin.CompressionMethodId != IO.Compression.CompressionMethodId.Unknown))
-                    .ToDictionary(plugin => plugin.CompressionMethodId, plugin => plugin);
+                        .WhereNotNull()
+                        .Where(plugin => plugin is not null && plugin.CompressionMethodId != IO.Compression.CompressionMethodId.Unknown));
+            var plugins = new Dictionary<(CompressionMethodId CompressionMethodId, CoderType CoderType), ICompressionCoder>();
+            foreach (var plugin in pluginSequence)
+            {
+                if (plugin is ICompressionDecoder || plugin is ICompressionHierarchicalDecoder)
+                {
+                    if (!plugins.TryAdd((plugin.CompressionMethodId, CoderType.Decoder), plugin))
+                        throw new IllegalRuntimeEnvironmentException($"Duplicate Compress plug-in. : method = {plugin.CompressionMethodId}, type = {CoderType.Decoder}");
+                }
+                if (plugin is ICompressionEncoder || plugin is ICompressionHierarchicalEncoder)
+                {
+                    if (!plugins.TryAdd((plugin.CompressionMethodId, CoderType.Encoder), plugin))
+                        throw new IllegalRuntimeEnvironmentException($"Duplicate Compress plug-in. : method = {plugin.CompressionMethodId}, type = {CoderType.Decoder}");
+                }
+            }
+            return plugins;
         }
 
-        private static ZipUtility.IO.Compression.CompressionMethodId GetPluginId(ZipEntryCompressionMethodId compressionMethodId)
+        private static CompressionMethodId GetPluginId(ZipEntryCompressionMethodId compressionMethodId)
         {
-            switch (compressionMethodId)
+            return
+                compressionMethodId switch
+                {
+                    ZipEntryCompressionMethodId.Stored => IO.Compression.CompressionMethodId.Stored,
+                    ZipEntryCompressionMethodId.Deflate => IO.Compression.CompressionMethodId.Deflate,
+                    ZipEntryCompressionMethodId.Deflate64 => IO.Compression.CompressionMethodId.Deflate64,
+                    ZipEntryCompressionMethodId.BZIP2 => IO.Compression.CompressionMethodId.BZIP2,
+                    ZipEntryCompressionMethodId.LZMA => IO.Compression.CompressionMethodId.LZMA,
+                    ZipEntryCompressionMethodId.PPMd => IO.Compression.CompressionMethodId.PPMd,
+                    _ => IO.Compression.CompressionMethodId.Unknown,
+                };
+        }
+
+        private static ZipEntryCompressionMethodId GetCompressionMethodId(CompressionMethodId pluginId)
+        {
+            return
+                pluginId switch
+                {
+                    IO.Compression.CompressionMethodId.Stored => ZipEntryCompressionMethodId.Stored,
+                    IO.Compression.CompressionMethodId.Deflate => ZipEntryCompressionMethodId.Deflate,
+                    IO.Compression.CompressionMethodId.Deflate64 => ZipEntryCompressionMethodId.Deflate64,
+                    IO.Compression.CompressionMethodId.BZIP2 => ZipEntryCompressionMethodId.BZIP2,
+                    IO.Compression.CompressionMethodId.LZMA => ZipEntryCompressionMethodId.LZMA,
+                    IO.Compression.CompressionMethodId.PPMd => ZipEntryCompressionMethodId.PPMd,
+                    _ => ZipEntryCompressionMethodId.Unknown,
+                };
+        }
+
+        private IInputByteStream<UInt64> InternalGetDecodingStream(IInputByteStream<UInt64> baseStream, UInt64 unpackedSize, UInt64 packedSize, IProgress<UInt64>? progress)
+        {
+            switch (_decoderPlugin)
             {
-                case ZipEntryCompressionMethodId.Stored:
-                    return ZipUtility.IO.Compression.CompressionMethodId.Stored;
-                case ZipEntryCompressionMethodId.Deflate:
-                    return ZipUtility.IO.Compression.CompressionMethodId.Deflate;
-                case ZipEntryCompressionMethodId.Deflate64:
-                    return ZipUtility.IO.Compression.CompressionMethodId.Deflate64;
-                case ZipEntryCompressionMethodId.BZIP2:
-                    return ZipUtility.IO.Compression.CompressionMethodId.BZIP2;
-                case ZipEntryCompressionMethodId.LZMA:
-                    return ZipUtility.IO.Compression.CompressionMethodId.LZMA;
-                case ZipEntryCompressionMethodId.PPMd:
-                    return ZipUtility.IO.Compression.CompressionMethodId.PPMd;
+                case ICompressionHierarchicalDecoder hierarchicalDecoder:
+                    if (_decoderOption is null)
+                        throw new InternalLogicalErrorException();
+
+                    return hierarchicalDecoder.GetDecodingStream(baseStream, _decoderOption, unpackedSize, packedSize, progress);
+                case ICompressionDecoder decoder:
+                    {
+                        if (_decoderOption is null)
+                            throw new InternalLogicalErrorException();
+
+                        var queue = new AsyncByteIOQueue();
+                        var decoderOption = _decoderOption;
+                        _ = Task.Run(() =>
+                        {
+                            try
+                            {
+                                using var queueWriter = queue.GetWriter();
+                                decoder.Decode(baseStream, queueWriter, decoderOption, unpackedSize, packedSize, progress);
+                            }
+                            catch (Exception)
+                            {
+                            }
+                        });
+                        return queue.GetReader();
+                    }
+
                 default:
-                    return ZipUtility.IO.Compression.CompressionMethodId.Unknown;
+                    throw new NotSupportedException($"Compression is not suppoted. : method = {CompressionMethodId}");
             }
         }
 
-        private static ZipEntryCompressionMethodId GetCompressionMethodId(ZipUtility.IO.Compression.CompressionMethodId  pluginId)
+        private IOutputByteStream<UInt64> InternalGetEncodingStream(IOutputByteStream<UInt64> baseStream, UInt64? unpackedSize, IProgress<UInt64>? progress)
         {
-            switch (pluginId)
+            switch (_encoderPlugin)
             {
-                case ZipUtility.IO.Compression.CompressionMethodId.Stored:
-                    return ZipEntryCompressionMethodId.Stored;
-                case ZipUtility.IO.Compression.CompressionMethodId.Deflate:
-                    return ZipEntryCompressionMethodId.Deflate;
-                case ZipUtility.IO.Compression.CompressionMethodId.Deflate64:
-                    return ZipEntryCompressionMethodId.Deflate64;
-                case ZipUtility.IO.Compression.CompressionMethodId.BZIP2:
-                    return ZipEntryCompressionMethodId.BZIP2;
-                case ZipUtility.IO.Compression.CompressionMethodId.LZMA:
-                    return ZipEntryCompressionMethodId.LZMA;
-                case ZipUtility.IO.Compression.CompressionMethodId.PPMd:
-                    return ZipEntryCompressionMethodId.PPMd;
+                case ICompressionHierarchicalEncoder hierarchicalEncoder:
+                    if (_encoderOption is null)
+                        throw new InternalLogicalErrorException();
+
+                    return hierarchicalEncoder.GetEncodingStream(baseStream, _encoderOption, unpackedSize, progress);
+                case ICompressionEncoder encoder:
+                    {
+                        if (_encoderOption is null)
+                            throw new InternalLogicalErrorException();
+
+                        var queue = new AsyncByteIOQueue();
+                        var encoderOption = _encoderOption;
+                        _ = Task.Run(() =>
+                        {
+                            try
+                            {
+                                using var queueReader = queue.GetReader();
+                                encoder.Encode(queueReader, baseStream, encoderOption, unpackedSize, progress);
+                            }
+                            catch (Exception)
+                            {
+                            }
+                        });
+                        return queue.GetWriter();
+                    }
+
                 default:
-                    return ZipEntryCompressionMethodId.Unknown;
+                    throw new NotSupportedException($"Compression is not suppoted. : method = {CompressionMethodId}");
             }
         }
     }

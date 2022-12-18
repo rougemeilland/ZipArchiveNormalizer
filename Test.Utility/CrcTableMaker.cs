@@ -36,7 +36,7 @@ namespace Test.Utility
                     });
         }
 
-        private static IEnumerable<string> GetCrcTable(string name, Func<int, UInt32> calculateTable)
+        private static IEnumerable<string> GetCrcTable(string name, Func<Int32, UInt32> calculateTable)
         {
             var crc32Table = new UInt32[256];
             for (var wordIndex = 0; wordIndex < 256; wordIndex++)

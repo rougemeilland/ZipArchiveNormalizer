@@ -8,7 +8,6 @@ using System.Text.RegularExpressions;
 using Utility;
 using Utility.FileWorker;
 
-
 namespace ImageFileRenumber
 {
     class ImageFileNameRenumberWorker
@@ -23,7 +22,7 @@ namespace ImageFileRenumber
         private class DirectoryParameter
             : IFileWorkerActionDirectoryParameter
         {
-            public DirectoryParameter(RenumberingMode mode, string prefix, string suffix, int pageNumberWidth, int firstPageNumber)
+            public DirectoryParameter(RenumberingMode mode, string prefix, string suffix, Int32 pageNumberWidth, Int32 firstPageNumber)
             {
                 Mode = mode;
                 FileNamePrefix = prefix;
@@ -35,36 +34,27 @@ namespace ImageFileRenumber
             public RenumberingMode Mode { get; }
             public string FileNamePrefix { get; }
             public string FileNameSuffix { get; }
-            public int PagenNumberWidth { get; }
-            public int FirstPageNumber { get; }
+            public Int32 PagenNumberWidth { get; }
+            public Int32 FirstPageNumber { get; }
 
-            public string GetNewFileName(string pageNumberText, int index, string extension)
+            public string GetNewFileName(string pageNumberText, Int32 index, string extension)
             {
-                if (_digitsPattern.IsMatch(pageNumberText) == false)
-                    throw new ArgumentException();
-                switch (Mode)
-                {
-                    case RenumberingMode.RenumberFromSpecifiedNumber:
-                        return
-                            FileNamePrefix +
-                            (FirstPageNumber + index).ToString().PadLeft(PagenNumberWidth, '0') +
-                            FileNameSuffix + extension;
-                    case RenumberingMode.OnlyAdjustPageNumberWidth:
-                        return
-                            FileNamePrefix +
-                            pageNumberText.PadLeft(PagenNumberWidth, '0') +
-                            FileNameSuffix +
-                            extension;
-                    default:
-                        throw new Exception();
-                }
+                if (!_digitsPattern.IsMatch(pageNumberText))
+                    throw new ArgumentException("Contained illegal character", nameof(pageNumberText));
+                return
+                    Mode switch
+                    {
+                        RenumberingMode.RenumberFromSpecifiedNumber => $"{FileNamePrefix}{(FirstPageNumber + index).ToString().PadLeft(PagenNumberWidth, '0')}{FileNameSuffix}{extension}",
+                        RenumberingMode.OnlyAdjustPageNumberWidth => $"{FileNamePrefix}{pageNumberText.PadLeft(PagenNumberWidth, '0')}{FileNameSuffix}{extension}",
+                        _ => throw new InternalLogicalErrorException(),
+                    };
             }
         }
 
-        private static Regex _digitsPattern;
-        private static Regex _startsWithDigitsPattern;
-        private static Regex _endsWithDigitsPattern;
-        private static IComparer<string> _fileNameComparer;
+        private static readonly Regex _digitsPattern;
+        private static readonly Regex _startsWithDigitsPattern;
+        private static readonly Regex _endsWithDigitsPattern;
+        private static readonly IComparer<string> _fileNameComparer;
 
         static ImageFileNameRenumberWorker()
         {
@@ -81,18 +71,18 @@ namespace ImageFileRenumber
 
         public override string Description => "画像ファイルの自動変名を行います。";
 
-        protected override IFileWorkerActionFileParameter IsMatchFile(FileInfo sourceFile)
+        protected override IFileWorkerActionFileParameter? IsMatchFile(FileInfo sourceFile)
         {
             // いずれかの階層のディレクトリ名またはファイル名が '.' で始まるパス名は対象外とする
             // 拡張子が ".jpg", ".jpeg", ".png", ".bmp" のいずれかのファイルのみを対象とする
             return
-                sourceFile.FullName.Contains(@"\.") == false &&
+                !sourceFile.FullName.Contains(@"\.") &&
                 sourceFile.Extension.IsAnyOf(".jpg", ".jpeg", ".png", ".bmp", StringComparison.OrdinalIgnoreCase)
                 ? base.IsMatchFile(sourceFile)
                 : null;
         }
 
-        protected override IFileWorkerActionDirectoryParameter IsMatchDirectory(DirectoryInfo directory, IEnumerable<string> fileNames)
+        protected override IFileWorkerActionDirectoryParameter? IsMatchDirectory(DirectoryInfo directory, IEnumerable<string> fileNames)
         {
             // fileNames が空または1つしかない場合は自動変名は行わない
             if (fileNames.None() || fileNames.IsSingle())
@@ -111,13 +101,15 @@ namespace ImageFileRenumber
             var prefix =
                 fileItems
                 .Select(fileItem => fileItem.currentFileNameWithoutExtension)
-                .Aggregate((string)null, (name1, name2) => name1.GetLeadingCommonPart(name2, true));
+                .Aggregate((string?)null, (name1, name2) => name1.GetLeadingCommonPart(name2, true))
+                ?? "";
             prefix = _endsWithDigitsPattern.Match(prefix).Groups["prefix"].Value;
 
             var suffix =
                 fileItems
                 .Select(fileItem => fileItem.currentFileNameWithoutExtension)
-                .Aggregate((string)null, (name1, name2) => name1.GetTrailingCommonPart(name2, true));
+                .Aggregate((string?)null, (name1, name2) => name1.GetTrailingCommonPart(name2, true))
+                ?? "";
             suffix = _startsWithDigitsPattern.Match(suffix).Groups["suffix"].Value;
 
             // ファイルごとに異なる中央部分の文字列を抽出する
@@ -187,11 +179,16 @@ namespace ImageFileRenumber
             var pageNumberWidth = lastPageNumber.ToString().Length;
 
 #if DEBUG
-            if (firstPageNumber > int.MaxValue)
+            if (firstPageNumber > Int32.MaxValue)
                 throw new Exception();
 #endif
+            // prefix が "resized_" で始まる場合はそれを削除する。
+            const string leadingIgnoredString = "resized_";
+            if (prefix.StartsWith(leadingIgnoredString, StringComparison.OrdinalIgnoreCase))
+                prefix = prefix[leadingIgnoredString.Length..];
+
             // ディレクトリパラメタを構築する。
-            var directoryParameter = new DirectoryParameter(mode, prefix, suffix, pageNumberWidth, (int)firstPageNumber);
+            var directoryParameter = new DirectoryParameter(mode, prefix, suffix, pageNumberWidth, (Int32)firstPageNumber);
 
             // 全てのファイルについて、新ファイル名の案を作成する
             var newFileNames =
@@ -213,34 +210,37 @@ namespace ImageFileRenumber
             var found =
                 newFileNames
                 .Where(item =>
-                    string.Equals(item.currentFileName, item.newFileName, StringComparison.OrdinalIgnoreCase) == false &&
+                    !string.Equals(item.currentFileName, item.newFileName, StringComparison.OrdinalIgnoreCase) &&
                     File.Exists(item.newFileNPath))
                 .FirstOrDefault();
-            if (found != null)
+            if (found is not null)
                 return null;
             return directoryParameter;
         }
 
         protected override IComparer<FileInfo> FileComparer =>
-            _fileNameComparer.Map<FileInfo, string>(file => file.FullName);
+            _fileNameComparer.MapComparer<FileInfo, string>(file => file.FullName);
 
         protected override void ActionForFile(FileInfo sourceFile, IFileWorkerActionParameter parameter)
         {
-            var directoryParameter = (DirectoryParameter)parameter.DirectoryParameter;
-            var newFilePath =
-                Path.Combine(
-                    sourceFile.DirectoryName,
-                    directoryParameter.FileNamePrefix + (directoryParameter.FirstPageNumber + parameter.FileIndexOnSameDirectory).ToString().PadLeft(directoryParameter.PagenNumberWidth, '0') + directoryParameter.FileNameSuffix + sourceFile.Extension);
-            if (!string.Equals(sourceFile.FullName, newFilePath) && File.Exists(newFilePath) == false)
+            if (sourceFile.DirectoryName is not null)
             {
-                // MoveTo メソッドは FileInfo オブジェクトを改変してしまうため、
-                // 複製してから呼び出している
-                new FileInfo(sourceFile.FullName).MoveTo(newFilePath);
-                AddToDestinationFiles(new FileInfo(newFilePath));
-                IncrementChangedFileCount();
+                var directoryParameter = (DirectoryParameter)parameter.DirectoryParameter;
+                var newFilePath =
+                    Path.Combine(
+                        sourceFile.DirectoryName,
+                        directoryParameter.FileNamePrefix + (directoryParameter.FirstPageNumber + parameter.FileIndexOnSameDirectory).ToString().PadLeft(directoryParameter.PagenNumberWidth, '0') + directoryParameter.FileNameSuffix + sourceFile.Extension);
+                if (!string.Equals(sourceFile.FullName, newFilePath) && !File.Exists(newFilePath))
+                {
+                    // MoveTo メソッドは FileInfo オブジェクトを改変してしまうため、
+                    // 複製してから呼び出している
+                    new FileInfo(sourceFile.FullName).MoveTo(newFilePath);
+                    AddToDestinationFiles(new FileInfo(newFilePath));
+                    IncrementChangedFileCount();
+                }
+                else
+                    AddToDestinationFiles(sourceFile);
             }
-            else
-                AddToDestinationFiles(sourceFile);
         }
     }
 }

@@ -4,7 +4,6 @@
     {
         MsbToLsb = 0,
         LsbToMsb = 1,
-        //BigEndian = 0,
-        //LittleEndian = 1,
+        Default = MsbToLsb,
     }
 }

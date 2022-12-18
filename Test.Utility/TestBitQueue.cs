@@ -53,12 +53,12 @@ namespace Test.Utility
                 {
                     bitQueue = new BitQueue(item.bitPattern1),
                     value = Convert.ToByte(item.bitPattern2, 2),
-                    count = item.count,
+                    item.count,
                     item.direction,
                     desired = item.bitPattern1 +
                         (item.direction == BitPackingDirection.MsbToLsb
-                            ? item.bitPattern2.PadLeft(8, '0').Substring(8 - item.count)
-                            : new string(item.bitPattern2.PadLeft(8, '0').Substring(8 - item.count).Reverse().ToArray())),
+                            ? item.bitPattern2.PadLeft(8, '0')[(8 - item.count)..]
+                            : new string(item.bitPattern2.PadLeft(8, '0')[(8 - item.count)..].Reverse().ToArray())),
                 })
                 .AsParallel()
                 .WithDegreeOfParallelism(Environment.ProcessorCount)
@@ -87,12 +87,12 @@ namespace Test.Utility
                 {
                     bitQueue = new BitQueue(item.bitPattern1),
                     value = Convert.ToUInt16(item.bitPattern2, 2),
-                    count = item.count,
+                    item.count,
                     item.direction,
                     desired = item.bitPattern1 +
                         (item.direction == BitPackingDirection.MsbToLsb
-                            ? item.bitPattern2.PadLeft(16, '0').Substring(16 - item.count)
-                            : new string(item.bitPattern2.PadLeft(16, '0').Substring(16 - item.count).Reverse().ToArray())),
+                            ? item.bitPattern2.PadLeft(16, '0')[(16 - item.count)..]
+                            : new string(item.bitPattern2.PadLeft(16, '0')[(16 - item.count)..].Reverse().ToArray())),
                 })
                 .AsParallel()
                 .WithDegreeOfParallelism(Environment.ProcessorCount)
@@ -120,12 +120,12 @@ namespace Test.Utility
                 {
                     bitQueue = new BitQueue(item.bitPattern1),
                     value = Convert.ToUInt32(item.bitPattern2, 2),
-                    count = item.count,
+                    item.count,
                     item.direction,
                     desired = item.bitPattern1 +
                         (item.direction == BitPackingDirection.MsbToLsb
-                            ? item.bitPattern2.PadLeft(32, '0').Substring(32 - item.count)
-                            : new string(item.bitPattern2.PadLeft(32, '0').Substring(32 - item.count).Reverse().ToArray())),
+                            ? item.bitPattern2.PadLeft(32, '0')[(32 - item.count)..]
+                            : new string(item.bitPattern2.PadLeft(32, '0')[(32 - item.count)..].Reverse().ToArray())),
                 })
                 .AsParallel()
                 .WithDegreeOfParallelism(Environment.ProcessorCount)
@@ -153,12 +153,12 @@ namespace Test.Utility
                 {
                     bitQueue = new BitQueue(item.bitPattern1),
                     value = Convert.ToUInt64(item.bitPattern2, 2),
-                    count = item.count,
+                    item.count,
                     item.direction,
                     desired = item.bitPattern1 +
                         (item.direction == BitPackingDirection.MsbToLsb
-                            ? item.bitPattern2.PadLeft(64, '0').Substring(64 - item.count)
-                            : new string(item.bitPattern2.PadLeft(64, '0').Substring(64 - item.count).Reverse().ToArray())),
+                            ? item.bitPattern2.PadLeft(64, '0')[(64 - item.count)..]
+                            : new string(item.bitPattern2.PadLeft(64, '0')[(64 - item.count)..].Reverse().ToArray())),
                 })
                 .AsParallel()
                 .WithDegreeOfParallelism(Environment.ProcessorCount)
@@ -212,8 +212,8 @@ namespace Test.Utility
                 .Select(bitPattern => new
                 {
                     bitQueue = new BitQueue(bitPattern),
-                    desiredValue = bitPattern[0] != '0', 
-                    desiredBitQueue = bitPattern.Substring(1),
+                    desiredValue = bitPattern[0] != '0',
+                    desiredBitQueue = bitPattern[1..],
                 })
                 .ForEach(item =>
                 {
@@ -235,10 +235,10 @@ namespace Test.Utility
                     desiredValue =
                         Convert.ToByte(
                             item.direction == BitPackingDirection.MsbToLsb
-                            ? item.bitPattern.Length > 8 ? item.bitPattern.Substring(0, 8) : item.bitPattern
-                            : item.bitPattern.Length > 8 ? new string(item.bitPattern.Substring(0, 8).Reverse().ToArray()): new string(item.bitPattern.Reverse().ToArray()),
+                            ? item.bitPattern.Length > 8 ? item.bitPattern[..8] : item.bitPattern
+                            : item.bitPattern.Length > 8 ? new string(item.bitPattern[..8].Reverse().ToArray()) : new string(item.bitPattern.Reverse().ToArray()),
                             2),
-                    desiredBitQueue = item.bitPattern.Length > 8 ? item.bitPattern.Substring(8) : "",
+                    desiredBitQueue = item.bitPattern.Length > 8 ? item.bitPattern[8..] : "",
                 })
                 .ForEach(item =>
                 {
@@ -260,10 +260,10 @@ namespace Test.Utility
                     desiredValue =
                         Convert.ToUInt16(
                             item.direction == BitPackingDirection.MsbToLsb
-                            ? item.bitPattern.Length > 16 ? item.bitPattern.Substring(0, 16) : item.bitPattern
-                            : item.bitPattern.Length > 16 ? new string(item.bitPattern.Substring(0, 16).Reverse().ToArray()) : new string(item.bitPattern.Reverse().ToArray()),
+                            ? item.bitPattern.Length > 16 ? item.bitPattern[..16] : item.bitPattern
+                            : item.bitPattern.Length > 16 ? new string(item.bitPattern[..16].Reverse().ToArray()) : new string(item.bitPattern.Reverse().ToArray()),
                             2),
-                    desiredBitQueue = item.bitPattern.Length > 16 ? item.bitPattern.Substring(16) : "",
+                    desiredBitQueue = item.bitPattern.Length > 16 ? item.bitPattern[16..] : "",
                 })
                 .ForEach(item =>
                 {
@@ -285,10 +285,10 @@ namespace Test.Utility
                     desiredValue =
                         Convert.ToUInt32(
                             item.direction == BitPackingDirection.MsbToLsb
-                            ? item.bitPattern.Length > 32 ? item.bitPattern.Substring(0, 32) : item.bitPattern
-                            : item.bitPattern.Length > 32 ? new string(item.bitPattern.Substring(0, 32).Reverse().ToArray()) : new string(item.bitPattern.Reverse().ToArray()),
+                            ? item.bitPattern.Length > 32 ? item.bitPattern[..32] : item.bitPattern
+                            : item.bitPattern.Length > 32 ? new string(item.bitPattern[..32].Reverse().ToArray()) : new string(item.bitPattern.Reverse().ToArray()),
                             2),
-                    desiredBitQueue = item.bitPattern.Length > 32 ? item.bitPattern.Substring(32) : "",
+                    desiredBitQueue = item.bitPattern.Length > 32 ? item.bitPattern[32..] : "",
                 })
                 .ForEach(item =>
                 {
@@ -310,10 +310,10 @@ namespace Test.Utility
                     desiredValue =
                         Convert.ToUInt64(
                             item.direction == BitPackingDirection.MsbToLsb
-                            ? item.bitPattern.Length > 64 ? item.bitPattern.Substring(0, 64) : item.bitPattern
-                            : item.bitPattern.Length > 64 ? new string(item.bitPattern.Substring(0, 64).Reverse().ToArray()) : new string(item.bitPattern.Reverse().ToArray()),
+                            ? item.bitPattern.Length > 64 ? item.bitPattern[..64] : item.bitPattern
+                            : item.bitPattern.Length > 64 ? new string(item.bitPattern[..64].Reverse().ToArray()) : new string(item.bitPattern.Reverse().ToArray()),
                             2),
-                    desiredBitQueue = item.bitPattern.Length > 64 ? item.bitPattern.Substring(64) : "",
+                    desiredBitQueue = item.bitPattern.Length > 64 ? item.bitPattern[64..] : "",
                 })
                 .ForEach(item =>
                 {
@@ -326,7 +326,7 @@ namespace Test.Utility
 
         }
 
-        private static IEnumerable<int> BitCountDataSource =>
+        private static IEnumerable<Int32> BitCountDataSource =>
             new[] { 0, 8, 16, 32, 64, 128, 192, 256, 320, 384 }
             .SelectMany(n => new[] { n - 2, n - 1, n, n + 1, n + 2 })
             .Where(n => n >= 0);
@@ -352,7 +352,7 @@ namespace Test.Utility
                 }
                 .SelectMany(
                     bitArray => BitCountDataSource,
-                    (bitArray, length) => bitArray.Substring(0, length.Minimum(bitArray.Length)));
+                    (bitArray, length) => bitArray[..length.Minimum(bitArray.Length)]);
             }
         }
     }

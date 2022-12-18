@@ -1,29 +1,32 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Utility.IO
 {
     class SequentialInputByteStreamByBitStream
         : IInputByteStream<UInt64>
     {
+        private readonly IInputBitStream _baseStream;
+        private readonly BitPackingDirection _bitPackingDirection;
+        private readonly bool _leaveOpen;
+        private readonly BitQueue _bitQueue;
+
         private bool _isDisposed;
-        private IInputBitStream _baseStream;
-        private BitPackingDirection _packingDirection;
-        private bool _leaveOpen;
-        private ulong _position;
-        private BitQueue _bitQueue;
+        private UInt64 _position;
         private bool _isEndOfBaseStream;
         private bool _isEndOfStream;
 
-        public SequentialInputByteStreamByBitStream(IInputBitStream baseStream, BitPackingDirection packingDirection, bool leaveOpen)
+        public SequentialInputByteStreamByBitStream(IInputBitStream baseStream, BitPackingDirection bitPackingDirection, bool leaveOpen)
         {
             try
             {
-                if (baseStream == null)
+                if (baseStream is null)
                     throw new ArgumentNullException(nameof(baseStream));
 
                 _isDisposed = false;
                 _baseStream = baseStream;
-                _packingDirection = packingDirection;
+                _bitPackingDirection = bitPackingDirection;
                 _leaveOpen = leaveOpen;
                 _position = 0;
                 _bitQueue = new BitQueue();
@@ -32,64 +35,48 @@ namespace Utility.IO
             }
             catch (Exception)
             {
-                if (leaveOpen == false)
+                if (!leaveOpen)
                     baseStream?.Dispose();
                 throw;
             }
         }
 
-        public ulong Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
+        public UInt64 Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
 
-        public int Read(byte[] buffer, int offset, int count)
+        public Int32 Read(Span<byte> buffer)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
-            if (buffer == null)
-                throw new ArgumentNullException(nameof(buffer));
-            if (offset < 0)
-                throw new ArgumentException();
-            if (count < 0)
-                throw new ArgumentException();
-            if (offset + count > buffer.Length)
-                throw new ArgumentException();
 
             if (_isEndOfStream)
                 return 0;
 
+            ReadToBitQueue();
+            return ReadFromBitQueue(buffer);
+        }
 
-            while (_isEndOfBaseStream == false && _bitQueue.Count < BitQueue.RecommendedMaxCount)
-            {
-                var bitArray = _baseStream.ReadBits(BitQueue.RecommendedMaxCount - _bitQueue.Count);
-                if (bitArray == null)
-                {
-                    _isEndOfBaseStream = true;
-                    break;
-                }
-                _bitQueue.Enqueue(bitArray);
-            }
-            if (_bitQueue.Count <= 0)
-            {
-                _isEndOfStream = true;
+        public async Task<Int32> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_isDisposed)
+                throw new ObjectDisposedException(GetType().FullName);
+
+            if (_isEndOfStream)
                 return 0;
-            }
-            var actualCount = 0;
-            while (actualCount < count && _bitQueue.Count >= 8)
-            {
-                buffer[offset + actualCount] = _bitQueue.DequeueByte(_packingDirection);
-                ++actualCount;
-            }
-            if (actualCount <= 0 && _bitQueue.Count > 0)
-            {
-                buffer[offset + actualCount] = _bitQueue.DequeueByte(_packingDirection);
-                ++actualCount;
-            }
-            _position += (ulong)actualCount;
-            return actualCount;
+
+            await ReadToBitQueueAsync(cancellationToken).ConfigureAwait(false);
+            return ReadFromBitQueue(buffer.Span);
         }
 
         public void Dispose()
         {
             Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await DisposeAsyncCore().ConfigureAwait(false);
+            Dispose(disposing: false);
             GC.SuppressFinalize(this);
         }
 
@@ -99,14 +86,64 @@ namespace Utility.IO
             {
                 if (disposing)
                 {
-                    if (_baseStream != null)
-                    {
-                        if (_leaveOpen == false)
-                            _baseStream.Dispose();
-                        _baseStream = null;
-                    }
+                    if (!_leaveOpen)
+                        _baseStream.Dispose();
                 }
                 _isDisposed = true;
+            }
+        }
+
+        protected virtual async ValueTask DisposeAsyncCore()
+        {
+            if (!_isDisposed)
+            {
+                if (!_leaveOpen)
+                    await _baseStream.DisposeAsync().ConfigureAwait(false);
+                _isDisposed = true;
+            }
+        }
+
+        private Int32 ReadFromBitQueue(Span<byte> buffer)
+        {
+            if (_bitQueue.Count <= 0)
+            {
+                _isEndOfStream = true;
+                return 0;
+            }
+            var bufferIndex = 0;
+            while (bufferIndex < buffer.Length && _bitQueue.Count >= 8)
+                buffer[bufferIndex++] = _bitQueue.DequeueByte(_bitPackingDirection);
+            if (bufferIndex <= 0 && _bitQueue.Count > 0)
+                buffer[bufferIndex++] = _bitQueue.DequeueByte(_bitPackingDirection);
+            _position += (UInt64)bufferIndex;
+            return bufferIndex;
+        }
+
+        private void ReadToBitQueue()
+        {
+            while (!_isEndOfBaseStream && _bitQueue.Count < BitQueue.RecommendedMaxCount)
+            {
+                var bitArray = _baseStream.ReadBits(BitQueue.RecommendedMaxCount - _bitQueue.Count);
+                if (!bitArray.HasValue)
+                {
+                    _isEndOfBaseStream = true;
+                    break;
+                }
+                _bitQueue.Enqueue(bitArray.Value);
+            }
+        }
+
+        private async Task ReadToBitQueueAsync(CancellationToken cancellationToken)
+        {
+            while (!_isEndOfBaseStream && _bitQueue.Count < BitQueue.RecommendedMaxCount)
+            {
+                var bitArray = await _baseStream.ReadBitsAsync(BitQueue.RecommendedMaxCount - _bitQueue.Count, cancellationToken).ConfigureAwait(false);
+                if (!bitArray.HasValue)
+                {
+                    _isEndOfBaseStream = true;
+                    break;
+                }
+                _bitQueue.Enqueue(bitArray.Value);
             }
         }
     }

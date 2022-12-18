@@ -1,28 +1,30 @@
 ﻿using System;
-using Utility;
 using Utility.IO;
-using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
     public class UnixExtraFieldType0
         : UnixTimestampExtraField
     {
+        private UInt16? _userId;
+        private UInt16? _groupId;
+        private ReadOnlyMemory<byte>? _additionalData;
+
         public UnixExtraFieldType0()
             : base(ExtraFieldId)
         {
-            UserId = UInt16.MaxValue;
-            GroupId = UInt16.MaxValue;
-            AdditionalData = new byte[0].AsReadOnly();
+            _userId = null;
+            _groupId = null;
+            _additionalData = null;
         }
 
         public const ushort ExtraFieldId = 13;
 
-        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
+        public override ReadOnlyMemory<byte>? GetData(ZipEntryHeaderType headerType)
         {
-            if (LastAccessTimeUtc == null || LastWriteTimeUtc == null)
+            if (!LastAccessTimeUtc.HasValue || !LastWriteTimeUtc.HasValue || !_userId.HasValue || !_groupId.HasValue || !_additionalData.HasValue)
                 return null;
-            var writer = new ByteArrayOutputStream();
+            var writer = new ByteArrayRenderer();
             writer.WriteInt32LE(ToUnixTimeStamp(LastAccessTimeUtc.Value));
             writer.WriteInt32LE(ToUnixTimeStamp(LastWriteTimeUtc.Value));
             writer.WriteUInt16LE(UserId);
@@ -31,14 +33,14 @@ namespace ZipUtility.ZipExtraField
             return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> data)
         {
             LastAccessTimeUtc = null;
             LastWriteTimeUtc = null;
-            UserId = UInt16.MaxValue;
-            GroupId = UInt16.MaxValue;
-            AdditionalData = null;
-            var reader = new ByteArrayInputStream(data, index, count);
+            _userId = null;
+            _groupId = null;
+            _additionalData = null;
+            var reader = new ByteArrayParser(data);
             var success = false;
             try
             {
@@ -48,12 +50,12 @@ namespace ZipUtility.ZipExtraField
                 GroupId = reader.ReadUInt16LE();
                 AdditionalData = reader.ReadAllBytes();
                 if (reader.ReadAllBytes().Length > 0)
-                    throw GetBadFormatException(headerType, data, index, count);
+                    throw GetBadFormatException(headerType, data);
                 success = true;
             }
             catch (UnexpectedEndOfStreamException)
             {
-                throw GetBadFormatException(headerType, data, index, count);
+                throw GetBadFormatException(headerType, data);
             }
             finally
             {
@@ -61,17 +63,31 @@ namespace ZipUtility.ZipExtraField
                 {
                     LastAccessTimeUtc = null;
                     LastWriteTimeUtc = null;
-                    UserId = UInt16.MaxValue;
-                    GroupId = UInt16.MaxValue;
-                    AdditionalData = null;
+                    _userId = null;
+                    _groupId = null;
+                    _additionalData = null;
                 }
             }
         }
 
         public override DateTime? CreationTimeUtc { get => null; set => throw new NotSupportedException(); }
 
-        public UInt16 UserId { get; set; }
-        public UInt16 GroupId { get; set; }
-        public IReadOnlyArray<byte> AdditionalData { get; set; }
+        public UInt16 UserId
+        {
+            get => _userId ?? throw new InvalidOperationException();
+            set => _userId = value;
+        }
+
+        public UInt16 GroupId
+        {
+            get => _groupId ?? throw new InvalidOperationException();
+            set => _groupId = value;
+        }
+
+        public ReadOnlyMemory<byte> AdditionalData
+        {
+            get => _additionalData ?? throw new InvalidOperationException();
+            set => _additionalData = value;
+        }
     }
 }

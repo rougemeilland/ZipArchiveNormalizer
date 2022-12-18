@@ -21,8 +21,8 @@ namespace Test.ZipUtility.Compression
                 ZipEntryCompressionMethod.DeflateWithNormal,
                 ZipEntryCompressionMethod.DeflateWithSuperFast,
                 ZipEntryCompressionMethod.BZIP2,
-                ZipEntryCompressionMethod.LZMAWithEOS,
-                ZipEntryCompressionMethod.LZMAWithoutEOS,
+                //ZipEntryCompressionMethod.LZMAWithEOS,
+                //ZipEntryCompressionMethod.LZMAWithoutEOS,
             };
             var testFileNames = new[]
             {
@@ -33,6 +33,7 @@ namespace Test.ZipUtility.Compression
                 "TEST_4GBよりやや短いファイル1.txt",
                 "TEST_4GBを超えるが圧縮すると4GB未満のファイル1.txt",
                 "TEST_圧縮しても4GBを超えるファイル1.txt",
+                "TEST_程々に圧縮可能なファイル.txt",
             };
 
             var baseDirectoryPath = @"D:\テストデータ\source";
@@ -43,16 +44,14 @@ namespace Test.ZipUtility.Compression
                     .Select((item, index) => new { index, item.sourceFile, item.compressionMethod })
                     .ToReadOnlyCollection();
             var totalCount = (UInt64)testItems.Sum(item => item.sourceFile.Length) * 2;
-            var currentCount = 0UL;
 
             var previousProgressText = "";
             var progress =
-                new CodingProgress(size =>
+                new Progress<UInt64>(size =>
                 {
                     lock (lockObject)
                     {
-                        currentCount += size;
-                        var progressText = string.Format("{0:F2}%\r", currentCount * 100.0 / totalCount);
+                        var progressText = string.Format("{0:F1}%\r", size * 100.0 / totalCount);
                         if (!string.Equals(progressText, previousProgressText, StringComparison.Ordinal))
                         {
                             Console.Write(progressText);
@@ -74,29 +73,37 @@ namespace Test.ZipUtility.Compression
                 .WithDegreeOfParallelism(Environment.ProcessorCount)
                 .ForAll(item =>
                 {
-                    var tempFile = new FileInfo(Path.GetTempFileName());
-                    try
+                    if (item.sourceFile.Length <= 0 && item.compressionMethod.CompressionMethodId == ZipEntryCompressionMethodId.BZIP2)
                     {
-                        using (var inputStream = item.sourceFile.OpenRead().AsInputByteStream())
-                        using (var tempFileStream = tempFile.OpenWrite().AsOutputByteStream())
-                        using (var outputStream = item.compressionMethod.GetEncodingStream(tempFileStream, (ulong)item.sourceFile.Length, progress))
+                    }
+                    else
+                    {
+                        var tempFile = new FileInfo(Path.GetTempFileName());
+                        try
                         {
-                            inputStream.CopyTo(outputStream);
-                        }
-                        using (var inputStream1 = item.sourceFile.OpenRead().AsInputByteStream())
-                        using (var tempFileStream = tempFile.OpenRead().AsInputByteStream())
-                        using (var inputStream2 = item.compressionMethod.GetDecodingStream(tempFileStream, (ulong)item.sourceFile.Length, progress))
-                        {
-                            var result = inputStream1.StreamBytesEqual(inputStream2, true);
-                            lock (lockObject)
+                            using (var inputStream = item.sourceFile.OpenRead().AsInputByteStream())
                             {
-                                Console.WriteLine(string.Format("{0}: file=\"{1}\", method={2}", result ? "OK" : "NG", item.sourceFile, item.compressionMethod.CompressionMethodId));
+                                using (var tempFileStream = tempFile.OpenWrite().AsOutputByteStream())
+                                using (var outputStream = item.compressionMethod.GetEncodingStream(tempFileStream, (UInt64)item.sourceFile.Length, progress))
+                                {
+                                    inputStream.CopyTo(outputStream);
+                                }
+                                using (var inputStream1 = item.sourceFile.OpenRead().AsInputByteStream())
+                                using (var tempFileStream = tempFile.OpenRead().AsInputByteStream())
+                                using (var inputStream2 = item.compressionMethod.GetDecodingStream(tempFileStream, (UInt64)item.sourceFile.Length, (UInt64)tempFile.Length, progress))
+                                {
+                                    var result = inputStream1.StreamBytesEqual(inputStream2, true);
+                                    lock (lockObject)
+                                    {
+                                        Console.WriteLine(string.Format("{0}: file=\"{1}\", method={2}", result ? "OK" : "NG", item.sourceFile, item.compressionMethod.CompressionMethodId));
+                                    }
+                                }
                             }
                         }
-                    }
-                    finally
-                    {
-                        tempFile.Delete();
+                        finally
+                        {
+                            tempFile.Delete();
+                        }
                     }
                 });
 

@@ -1,0 +1,89 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Decoder\LenDecoder.cs" />
+    <Compile Remove="Decoder\LiteralDecoder.cs" />
+    <Compile Remove="Decoder\LzmaDec.cs" />
+    <Compile Remove="Decoder\LzmaDecoder.cs" />
+    <Compile Remove="Decoder\LzmaDecoderConstants.cs" />
+    <Compile Remove="Decoder\LzmaDecoderStream.cs" />
+    <Compile Remove="Decoder\LzmaFinishMode.cs" />
+    <Compile Remove="Decoder\LzmaStatus.cs" />
+    <Compile Remove="Decoder\RangeDecoder\BitDecoder.cs" />
+    <Compile Remove="Decoder\RangeDecoder\BitTreeDecoder.cs" />
+    <Compile Remove="Decoder\RangeDecoder\Decoder.cs" />
+    <Compile Remove="Encoder\LenEncoder.cs" />
+    <Compile Remove="Encoder\LenPriceTableEncoder.cs" />
+    <Compile Remove="Encoder\LiteralEncoder.cs" />
+    <Compile Remove="Encoder\LzmaEnc.cs" />
+    <Compile Remove="Encoder\LzmaEncoder.cs" />
+    <Compile Remove="Encoder\LzmaEncoderConstants.cs" />
+    <Compile Remove="Encoder\LzmaEncoderProperties.cs" />
+    <Compile Remove="Encoder\LzmaEncoderStream.cs" />
+    <Compile Remove="Encoder\MatchFinderType.cs" />
+    <Compile Remove="Encoder\Optimal.cs" />
+    <Compile Remove="Encoder\ProbExtensions.cs" />
+    <Compile Remove="Encoder\RangeEncoder\BitEncoder.cs" />
+    <Compile Remove="Encoder\RangeEncoder\BitTreeEncoder.cs" />
+    <Compile Remove="Encoder\RangeEncoder\Encoder.cs" />
+    <Compile Remove="Encoder\RangeEncoder\ISubLiteralEncoder.cs" />
+    <Compile Remove="LzmaConstants.cs" />
+    <Compile Remove="old_LzmaConstants.cs" />
+    <Compile Remove="OutWindow.cs" />
+    <Compile Remove="State.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Decoder\LenDecoder.cs" />
+    <None Include="Decoder\LiteralDecoder.cs" />
+    <None Include="Decoder\LzmaDec.cs" />
+    <None Include="Decoder\LzmaDecoder.cs" />
+    <None Include="Decoder\LzmaDecoderConstants.cs" />
+    <None Include="Decoder\LzmaDecoderStream.cs" />
+    <None Include="Decoder\LzmaFinishMode.cs" />
+    <None Include="Decoder\LzmaStatus.cs" />
+    <None Include="Decoder\RangeDecoder\BitDecoder.cs" />
+    <None Include="Decoder\RangeDecoder\BitTreeDecoder.cs" />
+    <None Include="Decoder\RangeDecoder\Decoder.cs" />
+    <None Include="Encoder\LenEncoder.cs" />
+    <None Include="Encoder\LenPriceTableEncoder.cs" />
+    <None Include="Encoder\LiteralEncoder.cs" />
+    <None Include="Encoder\LzmaEnc.cs" />
+    <None Include="Encoder\LzmaEncoder.cs" />
+    <None Include="Encoder\LzmaEncoderConstants.cs" />
+    <None Include="Encoder\LzmaEncoderProperties.cs" />
+    <None Include="Encoder\LzmaEncoderStream.cs" />
+    <None Include="Encoder\MatchFinderType.cs" />
+    <None Include="Encoder\Optimal.cs" />
+    <None Include="Encoder\ProbExtensions.cs" />
+    <None Include="Encoder\RangeEncoder\BitEncoder.cs" />
+    <None Include="Encoder\RangeEncoder\BitTreeEncoder.cs" />
+    <None Include="Encoder\RangeEncoder\Encoder.cs" />
+    <None Include="Encoder\RangeEncoder\ISubLiteralEncoder.cs" />
+    <None Include="LzmaConstants.cs" />
+    <None Include="old_LzmaConstants.cs" />
+    <None Include="OutWindow.cs" />
+    <None Include="State.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SevenZip.Compression\SevenZip.Compression.csproj" />
+    <ProjectReference Include="..\Utility.IO\Utility.IO.csproj" />
+    <ProjectReference Include="..\Utility\Utility.csproj" />
+  </ItemGroup>
+
+</Project>

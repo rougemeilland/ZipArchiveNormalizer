@@ -1,14 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Utility.IO
 {
     class SequentialInputByteStreamBySequence
         : IInputByteStream<UInt64>
     {
+        private readonly IEnumerator<byte> _sourceSequenceEnumerator;
+
         private bool _isDisposed;
-        private IEnumerator<byte> _sourceSequenceEnumerator;
-        private ulong _position;
+        private UInt64 _position;
         private bool _isEndOfBaseStream;
         private bool _isEndOfStream;
 
@@ -21,45 +24,22 @@ namespace Utility.IO
             _isEndOfStream = false;
         }
 
-        public ulong Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
+        public UInt64 Position => !_isDisposed ? _position : throw new ObjectDisposedException(GetType().FullName);
 
-        public int Read(byte[] buffer, int offset, int count)
+        public Int32 Read(Span<byte> buffer)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
-            if (buffer == null)
-                throw new ArgumentNullException(nameof(buffer));
-            if (offset < 0)
-                throw new ArgumentException();
-            if (count < 0)
-                throw new ArgumentException();
-            if (offset + count > buffer.Length)
-                throw new ArgumentException();
 
-            if (_isEndOfStream)
-                return 0;
+            return InternalRead(buffer, default);
+        }
 
-            var actualCount = 0;
-            while (_isEndOfBaseStream == false && actualCount < count)
-            {
-                if (_sourceSequenceEnumerator.MoveNext())
-                {
-                    buffer[offset + actualCount] = _sourceSequenceEnumerator.Current;
-                    ++actualCount;
-                }
-                else
-                {
-                    _isEndOfBaseStream = true;
-                    break;
-                }
-            }
-            if (actualCount <= 0)
-            {
-                _isEndOfStream = true;
-                return 0;
-            }
-            _position += (ulong)actualCount;
-            return actualCount;
+        public Task<Int32> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_isDisposed)
+                throw new ObjectDisposedException(GetType().FullName);
+
+            return Task.FromResult(InternalRead(buffer.Span, cancellationToken));
         }
 
         public void Dispose()
@@ -68,20 +48,57 @@ namespace Utility.IO
             GC.SuppressFinalize(this);
         }
 
+        public async ValueTask DisposeAsync()
+        {
+            await DisposeAsyncCore().ConfigureAwait(false);
+            Dispose(disposing: false);
+            GC.SuppressFinalize(this);
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!_isDisposed)
             {
                 if (disposing)
-                {
-                    if (_sourceSequenceEnumerator != null)
-                    {
-                        _sourceSequenceEnumerator.Dispose();
-                        _sourceSequenceEnumerator = null;
-                    }
-                }
+                    _sourceSequenceEnumerator.Dispose();
                 _isDisposed = true;
             }
+        }
+
+        protected virtual ValueTask DisposeAsyncCore()
+        {
+            if (!_isDisposed)
+            {
+                _sourceSequenceEnumerator.Dispose();
+                _isDisposed = true;
+            }
+            return ValueTask.CompletedTask;
+        }
+
+        private Int32 InternalRead(Span<byte> buffer, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_isEndOfStream)
+                return 0;
+            var bufferIndex = 0;
+            while (!_isEndOfBaseStream && bufferIndex < buffer.Length)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (_sourceSequenceEnumerator.MoveNext())
+                    buffer[bufferIndex++] = _sourceSequenceEnumerator.Current;
+                else
+                {
+                    _isEndOfBaseStream = true;
+                    break;
+                }
+            }
+            if (bufferIndex <= 0)
+            {
+                _isEndOfStream = true;
+                return 0;
+            }
+            _position += (UInt32)bufferIndex;
+            return bufferIndex;
         }
     }
 }

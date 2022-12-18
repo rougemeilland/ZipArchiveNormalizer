@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using Utility;
 
 namespace ZipUtility
 {
@@ -7,11 +8,12 @@ namespace ZipUtility
     {
         public ZipDiskFile(UInt32 diskNumber, FileInfo diskFile, UInt64 offset)
         {
+            if (!diskFile.Exists || diskFile.Length < 0)
+                throw new InternalLogicalErrorException();
+
             DiskNumber = diskNumber;
             DiskFile = diskFile;
             Offset = offset;
-            if (!diskFile.Exists || diskFile.Length < 0)
-                throw new ArgumentException();
             Length = (UInt64)diskFile.Length;
         }
 

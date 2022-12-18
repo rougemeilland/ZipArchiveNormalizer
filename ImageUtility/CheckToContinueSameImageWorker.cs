@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Utility;
 using Utility.FileWorker;
 using Utility.IO;
@@ -15,7 +16,7 @@ namespace ImageUtility
         private class ExecutionResult
             : IFileWorkerExecutionResult
         {
-            public ExecutionResult(IEnumerable<FileInfo> sourceFiles, IEnumerable<FileInfo> destinationFiles, long totalChangedFileCount)
+            public ExecutionResult(IEnumerable<FileInfo> sourceFiles, IEnumerable<FileInfo> destinationFiles, Int64 totalChangedFileCount)
             {
                 SourceFiles = sourceFiles.ToReadOnlyCollection();
                 DestinationFiles = destinationFiles.ToReadOnlyCollection();
@@ -26,7 +27,7 @@ namespace ImageUtility
 
             public IReadOnlyCollection<FileInfo> DestinationFiles { get; }
 
-            public long TotalChangedFileCount { get; }
+            public Int64 TotalChangedFileCount { get; }
         }
 
         public CheckToContinueSameImageWorker(IWorkerCancellable canceller)
@@ -36,17 +37,16 @@ namespace ImageUtility
 
         public override string Description => "同一の画像が連続していないかチェックします。";
 
-        protected override void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult previousWorkerResult)
+        protected override void ExecuteWork(IEnumerable<FileInfo> sourceFiles, IFileWorkerExecutionResult? previousWorkerResult)
         {
-            var totalCount = -1L;
-            var countOfDone = -1L;
-            var copyOfSourceFile =
-                previousWorkerResult.DestinationFiles
-                .ToReadOnlyCollection();
+            if (sourceFiles is null)
+                throw new ArgumentNullException(nameof(sourceFiles));
+
+            var copyOfSourceFile = previousWorkerResult?.DestinationFiles ?? sourceFiles.ToReadOnlyCollection();
             SetToSourceFiles(copyOfSourceFile);
 
-            totalCount = copyOfSourceFile.Count;
-            countOfDone = 0;
+            var totalCount = (UInt64)copyOfSourceFile.Count;
+            var countOfDone = 0UL;
             UpdateProgress(totalCount, countOfDone);
             using (var cancellationTokenSource = new CancellationTokenSource())
             {
@@ -73,19 +73,20 @@ namespace ImageUtility
                         try
                         {
                             UpdateProgress(totalCount, Interlocked.Increment(ref countOfDone));
-                            AddToDestinationFiles(item.files[0]);
+                            AddToDestinationFiles(item.files.Span[0]);
                             if (item.files.Length > 1)
                             {
-                                for (int index = 0; index < item.files.Length - 1; index++)
+                                var files = item.files.Span;
+                                for (Int32 index = 0; index < item.files.Length - 1; index++)
                                 {
                                     try
                                     {
-                                        if (item.files[index].Length == item.files[index + 1].Length &&
-                                            item.files[index].OpenRead().StreamBytesEqual(item.files[index + 1].OpenRead(), progressNotification: count => UpdateProgress()))
+                                        if (files[index].Length == files[index + 1].Length &&
+                                            files[index].OpenRead().StreamBytesEqual(files[index + 1].OpenRead(), progress: new Progress<UInt64>(_ => UpdateProgress())))
                                         {
                                             try
                                             {
-                                                ActionForSameImageFile(item.files[index], item.files[index + 1]);
+                                                ActionForSameImageFile(files[index], files[index + 1]);
                                             }
                                             catch (Exception)
                                             {
@@ -95,7 +96,7 @@ namespace ImageUtility
                                     finally
                                     {
                                         UpdateProgress(totalCount, Interlocked.Increment(ref countOfDone));
-                                        AddToDestinationFiles(item.files[index + 1]);
+                                        AddToDestinationFiles(files[index + 1]);
                                     }
                                 }
                             }
@@ -111,7 +112,7 @@ namespace ImageUtility
                                     string.Format(
                                         "並列処理中に例外が発生しました。: 処理クラス={0}, 対象ディレクトリ=\"{1}\", message=\"{2}\", スタックトレース=>{3}",
                                         GetType().FullName,
-                                        item.directory.FullName,
+                                        item.directory?.FullName ?? ".",
                                         ex.Message,
                                         ex.StackTrace),
                                     ex);

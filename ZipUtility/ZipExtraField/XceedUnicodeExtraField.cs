@@ -3,20 +3,19 @@ using System.Linq;
 using System.Text;
 using Utility;
 using Utility.IO;
-using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
     public class XceedUnicodeExtraField
         : ExtraField
     {
-        private static Encoding _unicodeEncoding;
-        private static byte[] _signature;
+        private static readonly Encoding _unicodeEncoding;
+        private static readonly ReadOnlyMemory<byte> _signature;
 
         static XceedUnicodeExtraField()
         {
             _unicodeEncoding = Encoding.Unicode;
-            _signature = new byte[] { 0x4e, 0x55, 0x43, 0x58 };
+            _signature = new byte[] { 0x4e, 0x55, 0x43, 0x58 }.AsReadOnly();
         }
 
         public XceedUnicodeExtraField()
@@ -27,11 +26,11 @@ namespace ZipUtility.ZipExtraField
 
         public const ushort ExtraFieldId = 0x554e;
 
-        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
+        public override ReadOnlyMemory<byte>? GetData(ZipEntryHeaderType headerType)
         {
             if (string.IsNullOrEmpty(FullName) && string.IsNullOrEmpty(Comment))
                 return null;
-            var writer = new ByteArrayOutputStream();
+            var writer = new ByteArrayRenderer();
             writer.WriteBytes(_signature);
             writer.WriteUInt16LE((UInt16)(FullName?.Length ?? 0));
             writer.WriteUInt16LE((UInt16)(Comment?.Length ?? 0));
@@ -40,16 +39,16 @@ namespace ZipUtility.ZipExtraField
             return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> data)
         {
             FullName = null;
             Comment = null;
-            var reader = new ByteArrayInputStream(data, index, count);
+            var reader = new ByteArrayParser(data);
             var success = false;
             try
             {
                 var signature = reader.ReadBytes(4);
-                if (!signature.SequenceEqual(_signature))
+                if (!signature.SequenceEqual(_signature.Span))
                     return;
                 switch (headerType)
                 {
@@ -73,15 +72,15 @@ namespace ZipUtility.ZipExtraField
                         break;
                     case ZipEntryHeaderType.Unknown:
                     default:
-                        throw new ArgumentException();
+                        throw new ArgumentException($"Unexpected {nameof(ZipEntryHeaderType)} value", nameof(headerType));
                 }
                 if (reader.ReadAllBytes().Length > 0)
-                    throw GetBadFormatException(headerType, data, index, count);
+                    throw GetBadFormatException(headerType, data);
                 success = true;
             }
             catch (UnexpectedEndOfStreamException)
             {
-                throw GetBadFormatException(headerType, data, index, count);
+                throw GetBadFormatException(headerType, data);
             }
             finally
             {
@@ -93,8 +92,7 @@ namespace ZipUtility.ZipExtraField
             }
         }
 
-        public string FullName { get; set; }
-        public string Comment { get; set; }
-        public int CodePage => _unicodeEncoding.CodePage;
+        public string? FullName { get; set; }
+        public string? Comment { get; set; }
     }
 }

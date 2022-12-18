@@ -1,7 +1,5 @@
 ﻿using System;
-using Utility;
 using Utility.IO;
-using ZipUtility.Helper;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -9,50 +7,56 @@ namespace ZipUtility.ZipExtraField
     public class CodePageExtraField
         : ExtraField
     {
+        private Int32? _codePage;
+
         public CodePageExtraField()
             : base(ExtraFieldId)
         {
-            CodePage = -1;
+            _codePage = null;
         }
 
 
         public const UInt16 ExtraFieldId = 0xe57a;
 
-        public override IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType)
+        public override ReadOnlyMemory<byte>? GetData(ZipEntryHeaderType headerType)
         {
-            if (CodePage < 0)
+            if (_codePage is null)
                 return null;
-            var writer = new ByteArrayOutputStream();
+            var writer = new ByteArrayRenderer();
             writer.WriteInt32LE(CodePage);
             return writer.ToByteArray();
         }
 
-        public override void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int index, int count)
+        public override void SetData(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> data)
         {
-            CodePage = -1;
-            var reader = new ByteArrayInputStream(data, index, count);
+            _codePage = null;
+            var reader = new ByteArrayParser(data);
             var succes = false;
             try
             {
                 CodePage = reader.ReadInt32LE();
                 if (reader.ReadAllBytes().Length > 0)
-                    throw GetBadFormatException(headerType, data, index, count);
+                    throw GetBadFormatException(headerType, data);
                 succes = true;
 
             }
             catch (UnexpectedEndOfStreamException)
             {
-                throw GetBadFormatException(headerType, data, index, count);
+                throw GetBadFormatException(headerType, data);
             }
             finally
             {
                 if (!succes)
                 {
-                    CodePage = -1;
+                    _codePage = null;
                 }
             }
         }
 
-        public Int32 CodePage { get; set; }
+        public Int32 CodePage
+        {
+            get => _codePage ?? throw new InvalidOperationException();
+            set => _codePage = value;
+        }
     }
 }

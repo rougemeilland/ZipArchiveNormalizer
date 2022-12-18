@@ -1,129 +1,324 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Utility
 {
-    internal abstract class CrcCalculationMethod<CRC_VALUE_T>
+    abstract class CrcCalculationMethod<CRC_VALUE_T>
         where CRC_VALUE_T : struct
     {
-        private class PathThroughSequenceWithCrcCalculationEnumerable
-            : IEnumerable<byte>
+        private const UInt64 _PROGRESS_STEP_COUNT = 1024UL * 1024UL;
+
+        #region private class
+
+        private class CrcCalculationSession
+            : ICrcCalculationState<CRC_VALUE_T, UInt64>
         {
-            private class Enumerator
-                : IEnumerator<byte>
+            private readonly CrcCalculationMethod<CRC_VALUE_T> _calculator;
+            private CRC_VALUE_T _state;
+            private UInt64 _length;
+
+            public CrcCalculationSession(CrcCalculationMethod<CRC_VALUE_T> calculator)
             {
-                private bool _isDisposed;
-                private IEnumerable<byte> _source;
-                private CrcCalculationMethod<CRC_VALUE_T> _crcCalculator;
-                private ValueHolder<CRC_VALUE_T> _result;
-                private IEnumerator<byte> _sourceEnumerator;
-                private CRC_VALUE_T _crc;
+                _calculator = calculator;
+                _state = calculator.InitialValue;
+                _length = 0;
+            }
 
-                public Enumerator(IEnumerable<byte> source, CrcCalculationMethod<CRC_VALUE_T> crcCalculator, ValueHolder<CRC_VALUE_T> result)
+            public void Put(byte data)
+            {
+                _state = _calculator.Update(_state, data);
+                ++_length;
+            }
+
+            public void Put(byte[] data, Int32 offset, Int32 count)
+            {
+                if (data is null)
+                    throw new ArgumentNullException(nameof(data));
+                if (offset < 0)
+                    throw new ArgumentOutOfRangeException(nameof(offset));
+                if (count < 0)
+                    throw new ArgumentOutOfRangeException(nameof(count));
+                checked
                 {
-                    _source = source;
-                    _crcCalculator = crcCalculator;
-                    _result = result;
-                    _sourceEnumerator = _source.GetEnumerator();
-                    _crc = _crcCalculator.InitialValue;
-                    _result.Value = default(CRC_VALUE_T);
+                    if (offset + count > data.Length)
+                        throw new ArgumentException($"The specified range ({nameof(offset)} and {nameof(count)}) is not within the {nameof(data)}.");
                 }
 
-                public byte Current => _sourceEnumerator.Current;
-                object IEnumerator.Current => Current;
+                for (var index = 0; index < count; ++index)
+                    _state = _calculator.Update(_state, data[offset + index]);
+                _length += (UInt32)count;
+            }
 
-                public bool MoveNext()
-                {
-                    if (_sourceEnumerator.MoveNext())
-                    {
-                        _crc = _crcCalculator.Update(_crc, _sourceEnumerator.Current);
-                        return true;
-                    }
-                    else
-                    {
-                        _crc = _crcCalculator.Finalize(_crc);
-                        _result.Value = _crc;
-                        return false;
-                    }
-                }
+            public void Put(ReadOnlySpan<byte> data)
+            {
+                for (var index = 0; index < data.Length; ++index)
+                    _state = _calculator.Update(_state, data[index]);
+                _length += (UInt32)data.Length;
+            }
 
-                public void Reset()
+            public void Put(IEnumerable<byte> data)
+            {
+                foreach (var byteData in data)
                 {
-                    _sourceEnumerator?.Dispose();
-                    _sourceEnumerator = _source.GetEnumerator();
-                    _crc = _crcCalculator.InitialValue;
-                    _result.Value = default(CRC_VALUE_T);
-                }
-
-                protected virtual void Dispose(bool disposing)
-                {
-                    if (!_isDisposed)
-                    {
-                        if (disposing)
-                        {
-                            if (_sourceEnumerator != null)
-                            {
-                                _sourceEnumerator.Dispose();
-                                _sourceEnumerator = null;
-                            }
-                        }
-                        _isDisposed = true;
-                    }
-                }
-
-                public void Dispose()
-                {
-                    Dispose(disposing: true);
-                    GC.SuppressFinalize(this);
+                    _state = _calculator.Update(_state, byteData);
+                    ++_length;
                 }
             }
 
-            private IEnumerable<byte> _source;
-            private CrcCalculationMethod<CRC_VALUE_T> _crcCalculator;
-            private ValueHolder<CRC_VALUE_T> _result;
-
-            public PathThroughSequenceWithCrcCalculationEnumerable(IEnumerable<byte> source, CrcCalculationMethod<CRC_VALUE_T> crcCalculator, ValueHolder<CRC_VALUE_T> result)
+            public void Reset()
             {
-                _source = source;
-                _crcCalculator = crcCalculator;
-                _result = result;
+                _state = _calculator.InitialValue;
+                _length = 0;
             }
 
-            public IEnumerator<byte> GetEnumerator() => new Enumerator(_source, _crcCalculator, _result);
-            IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+            public (CRC_VALUE_T Crc, UInt64 Length) GetResult()
+            {
+                return (_calculator.Finalize(_state), _length);
+            }
         }
 
-        public CRC_VALUE_T Calculate(IEnumerable<byte> dataSequence)
-        {
-            var crc = InitialValue;
-            foreach (var data in dataSequence)
-                crc = Update(crc, data);
-            return Finalize(crc);
-        }
+        #endregion
 
-        public CRC_VALUE_T Calculate(IEnumerable<byte> dataSequence, out ulong count)
+        public ICrcCalculationState<CRC_VALUE_T, UInt64> CreateSession() => new CrcCalculationSession(this);
+
+        public (CRC_VALUE_T Crc, UInt64 Length) Calculate(IEnumerable<byte> byteSequence, IProgress<UInt64>? progress = null)
         {
-            count = 0;
+            if (byteSequence is null)
+                throw new ArgumentNullException(nameof(byteSequence));
+
+            var count = 0UL;
             var crc = InitialValue;
-            foreach (var data in dataSequence)
+            foreach (var data in byteSequence)
             {
                 crc = Update(crc, data);
                 ++count;
+                if (count % _PROGRESS_STEP_COUNT == 0)
+                {
+                    try
+                    {
+                        progress?.Report(count);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
             }
+            try
+            {
+                progress?.Report(count);
+            }
+            catch (Exception)
+            {
+            }
+            return (Finalize(crc), count);
+        }
+
+        public async Task<(CRC_VALUE_T Crc, UInt64 Length)> CalculateAsync(IAsyncEnumerable<byte> byteSequence, IProgress<UInt64>? progress = null, CancellationToken cancellationToken = default)
+        {
+            if (byteSequence is null)
+                throw new ArgumentNullException(nameof(byteSequence));
+
+            var count = 0UL;
+            var crc = InitialValue;
+            var enumerator = byteSequence.GetAsyncEnumerator(cancellationToken);
+            await using (enumerator.ConfigureAwait(false))
+            {
+                while (await enumerator.MoveNextAsync().ConfigureAwait(false))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    crc = Update(crc, enumerator.Current);
+                    ++count;
+                    if (count % _PROGRESS_STEP_COUNT == 0)
+                    {
+                        try
+                        {
+                            progress?.Report(count);
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
+                }
+            }
+            try
+            {
+                progress?.Report(count);
+            }
+            catch (Exception)
+            {
+            }
+            return (Finalize(crc), count);
+        }
+
+        public IEnumerable<byte> GetSequenceWithCrc(IEnumerable<byte> source, ValueHolder<(CRC_VALUE_T Crc, UInt64 Length)> result, IProgress<UInt64>? progress = null)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+            if (result is null)
+                throw new ArgumentNullException(nameof(result));
+
+            var session = CreateSession();
+            var _processedCount = 0UL;
+            foreach (var data in source)
+            {
+                session.Put(data);
+                ++_processedCount;
+                if (_processedCount % _PROGRESS_STEP_COUNT == 0)
+                {
+                    try
+                    {
+                        progress?.Report(_processedCount);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+                yield return data;
+            }
+            result.Value = session.GetResult();
+            try
+            {
+                progress?.Report(_processedCount);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        public async IAsyncEnumerable<byte> GetAsyncSequenceWithCrc(IAsyncEnumerable<byte> source, ValueHolder<(CRC_VALUE_T Crc, UInt64 Length)> result, IProgress<UInt64>? progress = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (source is null)
+                throw new ArgumentNullException(nameof(source));
+            if (result is null)
+                throw new ArgumentNullException(nameof(result));
+
+            var session = CreateSession();
+            var _processedCount = 0UL;
+            var enumerator = source.GetAsyncEnumerator(cancellationToken);
+            await using (enumerator.ConfigureAwait(false))
+            {
+                while (!await enumerator.MoveNextAsync().ConfigureAwait(false))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var data = enumerator.Current;
+                    session.Put(data);
+                    ++_processedCount;
+                    if (_processedCount % _PROGRESS_STEP_COUNT == 0)
+                    {
+                        try
+                        {
+                            progress?.Report(_processedCount);
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
+                    yield return data;
+                }
+                result.Value = session.GetResult();
+                try
+                {
+                    progress?.Report(_processedCount);
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
+
+        public CRC_VALUE_T Calculate(byte[] array)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+
+            return Calculate(array, 0, array.Length);
+        }
+
+        public CRC_VALUE_T Calculate(byte[] array, Int32 offset)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (!offset.IsBetween(0, array.Length))
+                throw new ArgumentOutOfRangeException(nameof(offset));
+
+            return Calculate(array, offset, array.Length - offset);
+        }
+
+        public CRC_VALUE_T Calculate(byte[] array, UInt32 offset)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (offset > array.Length)
+                throw new ArgumentOutOfRangeException(nameof(offset));
+#if DEBUG
+            if (offset > Int32.MaxValue)
+                throw new Exception();
+#endif
+
+            return Calculate(array, (Int32)offset, array.Length - (Int32)offset);
+        }
+
+        public CRC_VALUE_T Calculate(byte[] array, Range range)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            var (isOk, offset, count) = array.GetOffsetAndLength(range);
+            if (!isOk)
+                throw new ArgumentOutOfRangeException(nameof(range));
+
+            return Calculate(array, offset, count);
+        }
+
+        public CRC_VALUE_T Calculate(byte[] array, Int32 offset, Int32 count)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            if (offset < 0)
+                throw new ArgumentOutOfRangeException(nameof(offset));
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count));
+            checked
+            {
+                if (offset + count > array.Length)
+                    throw new ArgumentException($"The specified range ({nameof(offset)} and {nameof(count)}) is not within the {nameof(array)}.");
+            }
+
+            var crc = InitialValue;
+            for (var index = 0; index < count; ++index)
+                crc = Update(crc, array[offset + index]);
             return Finalize(crc);
         }
 
-        public IEnumerable<byte> GetSequenceWithCrc(IEnumerable<byte> source, ValueHolder<CRC_VALUE_T> result) =>
-                new PathThroughSequenceWithCrcCalculationEnumerable(source, this, result);
+        public CRC_VALUE_T Calculate(byte[] array, UInt32 offset, UInt32 count)
+        {
+            if (array is null)
+                throw new ArgumentNullException(nameof(array));
+            checked
+            {
+                if (offset + count > array.Length)
+                    throw new ArgumentException($"The specified range ({nameof(offset)} and {nameof(count)}) is not within the {nameof(array)}.");
+            }
 
-        public CRC_VALUE_T Calculate(IReadOnlyArray<byte> array) => Calculate(array, 0, array.Length);
+            var crc = InitialValue;
+            for (var index = 0U; index < count; ++index)
+                crc = Update(crc, array[offset + index]);
+            return Finalize(crc);
+        }
 
-        public CRC_VALUE_T Calculate(IReadOnlyArray<byte> array, int offset, int count)
+        public CRC_VALUE_T Calculate(ReadOnlyMemory<byte> array)
+        {
+            return Calculate(array.Span);
+        }
+
+        public CRC_VALUE_T Calculate(ReadOnlySpan<byte> array)
         {
             var crc = InitialValue;
-            for (var index = 0; index < count; ++count)
-                crc = Update(crc, array[offset + index]);
+            var count = array.Length;
+            for (var index = 0; index < count; ++index)
+                crc = Update(crc, array[index]);
             return Finalize(crc);
         }
 

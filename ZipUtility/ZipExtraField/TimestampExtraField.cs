@@ -1,5 +1,4 @@
 ﻿using System;
-using Utility;
 
 namespace ZipUtility.ZipExtraField
 {
@@ -18,8 +17,8 @@ namespace ZipUtility.ZipExtraField
             _creationTimeUtc = null;
         }
 
-        public override abstract IReadOnlyArray<byte> GetData(ZipEntryHeaderType headerType);
-        public override abstract void SetData(ZipEntryHeaderType headerType, IReadOnlyArray<byte> data, int offset, int count);
+        public override abstract ReadOnlyMemory<byte>? GetData(ZipEntryHeaderType headerType);
+        public override abstract void SetData(ZipEntryHeaderType headerType, ReadOnlyMemory<byte> data);
 
         public virtual DateTime? LastWriteTimeUtc
         {
@@ -27,9 +26,9 @@ namespace ZipUtility.ZipExtraField
 
             set =>
                 _lastWriteTimeUtc =
-                    value == null || value.Value.Kind != DateTimeKind.Unspecified
+                    value is null || value.Value.Kind != DateTimeKind.Unspecified
                     ? value?.ToUniversalTime()
-                    : throw new ArgumentException();
+                    : throw new ArgumentException($"Unexpected {nameof(DateTime.Kind)} value", nameof(value));
         }
 
         public virtual DateTime? LastAccessTimeUtc
@@ -38,9 +37,9 @@ namespace ZipUtility.ZipExtraField
 
             set =>
                 _lastAccessTimeUtc =
-                    value == null || value.Value.Kind != DateTimeKind.Unspecified
+                    value is null || value.Value.Kind != DateTimeKind.Unspecified
                     ? value?.ToUniversalTime()
-                    : throw new ArgumentException();
+                    : throw new ArgumentException($"Unexpected {nameof(DateTime.Kind)} value", nameof(value));
         }
 
         public virtual DateTime? CreationTimeUtc
@@ -49,9 +48,9 @@ namespace ZipUtility.ZipExtraField
 
             set =>
                 _creationTimeUtc =
-                    value == null || value.Value.Kind != DateTimeKind.Unspecified
+                    value is null || value.Value.Kind != DateTimeKind.Unspecified
                     ? value?.ToUniversalTime()
-                    : throw new ArgumentException();
+                    : throw new ArgumentException($"Unexpected {nameof(DateTime.Kind)} value", nameof(value));
         }
     }
 }

@@ -5,7 +5,7 @@
     {
         public ValueHolder()
         {
-            Value = default(VALUE_T);
+            Value = default;
         }
 
         public VALUE_T Value { get; set; }
